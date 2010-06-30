@@ -6,8 +6,16 @@ Installing Owlcat
 * Assorted python packages: pyfits, numpy, matplotlib. These are already
 present in most Linux distros.
 
-* casacore and pyrap. Easiest to install these from the MeqTrees repository,
-if you have a supported distro (see http://www.astron.nl/meqwiki/Downloading).
+* casacore and pyrap. If you don't have them , it's easiest to install these
+from the MeqTrees repository, if you have a supported distro (see
+http://www.astron.nl/meqwiki/Downloading).
+
+* MeqTrees Cattery. Either install meqtrees-frameworks from the MeqTrees
+repository, or check out the Python code directly
+
+  svn co svn://lofar9.astron.nl/var/svn/repos/trunk/Frameworks/Cattery
+
+  ...and add the Cattery dir to your PYTHONPATH.
 
 2. Getting Owlcat
 
