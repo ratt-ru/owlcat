@@ -1,0 +1,205 @@
+<HTML><BODY>
+
+      <TITLE>An Owlcat Tutorial</TITLE>
+
+      <H1><A CLASS="TITLE" TIMESTAMP=1267573614>An Owlcat Tutorial</A></H1>
+
+      
+        <HR WIDTH=100%%>
+        <H2><IMG SRC="purr24.png"></IMG> Introducing Owlcat</H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 02/27/2010 02:12:41 AM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>OWLCAT stands for Oleg's W--- Lightweight Calibration & Analysis Toolkit. The W can represent Wisely, Wantonly, Woefully, Weirdly, Wonderfully, Wickedly, Wobbly, Wankingly, Warp 9, or Whatever suits your mood. Owlcat is a bunch of scripts I wrote to help me reduce data. Of these, plot-ms.py, flag-ms.py and plot-parms.py are probably the most useful. </P>
+      <P>Owlcat is (currently) in my Waterhole, so if you want to use it, you must first check it out: </P>
+      <P>$ svn co svn://lofar9.astron.nl/var/svn/repos/trunk/Waterhole/contrib/OMS/Owlcat </P>
+      <P>This will create a directory called Owlcat. Now, make sure this directory is both in your PYTHONPATH and PATH. </P>
+      <P>Before you go any further, please make sure you've got Pylab/Matplotlib installed (Ubuntu package python-matplotlib), and have a copy of the MeqTrees Cattery scripts (svn co svn://lofar9.astron.nl/var/svn/repos/trunk/Frameworks/Cattery. No working MeqTrees required, just a copy of the Cattery python scripts.) Owlcat will not work without these.  </P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+    <TR>
+      <TD><A HREF="entry-20100227-021241/owlcat-logo.jpg"><IMG SRC="entry-20100227-021241/owlcat-logo.jpg.purr-products/thumb.png" ALT="owlcat-logo.jpg"></A></TD>
+      <TD><P><A HREF="entry-20100227-021241/owlcat-logo.jpg">owlcat-logo.jpg</A>: The Owlcat logo</P></TD>
+    </TR>
+
+        </TABLE>
+        <HR WIDTH=100%%>
+        <H2><IMG SRC="purr24.png"></IMG> Different kinds of plots</H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 02/27/2010 02:23:58 AM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Currently, the most versatile tool in the toolkit is the plot-ms.py script. To try it out, arm yourself with an MS. I will provide some examples based on the 3C147_spw0.MS, which you can download here: </P>
+      <P>http://www.astron.nl/meqwiki-data/users/oms/3C147-Calibration-Tutorial/3C147_spw0.MS.tgz </P>
+      <P>For starters, try </P>
+      <P>$ plot-ms.py -h </P>
+      <P>This just to let you know that there's many options, and I've tried to document them all. Don't bother reading them in detail, just type </P>
+      <P>$ plot-ms.py 3C147_spw0.MS </P>
+      <P>to make your first plot. This is a plot of the mean Stokes I (|XX|+|YY|) in the CORRECTED_DATA column, as a function of time, averaged over all frequencies. Note how data from individual baselines is stacked up and sorted by baseline length. </P>
+      <P>The plot is displayed in a window. Close the window to exit the script. To save the plot to a file, use the -o option: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -o plot1.png </P>
+      <P>Besides .png, you can also use .ps, .eps, .svg, and whatever else is supported by matplotlib -- see matplotlib documentation. For PostScript output, you can set paper size, plot size, etc -- see the help for details. </P>
+      <P>Now, this was a plot of mean Stokes I in CORRECTED_DATA. This is the default plot type made when nothing else is specified. To make different plots, you must specify them on the command line after the MS name, as "column:plottype". For example </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX DATA:YY </P>
+      <P>makes two plots, of mean |XX| and |YY| in the DATA column. Note the label at the top of the plot, which gives a bunch of details. </P>
+      <P>Instead of the mean |XX| in frequency, you can also plot standard deviations: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX.std </P>
+      <P>Other functions you can try are .min, .max and .sum. The default plot (plot 1) is equivalent to CORRECTED_DATA:I.mean. Finally, try: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS CORRECTED_DATA.mean:I </P>
+      <P>and see if you can spot the difference. In plot 1, we plotted mean amplitudes, here we plot the amplitude of the (complex) mean visibility. This is an important distinction (for starters, the mean complex visibility always tends to be smaller, as it is a vector sum that tends to "wash out" due to the phase component.)! The positioning of ".mean" determines whether it applies to the column (i.e. visibilities), or to the amplitudes. </P>
+      <P>The previous plots were a function of time & averaged in frequency. To plot things as a function of frequency (averaged in time), use the --x-freq option. This will show you the time-frequency amplitude and phase bandpasses: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq </P>
+      <P>The gap in the plot is due to a flagged channel. To ignore flags (i.e. plot flagged data anyway), use the -F option. Note that this may impact the scale of your plot (which is chosen automatically based on the variation in the plotted data.) </P>
+      <P>Speaking of flags, another interesting plot type is the flag density plot. This shows the fraction of visibilities flagged per time slot or frequency channel. Use </P>
+      <P>$ plot-ms.py 3C147_spw0.MS flags_XX </P>
+      <P>to get a flag-density plot for XX (as a function of time.) Add the --x-freq option to plot it as a function of frequency. If you're flagging RFI, these kinds of plots are a nice way to see the bad timeslots and frequency channels. </P>
+      <P>Finally, note that all the different available plot types may be listed by running plot-ms.py --list-plots. </P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot1.png"><IMG SRC="entry-20100227-022358/plot1.png.purr-products/thumb.png" ALT="plot1.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot1.png">plot1.png</A>: our first plot: plot-ms.py 3C147_spw0.MS </P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot2.0.png"><IMG SRC="entry-20100227-022358/plot2.0.png.purr-products/thumb.png" ALT="plot2.0.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot2.0.png">plot2.0.png</A>: second plot: plot-ms.py 3C147_spw0.MS DATA:XX DATA:YY</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot2.1.png"><IMG SRC="entry-20100227-022358/plot2.1.png.purr-products/thumb.png" ALT="plot2.1.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot2.1.png">plot2.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot3.png"><IMG SRC="entry-20100227-022358/plot3.png.purr-products/thumb.png" ALT="plot3.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot3.png">plot3.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX.std</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot4.png"><IMG SRC="entry-20100227-022358/plot4.png.purr-products/thumb.png" ALT="plot4.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot4.png">plot4.png</A>: plot-ms.py 3C147_spw0.MS CORRECTED_DATA.mean:I</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot5.0.png"><IMG SRC="entry-20100227-022358/plot5.0.png.purr-products/thumb.png" ALT="plot5.0.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot5.0.png">plot5.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot5.1.png"><IMG SRC="entry-20100227-022358/plot5.1.png.purr-products/thumb.png" ALT="plot5.1.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot5.1.png">plot5.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot6.0.png"><IMG SRC="entry-20100227-022358/plot6.0.png.purr-products/thumb.png" ALT="plot6.0.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot6.0.png">plot6.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq -F</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot6.1.png"><IMG SRC="entry-20100227-022358/plot6.1.png.purr-products/thumb.png" ALT="plot6.1.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot6.1.png">plot6.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot7.png"><IMG SRC="entry-20100227-022358/plot7.png.purr-products/thumb.png" ALT="plot7.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot7.png">plot7.png</A>: plot-ms.py 3C147_spw0.MS flags_XX</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-022358/plot8.png"><IMG SRC="entry-20100227-022358/plot8.png.purr-products/thumb.png" ALT="plot8.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-022358/plot8.png">plot8.png</A>: plot-ms.py 3C147_spw0.MS flags_XX --x-freq</P></TD>
+    </TR>
+
+        </TABLE>
+        <HR WIDTH=100%%>
+        <H2><IMG SRC="purr24.png"></IMG> Data selection</H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 02/27/2010 11:41:07 PM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Note the sawtooth pattern in the last flag density plot of the previous entry. This is due to this particular MS having every second channel flagged (in tribute to a long-gone imager bug.) We can use the -L option to select only the "good" channels. </P>
+      <P>$ plot-ms.py 3C147_spw0.MS flags_XX --x-freq -L 3~55:2 </P>
+      <P>The -L option expects a single channel number, or a 'start~end' range ('end' is inclusive), or a 'start~end:step' specification like the above. If you're used to thinking in terms of Python slices (where N:M means from N up to and NOT including M), you can use the 'start:end' or 'start:end:step' syntax instead -- the first ':' indicates that 'end' is to be interpreted in the Pythonic "+1" sense. And, as you would expect, "10~" or "10:" means from 10 till the end, "10~:2" or "10::2" means from 10 till the end with a stepping of 2, and "~9" or ":10" means 0 to 9.</P>
+      <P>The -T option works the same way for timeslot numbers. To select the first 120 timeslots, try: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX -L 3:55:2 -T 0~119   # or 0:120, or just :120 for the Pythonic way </P>
+      <P>The next selection option is -I, to select interferometers. This uses the standard Meow.IfrSet object, and so has the same flexible syntax as the interferometer selector in all Siamese and Calico scripts. To get a summary of the syntax run: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -I help </P>
+      <P>In the examples below, we use -I "-&lt;300* -C*" to select all baselines except those shorter than 300m and those with antenna C, "C* -CD" to select all baselines with C except C-D, and "F-M -7*" to select the standard WSRT set of fixed-movable baselines, but omit those with antenna 7. </P>
+      <P>Another data selection option is -D, to use with MSs that contain multiple DATA_DESC_IDs (these usually correspond to spectral windows.) The default is to use the first DDID in your MS (usually 0). You can also specify "-D all" or "-D 0,1,2" to plot data for multiple DDIDs (our test MS contains only DDID 0). Note that different DDIDs normally go on separate plot pages, but you can also ask the script to average them together. We'll learn about this later on in the tutorial. </P>
+      <P>Finally, the -Q option can be used to refine your data selection further through the use of TaQL queries. For example: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -Q "ANTENNA1==1" </P>
+      <P>is just another way of selecting all baselines where antenna 1 is the first element (equivalent to -I "1* -01"). TaQL is an SQL-like language for querying MSs. It is fully documented here: http://www.astron.nl/casacore/trunk/casacore/doc/notes/199.html. </P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot9.png"><IMG SRC="entry-20100227-234107/plot9.png.purr-products/thumb.png" ALT="plot9.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot9.png">plot9.png</A>: plot-ms.py 3C147_spw0.MS flags_XX --x-freq -L 3~55:2</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot10.png"><IMG SRC="entry-20100227-234107/plot10.png.purr-products/thumb.png" ALT="plot10.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot10.png">plot10.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -L 3~55:2 -T 0~119 </P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot11.png"><IMG SRC="entry-20100227-234107/plot11.png.purr-products/thumb.png" ALT="plot11.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot11.png">plot11.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''-&lt;300 -C*''</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot12.png"><IMG SRC="entry-20100227-234107/plot12.png.purr-products/thumb.png" ALT="plot12.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot12.png">plot12.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''C* -CD''</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot13.png"><IMG SRC="entry-20100227-234107/plot13.png.purr-products/thumb.png" ALT="plot13.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot13.png">plot13.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''F-M -7*''</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100227-234107/plot14.png"><IMG SRC="entry-20100227-234107/plot14.png.purr-products/thumb.png" ALT="plot14.png"></A></TD>
+      <TD><P><A HREF="entry-20100227-234107/plot14.png">plot14.png</A>: plot-ms.py 3C147_spw0.MS -Q ''ANTENNA1==1''</P></TD>
+    </TR>
+
+        </TABLE>
+        <HR WIDTH=100%%>
+        <H2><IMG SRC="purr24.png"></IMG> Arranging plots</H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 03/03/2010 12:46:53 AM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Normally, a command like</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" </P>
+      <P>will produce two separate plot pages: one for |XX| and one for |YY|. The "-S" option can be used to stack the different plot types onto the same page. By default, only baselines are stacked, but the following command:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot</P>
+      <P>tells plot-ms to stack the plot types as well. To change the order in which the plots are stacked w.r.t.each other, you can give the -S option several times. For example, this will stack plots first by type, then by baseline: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot -S ifr</P>
+      <P>You can also put different baselines on different plot page by using the -P option. (Make sure you don't specify too many baselines in this case.) Try this:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "AB CD" -S plot -P ifr --size 20x10</P>
+      <P>(Note that we use the "--size" option to adjust the size of the plots.) Finally, the -A option can be used to average baselines together instead of stacking them:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -S plot -A ifr --size 20x10</P>
+      <P>And of course the same -P/-S/-A options can also apply to multiple DDIDs (i.e. spectral windows), if your MS happens to contain them.</P>
+      <P>This concludes our tutorial for the plot-ms tool. There are a few more obscure command-line options, you can use "plot-ms.py -h" to look them up.</P>
+      <P></P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+    <TR>
+      <TD><A HREF="entry-20100303-004653/plot15.png"><IMG SRC="entry-20100303-004653/plot15.png.purr-products/thumb.png" ALT="plot15.png"></A></TD>
+      <TD><P><A HREF="entry-20100303-004653/plot15.png">plot15.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100303-004653/plot16.png"><IMG SRC="entry-20100303-004653/plot16.png.purr-products/thumb.png" ALT="plot16.png"></A></TD>
+      <TD><P><A HREF="entry-20100303-004653/plot16.png">plot16.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot -S ifr</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100303-004653/plot17.0.png"><IMG SRC="entry-20100303-004653/plot17.0.png.purr-products/thumb.png" ALT="plot17.0.png"></A></TD>
+      <TD><P><A HREF="entry-20100303-004653/plot17.0.png">plot17.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "AB CD" -S plot -P ifr --size 20x10</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100303-004653/plot17.1.png"><IMG SRC="entry-20100303-004653/plot17.1.png.purr-products/thumb.png" ALT="plot17.1.png"></A></TD>
+      <TD><P><A HREF="entry-20100303-004653/plot17.1.png">plot17.1.png</A>: page 2 of the above</P></TD>
+    </TR>
+    <TR>
+      <TD><A HREF="entry-20100303-004653/plot18.png"><IMG SRC="entry-20100303-004653/plot18.png.purr-products/thumb.png" ALT="plot18.png"></A></TD>
+      <TD><P><A HREF="entry-20100303-004653/plot18.png">plot18.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -S plot -A ifr --size 20x10</P></TD>
+    </TR>
+
+        </TABLE><HR>
+<DIV ALIGN=right><IMG SRC="purr16.png"></IMG> <I><SMALL>This log was generated
+               by PURR version 1.1.</SMALL></I></DIV>
+</BODY></HTML>

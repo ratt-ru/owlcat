@@ -1,0 +1,55 @@
+<HTML><BODY>
+      <TITLE>Arranging plots</TITLE><DIV ALIGN=right><P><A HREF="../entry-20100227-234107/index.html">&lt;&lt;Previous</A> <A HREF="../index.html">Up</A> </P></DIV><H2><IMG SRC="../purr24.png"></IMG> <A CLASS="TITLE" TIMESTAMP=1267573613>Arranging plots</A></H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 03/03/2010 12:46:53 AM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Normally, a command like</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" </P>
+      <P>will produce two separate plot pages: one for |XX| and one for |YY|. The "-S" option can be used to stack the different plot types onto the same page. By default, only baselines are stacked, but the following command:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot</P>
+      <P>tells plot-ms to stack the plot types as well. To change the order in which the plots are stacked w.r.t.each other, you can give the -S option several times. For example, this will stack plots first by type, then by baseline: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot -S ifr</P>
+      <P>You can also put different baselines on different plot page by using the -P option. (Make sure you don't specify too many baselines in this case.) Try this:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -I "AB CD" -S plot -P ifr --size 20x10</P>
+      <P>(Note that we use the "--size" option to adjust the size of the plots.) Finally, the -A option can be used to average baselines together instead of stacking them:</P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX YY -S plot -A ifr --size 20x10</P>
+      <P>And of course the same -P/-S/-A options can also apply to multiple DDIDs (i.e. spectral windows), if your MS happens to contain them.</P>
+      <P>This concludes our tutorial for the plot-ms tool. There are a few more obscure command-line options, you can use "plot-ms.py -h" to look them up.</P>
+      <P></P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+
+            <A CLASS="DP" FILENAME="plot15.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot15.png" POLICY="copy" QUIET=1 TIMESTAMP=1267572591 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX YY -I ''C*'' -S plot"></A>
+    <TR>
+      <TD><A HREF="plot15.png"><IMG SRC="plot15.png.purr-products/thumb.png" ALT="plot15.png"></A></TD>
+      <TD><P><A HREF="plot15.png">plot15.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot16.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot16.png" POLICY="copy" QUIET=1 TIMESTAMP=1267572918 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX YY -I ''C*'' -S plot -S ifr"></A>
+    <TR>
+      <TD><A HREF="plot16.png"><IMG SRC="plot16.png.purr-products/thumb.png" ALT="plot16.png"></A></TD>
+      <TD><P><A HREF="plot16.png">plot16.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "C*" -S plot -S ifr</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot17.0.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot17.0.png" POLICY="copy" QUIET=1 TIMESTAMP=1267573280 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX YY -I ''AB CD'' -S plot -P ifr --size 20x10"></A>
+    <TR>
+      <TD><A HREF="plot17.0.png"><IMG SRC="plot17.0.png.purr-products/thumb.png" ALT="plot17.0.png"></A></TD>
+      <TD><P><A HREF="plot17.0.png">plot17.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -I "AB CD" -S plot -P ifr --size 20x10</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot17.1.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot17.1.png" POLICY="copy" QUIET=1 TIMESTAMP=1267573280 RENDER="image" COMMENT="page 2 of the above"></A>
+    <TR>
+      <TD><A HREF="plot17.1.png"><IMG SRC="plot17.1.png.purr-products/thumb.png" ALT="plot17.1.png"></A></TD>
+      <TD><P><A HREF="plot17.1.png">plot17.1.png</A>: page 2 of the above</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot18.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot18.png" POLICY="copy" QUIET=1 TIMESTAMP=1267573442 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX YY -S plot -A ifr --size 20x10"></A>
+    <TR>
+      <TD><A HREF="plot18.png"><IMG SRC="plot18.png.purr-products/thumb.png" ALT="plot18.png"></A></TD>
+      <TD><P><A HREF="plot18.png">plot18.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX YY -S plot -A ifr --size 20x10</P></TD>
+    </TR>
+
+        </TABLE></BODY></HTML>

@@ -1,0 +1,60 @@
+<HTML><BODY>
+      <TITLE>Data selection</TITLE><DIV ALIGN=right><P><A HREF="../entry-20100227-022358/index.html">&lt;&lt;Previous</A> <A HREF="../index.html">Up</A> <A HREF="../entry-20100303-004653/index.html">Next&gt;&gt;</A></P></DIV><H2><IMG SRC="../purr24.png"></IMG> <A CLASS="TITLE" TIMESTAMP=1267310467>Data selection</A></H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 02/27/2010 11:41:07 PM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Note the sawtooth pattern in the last flag density plot of the previous entry. This is due to this particular MS having every second channel flagged (in tribute to a long-gone imager bug.) We can use the -L option to select only the "good" channels. </P>
+      <P>$ plot-ms.py 3C147_spw0.MS flags_XX --x-freq -L 3~55:2 </P>
+      <P>The -L option expects a single channel number, or a 'start~end' range ('end' is inclusive), or a 'start~end:step' specification like the above. If you're used to thinking in terms of Python slices (where N:M means from N up to and NOT including M), you can use the 'start:end' or 'start:end:step' syntax instead -- the first ':' indicates that 'end' is to be interpreted in the Pythonic "+1" sense. And, as you would expect, "10~" or "10:" means from 10 till the end, "10~:2" or "10::2" means from 10 till the end with a stepping of 2, and "~9" or ":10" means 0 to 9.</P>
+      <P>The -T option works the same way for timeslot numbers. To select the first 120 timeslots, try: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX -L 3:55:2 -T 0~119   # or 0:120, or just :120 for the Pythonic way </P>
+      <P>The next selection option is -I, to select interferometers. This uses the standard Meow.IfrSet object, and so has the same flexible syntax as the interferometer selector in all Siamese and Calico scripts. To get a summary of the syntax run: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -I help </P>
+      <P>In the examples below, we use -I "-&lt;300* -C*" to select all baselines except those shorter than 300m and those with antenna C, "C* -CD" to select all baselines with C except C-D, and "F-M -7*" to select the standard WSRT set of fixed-movable baselines, but omit those with antenna 7. </P>
+      <P>Another data selection option is -D, to use with MSs that contain multiple DATA_DESC_IDs (these usually correspond to spectral windows.) The default is to use the first DDID in your MS (usually 0). You can also specify "-D all" or "-D 0,1,2" to plot data for multiple DDIDs (our test MS contains only DDID 0). Note that different DDIDs normally go on separate plot pages, but you can also ask the script to average them together. We'll learn about this later on in the tutorial. </P>
+      <P>Finally, the -Q option can be used to refine your data selection further through the use of TaQL queries. For example: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -Q "ANTENNA1==1" </P>
+      <P>is just another way of selecting all baselines where antenna 1 is the first element (equivalent to -I "1* -01"). TaQL is an SQL-like language for querying MSs. It is fully documented here: http://www.astron.nl/casacore/trunk/casacore/doc/notes/199.html. </P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+
+            <A CLASS="DP" FILENAME="plot9.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot9.png" POLICY="copy" QUIET=1 TIMESTAMP=1267306230 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS flags_XX --x-freq -L 3~55:2"></A>
+    <TR>
+      <TD><A HREF="plot9.png"><IMG SRC="plot9.png.purr-products/thumb.png" ALT="plot9.png"></A></TD>
+      <TD><P><A HREF="plot9.png">plot9.png</A>: plot-ms.py 3C147_spw0.MS flags_XX --x-freq -L 3~55:2</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot10.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot10.png" POLICY="copy" QUIET=1 TIMESTAMP=1267309222 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX -L 3~55:2 -T 0~119 "></A>
+    <TR>
+      <TD><A HREF="plot10.png"><IMG SRC="plot10.png.purr-products/thumb.png" ALT="plot10.png"></A></TD>
+      <TD><P><A HREF="plot10.png">plot10.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -L 3~55:2 -T 0~119 </P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot11.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot11.png" POLICY="copy" QUIET=1 TIMESTAMP=1267309485 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX -I ''-&lt;300 -C*''"></A>
+    <TR>
+      <TD><A HREF="plot11.png"><IMG SRC="plot11.png.purr-products/thumb.png" ALT="plot11.png"></A></TD>
+      <TD><P><A HREF="plot11.png">plot11.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''-&lt;300 -C*''</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot12.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot12.png" POLICY="copy" QUIET=1 TIMESTAMP=1267309582 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX -I ''C* -CD''"></A>
+    <TR>
+      <TD><A HREF="plot12.png"><IMG SRC="plot12.png.purr-products/thumb.png" ALT="plot12.png"></A></TD>
+      <TD><P><A HREF="plot12.png">plot12.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''C* -CD''</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot13.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot13.png" POLICY="copy" QUIET=1 TIMESTAMP=1267309757 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX -I ''F-M -7*''"></A>
+    <TR>
+      <TD><A HREF="plot13.png"><IMG SRC="plot13.png.purr-products/thumb.png" ALT="plot13.png"></A></TD>
+      <TD><P><A HREF="plot13.png">plot13.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX -I ''F-M -7*''</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot14.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot14.png" POLICY="copy" QUIET=1 TIMESTAMP=1267310319 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS -Q ''ANTENNA1==1''"></A>
+    <TR>
+      <TD><A HREF="plot14.png"><IMG SRC="plot14.png.purr-products/thumb.png" ALT="plot14.png"></A></TD>
+      <TD><P><A HREF="plot14.png">plot14.png</A>: plot-ms.py 3C147_spw0.MS -Q ''ANTENNA1==1''</P></TD>
+    </TR>
+
+        </TABLE></BODY></HTML>

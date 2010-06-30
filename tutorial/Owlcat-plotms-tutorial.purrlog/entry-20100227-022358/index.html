@@ -1,0 +1,103 @@
+<HTML><BODY>
+      <TITLE>Different kinds of plots</TITLE><DIV ALIGN=right><P><A HREF="../entry-20100227-021241/index.html">&lt;&lt;Previous</A> <A HREF="../index.html">Up</A> <A HREF="../entry-20100227-234107/index.html">Next&gt;&gt;</A></P></DIV><H2><IMG SRC="../purr24.png"></IMG> <A CLASS="TITLE" TIMESTAMP=1267233838>Different kinds of plots</A></H2>
+        <DIV ALIGN=right><P><SMALL>Logged on 02/27/2010 02:23:58 AM</SMALL></P></DIV>
+
+
+        <A CLASS="COMMENTS">
+      <P>Currently, the most versatile tool in the toolkit is the plot-ms.py script. To try it out, arm yourself with an MS. I will provide some examples based on the 3C147_spw0.MS, which you can download here: </P>
+      <P>http://www.astron.nl/meqwiki-data/users/oms/3C147-Calibration-Tutorial/3C147_spw0.MS.tgz </P>
+      <P>For starters, try </P>
+      <P>$ plot-ms.py -h </P>
+      <P>This just to let you know that there's many options, and I've tried to document them all. Don't bother reading them in detail, just type </P>
+      <P>$ plot-ms.py 3C147_spw0.MS </P>
+      <P>to make your first plot. This is a plot of the mean Stokes I (|XX|+|YY|) in the CORRECTED_DATA column, as a function of time, averaged over all frequencies. Note how data from individual baselines is stacked up and sorted by baseline length. </P>
+      <P>The plot is displayed in a window. Close the window to exit the script. To save the plot to a file, use the -o option: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS -o plot1.png </P>
+      <P>Besides .png, you can also use .ps, .eps, .svg, and whatever else is supported by matplotlib -- see matplotlib documentation. For PostScript output, you can set paper size, plot size, etc -- see the help for details. </P>
+      <P>Now, this was a plot of mean Stokes I in CORRECTED_DATA. This is the default plot type made when nothing else is specified. To make different plots, you must specify them on the command line after the MS name, as "column:plottype". For example </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX DATA:YY </P>
+      <P>makes two plots, of mean |XX| and |YY| in the DATA column. Note the label at the top of the plot, which gives a bunch of details. </P>
+      <P>Instead of the mean |XX| in frequency, you can also plot standard deviations: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX.std </P>
+      <P>Other functions you can try are .min, .max and .sum. The default plot (plot 1) is equivalent to CORRECTED_DATA:I.mean. Finally, try: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS CORRECTED_DATA.mean:I </P>
+      <P>and see if you can spot the difference. In plot 1, we plotted mean amplitudes, here we plot the amplitude of the (complex) mean visibility. This is an important distinction (for starters, the mean complex visibility always tends to be smaller, as it is a vector sum that tends to "wash out" due to the phase component.)! The positioning of ".mean" determines whether it applies to the column (i.e. visibilities), or to the amplitudes. </P>
+      <P>The previous plots were a function of time & averaged in frequency. To plot things as a function of frequency (averaged in time), use the --x-freq option. This will show you the time-frequency amplitude and phase bandpasses: </P>
+      <P>$ plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq </P>
+      <P>The gap in the plot is due to a flagged channel. To ignore flags (i.e. plot flagged data anyway), use the -F option. Note that this may impact the scale of your plot (which is chosen automatically based on the variation in the plotted data.)</P>
+      <P>Speaking of flags, another interesting plot type is the flag density plot. This shows the fraction of visibilities flagged per time slot or frequency channel. Use</P>
+      <P>$ plot-ms.py 3C147_spw0.MS flags_XX </P>
+      <P>to get a flag-density plot for XX (as a function of time.) Add the --x-freq option to plot it as a function of frequency. If you're flagging RFI, these kinds of plots are a nice way to see the bad timeslots and frequency channels.</P>
+      <P>Finally, note that all the different available plot types may be listed by running plot-ms.py --list-plots. </P>
+    </A>
+
+        <H3>Data products</H3>
+        <TABLE BORDER=1 FRAME=box RULES=all CELLPADDING=5>
+
+            <A CLASS="DP" FILENAME="plot1.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot1.png" POLICY="copy" QUIET=1 TIMESTAMP=1267233795 RENDER="image" COMMENT="our first plot: plot-ms.py 3C147_spw0.MS "></A>
+    <TR>
+      <TD><A HREF="plot1.png"><IMG SRC="plot1.png.purr-products/thumb.png" ALT="plot1.png"></A></TD>
+      <TD><P><A HREF="plot1.png">plot1.png</A>: our first plot: plot-ms.py 3C147_spw0.MS </P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot2.0.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot2.0.png" POLICY="copy" QUIET=1 TIMESTAMP=1267234606 RENDER="image" COMMENT="second plot: plot-ms.py 3C147_spw0.MS DATA:XX DATA:YY"></A>
+    <TR>
+      <TD><A HREF="plot2.0.png"><IMG SRC="plot2.0.png.purr-products/thumb.png" ALT="plot2.0.png"></A></TD>
+      <TD><P><A HREF="plot2.0.png">plot2.0.png</A>: second plot: plot-ms.py 3C147_spw0.MS DATA:XX DATA:YY</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot2.1.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot2.1.png" POLICY="copy" QUIET=1 TIMESTAMP=1267234607 RENDER="image" COMMENT="...and page 2 of the above"></A>
+    <TR>
+      <TD><A HREF="plot2.1.png"><IMG SRC="plot2.1.png.purr-products/thumb.png" ALT="plot2.1.png"></A></TD>
+      <TD><P><A HREF="plot2.1.png">plot2.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot3.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot3.png" POLICY="copy" QUIET=1 TIMESTAMP=1267234847 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX.std"></A>
+    <TR>
+      <TD><A HREF="plot3.png"><IMG SRC="plot3.png.purr-products/thumb.png" ALT="plot3.png"></A></TD>
+      <TD><P><A HREF="plot3.png">plot3.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX.std</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot4.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot4.png" POLICY="copy" QUIET=1 TIMESTAMP=1267235442 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS CORRECTED_DATA.mean:I"></A>
+    <TR>
+      <TD><A HREF="plot4.png"><IMG SRC="plot4.png.purr-products/thumb.png" ALT="plot4.png"></A></TD>
+      <TD><P><A HREF="plot4.png">plot4.png</A>: plot-ms.py 3C147_spw0.MS CORRECTED_DATA.mean:I</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot5.0.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot5.0.png" POLICY="copy" QUIET=1 TIMESTAMP=1267236394 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq"></A>
+    <TR>
+      <TD><A HREF="plot5.0.png"><IMG SRC="plot5.0.png.purr-products/thumb.png" ALT="plot5.0.png"></A></TD>
+      <TD><P><A HREF="plot5.0.png">plot5.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot5.1.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot5.1.png" POLICY="copy" QUIET=1 TIMESTAMP=1267236395 RENDER="image" COMMENT="...and page 2 of the above"></A>
+    <TR>
+      <TD><A HREF="plot5.1.png"><IMG SRC="plot5.1.png.purr-products/thumb.png" ALT="plot5.1.png"></A></TD>
+      <TD><P><A HREF="plot5.1.png">plot5.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot6.0.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot6.0.png" POLICY="copy" QUIET=1 TIMESTAMP=1267236493 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq -F"></A>
+    <TR>
+      <TD><A HREF="plot6.0.png"><IMG SRC="plot6.0.png.purr-products/thumb.png" ALT="plot6.0.png"></A></TD>
+      <TD><P><A HREF="plot6.0.png">plot6.0.png</A>: plot-ms.py 3C147_spw0.MS DATA:XX XXphase --x-freq -F</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot6.1.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot6.1.png" POLICY="copy" QUIET=1 TIMESTAMP=1267236494 RENDER="image" COMMENT="...and page 2 of the above"></A>
+    <TR>
+      <TD><A HREF="plot6.1.png"><IMG SRC="plot6.1.png.purr-products/thumb.png" ALT="plot6.1.png"></A></TD>
+      <TD><P><A HREF="plot6.1.png">plot6.1.png</A>: ...and page 2 of the above</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot7.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot7.png" POLICY="copy" QUIET=1 TIMESTAMP=1267305817 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS flags_XX"></A>
+    <TR>
+      <TD><A HREF="plot7.png"><IMG SRC="plot7.png.purr-products/thumb.png" ALT="plot7.png"></A></TD>
+      <TD><P><A HREF="plot7.png">plot7.png</A>: plot-ms.py 3C147_spw0.MS flags_XX</P></TD>
+    </TR>
+
+            <A CLASS="DP" FILENAME="plot8.png" SRC="/home/oms/Waterhole/contrib/OMS/Owlcat/tutorial/plot8.png" POLICY="copy" QUIET=1 TIMESTAMP=1267306017 RENDER="image" COMMENT="plot-ms.py 3C147_spw0.MS flags_XX --x-freq"></A>
+    <TR>
+      <TD><A HREF="plot8.png"><IMG SRC="plot8.png.purr-products/thumb.png" ALT="plot8.png"></A></TD>
+      <TD><P><A HREF="plot8.png">plot8.png</A>: plot-ms.py 3C147_spw0.MS flags_XX --x-freq</P></TD>
+    </TR>
+
+        </TABLE></BODY></HTML>
