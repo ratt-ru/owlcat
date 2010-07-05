@@ -62,7 +62,7 @@ class PlotCollection (object):
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
     # margin sizes. We want to keep them fixed in absolute terms,
-    # regardless of plot size. The relative numbers here are goof for a 210x290 plot, so
+    # regardless of plot size. The relative numbers here are good for a 210x290 plot, so
     # we rescale them accordingly.
     mleft   = 0.05 * 210./figsize[0];
     mbottom = 0.01 * 290./figsize[1];
@@ -139,6 +139,88 @@ class PlotCollection (object):
     # plot title if asked to
     if suptitle:
       fig.suptitle(suptitle,y=ytitle,size=8);
+    if save:
+      fig.savefig(save,papertype=papertype,
+                  orientation='portrait' if not landscape else 'landscape');
+      print "===> Wrote",save;
+    return fig;
+
+
+class ScatterPlot (object):
+  """ScatterPlot plots a complex scatterplot""";
+  def __init__ (self,options):
+    self.data = {};
+    self.label = {};
+    self.track_counts = {};
+    # inter-plot offset -- may be set from outside
+    self.offset = 0;
+
+  def add_point (self,key,x,y,label=None):
+    if isinstance(x,float):
+      x = [x];
+    if isinstance(y,float):
+      y = [y];
+    self.data[key] = x,y;
+    self.label[key] = label if label is not None else str(key);
+
+  def get_point (self,key):
+    return self.data.get(key,None);
+
+  # function to make single-page plot
+  def make_figure (self,suptitle=None,save=None,xlabel=None,ylabel=None,
+                   offset_std=10,
+                   figsize=(210,210),dpi=100,papertype='a4',landscape=False):
+    # create Figure object of given size and resolution
+    figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
+    fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
+    # margin sizes. We want to keep them fixed in absolute terms,
+    # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
+    # we rescale them accordingly.
+    mleft   = 0.06 * 210./figsize[0];
+    mbottom = 0.06 * 210./figsize[1];
+    mright  = 0.01 * 210./figsize[0];
+    mtop    = 0.04 * 210./figsize[1];
+    ytitle  = 1 - 0.01 * 210./figsize[1];
+    width   = ( 1 - mleft - mright );
+    height  = ( 1 - mtop - mbottom );
+    plt = fig.add_axes([mleft,mbottom,width,height]);
+    # remove common prefix from labels
+    if self.label:
+      lab0 = self.label.values()[0];
+      prefix = 1;
+      while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in self.label.itervalues()]):
+        prefix += 1;
+      labels = dict([(key,label[prefix-1:]) for key,label in self.label.iteritems()]);
+    else:
+      labels = None;
+    # plot data over text labels
+    for key,(x,y) in self.data.iteritems():
+      # plot data
+      try:
+        plt.plot(x,y,"-x",zorder=0);
+      except:
+        traceback.print_exc();
+        print "Error plotting data for",key;
+        continue;
+      # plot text labels 
+      if labels.get(key):
+        plt.text(x[0],y[0]," "+labels[key],horizontalalignment='left',verticalalignment='top',zorder=1,fontsize=8);
+#    plt.set_xbound(min([min(x) for x,y in self.data.itervalues()])[0],
+#                   max([max(x) for x,y in self.data.itervalues()])[0]);
+#    plt.set_ybound(min([min(y) for x,y in self.data.itervalues()])[0],
+#                   max([max(y) for x,y in self.data.itervalues()])[0]);
+    for lab in plt.get_xticklabels():
+      lab.set_fontsize(10);
+    for lab in plt.get_yticklabels():
+      lab.set_fontsize(10);
+      lab.set_rotation('vertical');
+    # plot title if asked to
+    if xlabel:
+      plt.set_xlabel(xlabel,size=10);
+    if ylabel:
+      plt.set_ylabel(ylabel,size=10);
+    if suptitle:
+      fig.suptitle(suptitle,y=ytitle,size=10);
     if save:
       fig.savefig(save,papertype=papertype,
                   orientation='portrait' if not landscape else 'landscape');

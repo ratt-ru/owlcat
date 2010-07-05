@@ -10,7 +10,6 @@ import warnings
 import numpy
 import numpy.ma
 import Owlcat
-import matplotlib.pyplot as pyplot
 
 from Owlcat import Parsing
 
@@ -382,6 +381,13 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
   keyranges = [ range(len(plots)),
                 [None] if average_ddids else ddids,
                 [None] if average_ifrs else [ (px[0],qx[0]) for px,qx in ifrset.ifr_index() ] ];
+
+  # set non-interactive backend, if -o is in effect
+  import matplotlib
+  if options.output:
+    matplotlib.use('agg');
+  else:
+    matplotlib.use('qt4agg');
 
   import Owlcat.Plotting
   
