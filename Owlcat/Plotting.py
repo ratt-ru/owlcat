@@ -13,10 +13,9 @@ def _int_or_0 (x):
     return int(x);
   except:
     return 0;
-_version = map(_int_or_0,'.'.split(matplotlib.__version__));
+_version = map(_int_or_0,matplotlib.__version__.split('.'));
 _version_major = (_version and _version[0]) or 0;
 _version_minor = (len(_version)>1 and _version[1]) or 0;
-
 
 class PlotCollection (object):
   """PlotCollection plots a collection of data tracks in one plot""";
