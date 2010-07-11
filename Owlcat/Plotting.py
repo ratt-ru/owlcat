@@ -6,6 +6,18 @@ import math
 import sys
 import traceback
 
+import matplotlib
+
+def _int_or_0 (x):
+  try:
+    return int(x);
+  except:
+    return 0;
+_version = map(_int_or_0,'.'.split(matplotlib.__version__));
+_version_major = (_version and _version[0]) or 0;
+_version_minor = (len(_version)>1 and _version[1]) or 0;
+
+
 class PlotCollection (object):
   """PlotCollection plots a collection of data tracks in one plot""";
   def __init__ (self,options):
@@ -115,14 +127,17 @@ class PlotCollection (object):
               ytext = dd.mean();
             # do not put too close to previous label
             y0text = max(y0text+offset/4,ytext);
-            plt.annotate(self.label[key],xy=(nx/100,ytext),xytext=(nx/100,y0text),
-                  size=5,horizontalalignment='left',verticalalignment='center',
-                  bbox=dict(facecolor='white',edgecolor='none',alpha=0.6),
-                  arrowprops=dict(fc='none',width=0,headwidth=0,ec="0.8",alpha=0.6));
-            #plt.text(0,self.mean[key]+y0,self.label[key],
-                  #size=5,horizontalalignment='left',verticalalignment='center',
-                  #bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
-          
+            # annotate() seems to have a bug in matplotlib 0.98, so use text() insrtead
+            if _version_major > 0 or _version_minor > 98:
+              plt.annotate(self.label[key],xy=(nx/100,ytext),xytext=(nx/100,y0text),
+                    size=5,horizontalalignment='left',verticalalignment='center',
+                    bbox=dict(facecolor='white',edgecolor='none',alpha=0.6),
+                    arrowprops=dict(fc='none',width=0,headwidth=0,ec="0.8",alpha=0.6));
+            else:
+              plt.text(nx/100,ytext,self.label[key],
+                    size=5,horizontalalignment='left',verticalalignment='center',
+                    bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
+
       # set plot limits. First panel is determined by data. Scale of second panel is fixed to first.
       plt.set_xbound(0,nx);
       if iplot == 0:
@@ -202,7 +217,7 @@ class ScatterPlot (object):
         traceback.print_exc();
         print "Error plotting data for",key;
         continue;
-      # plot text labels 
+      # plot text labels
       if labels.get(key):
         plt.text(x[0],y[0]," "+labels[key],horizontalalignment='left',verticalalignment='top',zorder=1,fontsize=8);
 #    plt.set_xbound(min([min(x) for x,y in self.data.itervalues()])[0],
