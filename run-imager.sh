@@ -159,12 +159,14 @@ make_image ()
       echo "Success"
       remove=true
     fi
+    # the ridiculous-looking pattern below replaces "/" in imgname/model/residual/restored
+    # with "\/", so that image2fits does not interpret them as a divide operation
     if [ "$img_oper" == "image" ]; then
-      image2fits in=$img_flux_scale\*\\$imgname out=$imgname_fits && $remove -fr $imgname
+      image2fits in=$img_flux_scale\*\\${imgname//\//\\\/} out=$imgname_fits && $remove -fr $imgname
     else
-      image2fits in=$img_flux_scale\*\\$model out=$model_fits && $remove -fr $model
-      image2fits in=$img_flux_scale\*\\$residual out=$residual_fits && $remove -fr $residual
-      image2fits in=$img_flux_scale\*\\$restored out=$restored_fits && $remove -fr $restored
+      image2fits in=$img_flux_scale\*\\${model//\//\\\/} out=$model_fits && $remove -fr $model
+      image2fits in=$img_flux_scale\*\\${residual//\//\\\/} out=$residual_fits && $remove -fr $residual
+      image2fits in=$img_flux_scale\*\\${restored//\//\\\/} out=$restored_fits && $remove -fr $restored
     fi
     return 0
   else
