@@ -179,6 +179,13 @@ if __name__ == "__main__":
     else:
       globals()[ant] = None;
 
+  def c00 (funklet):
+    if numpy.isscalar(funklet.coeff):
+      return funklet.coeff;
+    else:
+      return funklet.coeff.ravel()[0];
+          
+
   def read_complex_parms (pt,prefix="dE"):
     """Reads complex c00 funklets from the given parmtable (given as filename).
     For each key in the 'keys' list, forms up keystring (by joining the elements
@@ -195,7 +202,7 @@ if __name__ == "__main__":
           if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
             print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
             sys.exit(1);
-          arr[i,j,k,:] = numpy.array([complex(fr.coeff,fi.coeff) for fr,fi in zip(fs_real,fs_imag)]);
+          arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
     return arr;
 
   #
