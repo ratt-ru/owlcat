@@ -192,6 +192,9 @@ if __name__ == "__main__":
         for k,corr in enumerate(CORRS):
           fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
           fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
+          if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
+            print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
+            sys.exit(1);
           arr[i,j,k,:] = numpy.array([complex(fr.coeff,fi.coeff) for fr,fi in zip(fs_real,fs_imag)]);
     return arr;
 
@@ -475,7 +478,10 @@ if __name__ == "__main__":
       pyplot.close("all");
     return save;
 
-  def make_skymap (ll,mm,sizes,markers,labels=None,
+  def make_skymap (ll,mm,
+    markers,  # marker is a list of strings or dicts. For each marker, axes.plot() is invoked  
+              # as plot(x,y,str) or plot(x,y,**dict).
+    labels=None,
     suptitle=None,      # title of plot
     save=None,          # filename to save to
     format=None,        # format: use options.output_type by default
@@ -510,8 +516,11 @@ if __name__ == "__main__":
     lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
 
     # plot markers
-    for l,m,sz,mark,label in zip(ll/ARCMIN,mm/ARCMIN,sizes,markers,labels):
-      plt.plot(l,m,mark,markersize=sz);
+    for l,m,mark,label in zip(ll/ARCMIN,mm/ARCMIN,markers,labels):
+      if isinstance(mark,str):
+        plt.plot(l,m,mark);
+      elif isinstance(mark,dict):
+        plt.plot(l,m,**mark);
       if label:
         plt.text(l,m-lim/50,label,fontsize=8,horizontalalignment='center',verticalalignment='top');
 
@@ -699,6 +708,16 @@ if __name__ == "__main__":
     #suptitle="|dExx|,|dEyy| averaged across all bands",
     #save="dE_mean_xx_yy");
 
+  if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant:
+    maxabsdelog = math.sqrt(0.5); # abs(delog).max();
+    maxsize = 36
+    minsize = 0
+    lsrc = numpy.zeros(len(SRCS),float);
+    msrc = numpy.zeros(len(SRCS),float);
+    for i,name in enumerate(SRCS):
+      src = model.findSource(name);
+      lsrc[i],msrc[i] = src._lm_ncp;
+
   if options.circle_ampl:
     # de_renorm is NSPWxNSRCxNANTxNTIME
     # reshape as NSRCxNANTxNSPWxNTIME
@@ -707,27 +726,30 @@ if __name__ == "__main__":
     # stddev is sqrt(s1^2+s2^2), where s1 is mean error, and s2 is error of mean
     destd  = numpy.sqrt((de_r1.std(2).mean(2)/math.sqrt(NTIMES-1))**2 + de_r1.mean(2).std(2)**2);
     delog = numpy.where(demean>=1,numpy.sqrt(demean-1),-numpy.sqrt(1-demean));
-    maxabsdelog = math.sqrt(0.5); # abs(delog).max();
-    maxsize = 36
-    minsize = 0
 
-    lsrc = numpy.zeros(len(SRCS),float);
-    msrc = numpy.zeros(len(SRCS),float);
-    for i,name in enumerate(SRCS):
-      src = model.findSource(name);
-      lsrc[i],msrc[i] = src._lm_ncp;
     antplots = [];
 
     for iant,ant in list(enumerate(ANTS))[:-1]:
-      mean = demean[:,iant];
-      std  = destd[:,iant];
-      log  = delog[:,iant];
       # make figure
-      sz = minsize + (maxsize-minsize)*(abs(log)/maxabsdelog);
-      markers = [ "og" if x >= 0 else "or" for x in log ];
-      labels = [ "%s %.2f+-%.2f"%(name,x,y) for name,x,y in zip(SRCS,mean,std) ];
+      markers = [];
+      labels = [];
+      for name,log,mean,std in zip(SRCS,delog[:,iant],demean[:,iant],destd[:,iant]):
+        color = "blue" if log >=0 else "red";
+        mark = dict(marker='o',markersize=minsize + (maxsize-minsize)*(abs(log)/maxabsdelog),
+                    markeredgecolor=color,markerfacecolor='None');
+        sigmas = abs(1-mean)/std;
+        if sigmas >= 3:
+          mark['markerfacecolor'] = color;
+        elif sigmas >= 2:
+          mark['markeredgewidth'] = 3;
+        elif sigmas >= 1:
+          mark['markeredgewidth'] = 2;
+        else:
+          mark['markeredgewidth'] = 1;
+        markers.append(mark);
+        labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
-      antplots.append(make_skymap(lsrc,msrc,sz,markers,labels=labels,
+      antplots.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, RT%s"%ant,save="dE_ant%s"%ant));
     
     # try to make summary plot
@@ -766,15 +788,25 @@ if __name__ == "__main__":
 
     frames = [];
     for k in range(NTIMES):
-      log  = delog[:,k];
-      mean = demean[:,k];
-      std  = destd[:,k];
-      # make figure
-      sz = minsize + (maxsize-minsize)*(abs(log)/maxabsdelog);
-      markers = [ "og" if x >= 0 else "or" for x in log ];
-      labels = [ "%s %.2f+-%.2f"%(name,x,y) for name,x,y in zip(SRCS,mean,std) ];
+      markers = [];
+      labels = [];
+      for name,log,mean,std in zip(SRCS,delog[:,k],demean[:,k],destd[:,k]):
+        color = "blue" if log >=0 else "red";
+        mark = dict(marker='o',markersize=minsize + (maxsize-minsize)*(abs(log)/maxabsdelog),
+                    markeredgecolor=color,markerfacecolor='None');
+        sigmas = abs(1-mean)/std;
+        if sigmas >= 3:
+          mark['markerfacecolor'] = color;
+        elif sigmas >= 2:
+          mark['markeredgewidth'] = 3;
+        elif sigmas >= 1:
+          mark['markeredgewidth'] = 2;
+        else:
+          mark['markeredgewidth'] = 1;
+        markers.append(mark);
+        labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
-      frames.append(make_skymap(lsrc,msrc,sz,markers,labels=labels,
+      frames.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, antenna %s, time slice %d"%(antname,k),save="dE_ant%s_%03d"%(antname,k)));
       
     # try to make animation
