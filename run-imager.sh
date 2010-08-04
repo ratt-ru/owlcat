@@ -23,6 +23,7 @@ img_mode=channel
 img_stokes=I
 img_padding=1.2
 img_flux_scale=2
+img_phasecenter=""
 
 img_channels=""
 img_img_channels=""
@@ -127,6 +128,9 @@ make_image ()
   fi
   if [ "$img_select" != "" ]; then
     cmd="$cmd select='$img_select'"
+  fi
+  if [ "$img_phasecenter" != "" ]; then
+    cmd="$cmd phasecenter='$img_phasecenter'"
   fi
 
   # setup output files
