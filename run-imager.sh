@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # if config doesn't exist, strange things happen!
 
-# if dirty image is not made first, clean fails! 
+# if dirty image is not made first, clean fails!
 # Same message as when ddid_index is not set properly:
 #               Maximum of approximate PSF for field 1 = 0 : renormalizing to unity
 # But not sure what state persists between making a dirty image and a clean one
@@ -24,6 +24,7 @@ img_stokes=I
 img_padding=1.2
 img_flux_scale=2
 img_phasecenter=""
+img_wprojplanes=0
 
 img_channels=""
 img_img_channels=""
@@ -104,19 +105,27 @@ eval $confirm
 
 CELLSIZE=`python -c "print $img_arcmin*60./float($img_npix)"`
 
+sanitize ()
+{
+  name="$1"
+  name="${name//\//\\/}"
+  name="${name//-/\\-}"
+  echo $name
+}
+
 # make dirty image
 make_image ()
 {
   # collect mandatory arguments
-  cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper 
-      stokes=$img_stokes mode=$img_mode weight=$img_weight
-      npix=$img_npix cellsize=${CELLSIZE}arcsec 
+  cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
+      stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
+      npix=$img_npix cellsize=${CELLSIZE}arcsec
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
   "
 
   # add optional arguments
   if [ "$img_weight" == "radial" -a "$img_taper" != "" ]; then
-    cmd="$cmd filter=${img_taper}arcsec,${img_taper}arcsec,0.000000deg" 
+    cmd="$cmd filter=${img_taper}arcsec,${img_taper}arcsec,0.000000deg"
   fi
   if [ "$img_channels" != "" ]; then
     declare -a chans=(${img_channels//,/ })
@@ -166,11 +175,11 @@ make_image ()
     # the ridiculous-looking pattern below replaces "/" in imgname/model/residual/restored
     # with "\/", so that image2fits does not interpret them as a divide operation
     if [ "$img_oper" == "image" ]; then
-      image2fits in=$img_flux_scale\*\\${imgname//\//\\\/} out=$imgname_fits && $remove -fr $imgname
+      image2fits in="`sanitize $imgname`" out=$imgname_fits && $remove -fr $imgname
     else
-      image2fits in=$img_flux_scale\*\\${model//\//\\\/} out=$model_fits && $remove -fr $model
-      image2fits in=$img_flux_scale\*\\${residual//\//\\\/} out=$residual_fits && $remove -fr $residual
-      image2fits in=$img_flux_scale\*\\${restored//\//\\\/} out=$restored_fits && $remove -fr $restored
+      image2fits in="`sanitize $model`" out=$model_fits && $remove -fr $model
+      image2fits in="`sanitize $residual`" out=$residual_fits && $remove -fr $residual
+      image2fits in="`sanitize $restored`" out=$restored_fits && $remove -fr $restored
     fi
     return 0
   else
