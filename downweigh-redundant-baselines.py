@@ -47,6 +47,8 @@ this time tell it to use the default weights.""");
   parser.add_option("-s","--select",dest="select",action="store",
                     help="additional TaQL selection string. Note that redundant baselines are counted only within the subset "
                          "given by the --ifrs and --select options.");
+  parser.add_option("-l","--list",action="store_true",
+                    help="list all baselines and exit.");
   parser.set_defaults(tolerance=.1,select="",ifrs="");
 
   (options,msnames) = parser.parse_args();
@@ -96,16 +98,27 @@ this time tell it to use the default weights.""");
     length = reduce(lambda x,y:x+y,[ifrset.baseline_vector(*ifr) for ifr in members])/len(members);
     groups[ig] = (length,members);
 
+  # convert to list of length,members, and sort by length
+  groups = [ (math.sqrt((baseline**2).sum()),members) for baseline,members in groups ];
+  groups.sort();
+
+  if options.list:
+    baselist = [ "%dm(x%d)"%(round(length),len(mem)) if len(mem)>1 else "%dm"%round(length)
+        for length,mem in groups ];
+    print "Found %d non-redundant baselines:"%len(baselist),", ".join(baselist);
+    sys.exit(0);
+
   # make a dictionary of per-IFR weights
   have_redundancy = False;
   weight = dict([((p,q),1.) for p,q in IFRS]);
-  for baseline,members in sorted(groups,lambda a,b:cmp((a[0]**2).sum(),(b[0]**2).sum())):
+  for baseline,members in groups:
     if len(members) > 1:
       print "Baseline %dm, %d ifrs: %s"%(round(math.sqrt((baseline**2).sum())),len(members),
         " ".join(["%d-%d"%(p,q) for p,q in members]));
       have_redundancy = True;
       for p,q in members:
         weight[p,q] = 1.0/len(members);
+
   if not have_redundancy:
     print "No redundant baselines found, nothing to do."
     sys.exit(0);
