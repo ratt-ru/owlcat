@@ -14,7 +14,7 @@ CONFFILE=imager.conf
 # Default settings
 img_lwimager=lwimager
 img_data=DATA
-img_ifrs="*"
+img_ifrs=""
 img_weight=natural
 img_spwid=0
 img_field=0
@@ -25,6 +25,7 @@ img_padding=1.2
 img_flux_scale=2
 img_phasecenter=""
 img_wprojplanes=0
+img_select=""
 
 img_channels=""
 img_img_channels=""

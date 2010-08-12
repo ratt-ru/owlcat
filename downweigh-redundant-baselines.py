@@ -113,7 +113,7 @@ this time tell it to use the default weights.""");
   weight = dict([((p,q),1.) for p,q in IFRS]);
   for baseline,members in groups:
     if len(members) > 1:
-      print "Baseline %dm, %d ifrs: %s"%(round(math.sqrt((baseline**2).sum())),len(members),
+      print "Baseline %dm, %d ifrs: %s"%(round(baseline),len(members),
         " ".join(["%d-%d"%(p,q) for p,q in members]));
       have_redundancy = True;
       for p,q in members:
