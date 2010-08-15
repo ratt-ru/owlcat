@@ -5,6 +5,9 @@ import sys
 import pyfits
 import re
 import os.path
+import numpy
+
+SANITIZE_DEFAULT = 12345e-7689
 
 if __name__ == "__main__":
 
@@ -14,8 +17,12 @@ if __name__ == "__main__":
   parser = OptionParser(usage="""%prog: [options] <image names...>""");
   parser.add_option("-o","--output",dest="output",type="string",
                     help="name of output FITS file");
+  parser.add_option("-r","--replace",action="store_true",
+                    help="replace (first) input file by output. Implies '--force'.");
   parser.add_option("-f","--force",dest="force",action="store_true",
                     help="overwrite output file even if it exists");
+  parser.add_option("-S","--sanitize",type="float",metavar="VALUE",
+                    help="sanitize FITS files by replacing NANs and INFs with VALUE");
   parser.add_option("-m","--mean",dest="mean",action="store_true",
                     help="take mean of input images");
   parser.add_option("-d","--diff",dest="diff",action="store_true",
@@ -24,6 +31,7 @@ if __name__ == "__main__":
                     help="zoom into central region of NPIX x NPIX size");
   parser.add_option("-s","--scale",dest="scale",type="float",
                     help="rescale image values");
+
   parser.set_defaults(output="",mean=False,zoom=0,scale=1);
 
   (options,imagenames) = parser.parse_args();
@@ -35,10 +43,23 @@ if __name__ == "__main__":
   images = [ pyfits.open(img) for img in imagenames ];
   updated = False;
 
-  outname = options.output;
-  autoname = not outname;
-  if autoname:
-    outname = re.split('[_]',imagenames[0],1)[-1];
+  if options.replace:
+    if options.output:
+      parser.error("Cannot combine -r/--replace with -o/--output");
+    outname = imagenames[0];
+    options.force = True;
+  else:
+    outname = options.output;
+    autoname = not outname;
+    if autoname:
+      outname = re.split('[_]',imagenames[0],1)[-1];
+
+  if options.sanitize is not None:
+    print "Sanitizing: replacing INF/NAN with",options.sanitize;
+    for img in images:
+      d = img[0].data;
+      d[numpy.isnan(d)+numpy.isinf(d)] = options.sanitize;
+    updated = True;
 
   if options.diff and options.mean:
     parser.error("Cannot do both --mean and --diff at once.");
@@ -92,7 +113,8 @@ if __name__ == "__main__":
   if updated:
     print "Writing output image",outname;
     if os.path.exists(outname) and not options.force:
-      parser.error("Output image exists, rerun with the -f switch to overwrite.");
+      print "Output image exists, rerun with the -f switch to overwrite.";
+      sys.exit(1);
     images[0].writeto(outname,clobber=True);
   else:
     print "No operations specified. Use --help for help."

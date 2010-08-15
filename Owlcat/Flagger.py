@@ -560,8 +560,8 @@ class Flagger (Timba.dmi.verbosity):
     if flagset is None:
       return None;
     # convert flagset to list
-    elif isinstance(flagset,int):
-      return flagset;
+    elif isinstance(flagset,(int,long)):
+      return int(flagset);
     elif isinstance(flagset,str):
       flagset = flagset.split(",");
     elif not isinstance(flagset,(list,tuple)):

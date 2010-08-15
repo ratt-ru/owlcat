@@ -798,18 +798,9 @@ if __name__ == "__main__":
       markers = [];
       labels = [];
       for name,log,mean,std in zip(SRCS,delog[:,k],demean[:,k],destd[:,k]):
-        color = "blue" if log >=0 else "red";
+        color = "#2b60d3" if log >=0 else "red";
         mark = dict(marker='o',markersize=minsize + (maxsize-minsize)*(abs(log)/maxabsdelog),
-                    markeredgecolor=color,markerfacecolor='None');
-        sigmas = abs(1-mean)/std;
-        if sigmas >= 3:
-          mark['markerfacecolor'] = color;
-        elif sigmas >= 2:
-          mark['markeredgewidth'] = 3;
-        elif sigmas >= 1:
-          mark['markeredgewidth'] = 2;
-        else:
-          mark['markeredgewidth'] = 1;
+                    markeredgecolor=color,markerfacecolor=color);
         markers.append(mark);
         labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
