@@ -6,6 +6,7 @@ import os.path
 import re
 import time
 import math
+import numpy
 import Owlcat
 
 ROWCHUNK = 50000;
@@ -30,18 +31,18 @@ if __name__ == "__main__":
   #
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] MS""",
-      description="""Finds redundant baselines and modifies the IMAGING_WEIGHT column of the MS,
-reweighting the redundant baselines by 1/n. This compensates for the lack of this option
-in the casa imager. For proper treatment of redundant baselines in e.g. WSRT, first make
-an image using radial weighting (so that the imager fills in the IMAGING_WEIGHT column
-appropriately), then run this script to modify the weights, then run the imager again, but
-this time tell it to use the default weights.""");
+      description="""Finds redundant baselines and sets the WEIGHT (or
+IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For a redundant array such as WSRT, this considerably reduces sidelobes in the image.""");
   #parser.add_option("-o","--output",dest="output",type="string",
                     #help="name of output FITS file");
   #parser.add_option("-z","--zoom",dest="output_quad",type="string",
                     #help="name of zoomed output FITS file");
   parser.add_option("-t","--tolerance",dest="tolerance",type="float",
                     help="How close (in meters) two baselines need to be to each other to be considered redundant (default .1)");
+  parser.add_option("-w","--weight",action="store_true",
+                    help="If this option is given, the IMAGING_WEIGHT column will be "
+                    "scaled by 1/n (where n is the number of redundant baselines). The "
+                    "default behaviour is to simply set the WEIGHT column to 1/n.")
   parser.add_option("-I","--ifrs",dest="ifrs",type="string",
                     help="subset of interferometers to use.");
   parser.add_option("-s","--select",dest="select",action="store",
@@ -123,15 +124,23 @@ this time tell it to use the default weights.""");
     print "No redundant baselines found, nothing to do."
     sys.exit(0);
 
+  ncorr = ms.getcol('DATA',0,1).shape[2];
+
   # apply weights
   nrows = ms.nrows();
   for row0 in range(0,nrows,ROWCHUNK):
     progress("Applying weights, row %d of %d"%(row0,nrows),newline=False);
     row1 = min(nrows,row0+ROWCHUNK);
-    w = ms.getcol('IMAGING_WEIGHT',row0,row1-row0);
-    for i in range(row0,row1):
-      w[i-row0,:] *= weight[ant1[i],ant2[i]];
-    ms.putcol('IMAGING_WEIGHT',w,row0,row1-row0);
+    if not options.weight:
+      w = numpy.zeros((row1-row0,ncorr),float);
+      for i in range(row0,row1):
+        w[i-row0,:] = weight[ant1[i],ant2[i]];
+      ms.putcol('WEIGHT',w,row0,row1-row0);
+    else:
+      w = ms.getcol('IMAGING_WEIGHT',row0,row1-row0);
+      for i in range(row0,row1):
+        w[i-row0,:] *= weight[ant1[i],ant2[i]];
+      ms.putcol('IMAGING_WEIGHT',w,row0,row1-row0);
 
   progress("Closing MS.");
   ms.close();
