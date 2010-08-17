@@ -104,7 +104,7 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
   groups.sort();
 
   if options.list:
-    baselist = [ "%dm(x%d)"%(round(length),len(mem)) if len(mem)>1 else "%dm"%round(length)
+    baselist = [ "%dm (%s)"%(round(length)," ".join(["%s-%s"%(p,q) for p,q in mem]))
         for length,mem in groups ];
     print "Found %d non-redundant baselines:"%len(baselist),", ".join(baselist);
     sys.exit(0);
