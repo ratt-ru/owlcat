@@ -60,7 +60,7 @@ if __name__ == "__main__":
       not options.circle_ampl_ant and not options.circle_phase_ant and \
       not options.ampl_slope and not options.phase_slope and \
       not options.ampl and not options.phase and not options.pol and \
-      not options.list_sources:
+      not options.list:
     parser.error("No plots specified.");
 
   if not args:
@@ -108,15 +108,14 @@ if __name__ == "__main__":
   ANTS = set();
   CORRS = set();
 
-  # vector of antenna positions, relative to first antenna
-  ANTX = numpy.array([    0.        ,   143.98881006,   287.98154006,   431.97187006,
-  ## ant 5 is gone (DIGESTIF)
-  #         575.96470004,   719.95646011,   863.94757006,  1007.93746007,
-          575.96470004,   863.94757006,  1007.93746007,
-          1151.92894011,  1295.9213701 ,  1331.92456019,  1403.91958018,
-          2627.84690046,  2699.84118052])
-  # recenter at middle of the array
-  ANTX -= ANTX[-1]/2;
+  ## dict of WSRT antenna positions, relative to RT0.
+  ##
+  ANTX_dict = {
+    '0':   0.0,        '1':  143.98881006, '2':  287.98154006, '3':   431.97187006,
+    '4': 575.96470004, '5':  719.95646011, '6':  863.94757006, '7':  1007.93746007,
+    '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
+    'C':2627.84690046, 'D': 2699.84118052
+  };
 
   # complex array of dEs per each src,antenna,corr tuple
   des = {};
@@ -143,6 +142,17 @@ if __name__ == "__main__":
     print "%d sources: %s"%(len(SRCS)," ".join(["%d:%s"%(i,src) for i,src in enumerate(SRCS)]));
     sys.exit(0);
 
+  # check that antenna positions are known
+  unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
+  if unknown_antennas:
+    print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
+    sys.exit(0);
+
+  # make vector of antenna positions
+  ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
+  # recenter at middle of the array
+  ANTX -= ANTX[-1]/2;
+
   # source subset selection
   if options.sources:
     srcs = set();
@@ -160,7 +170,7 @@ if __name__ == "__main__":
         else:
           srcs.update(ss);
     SRCS = sorted(srcs);
-  
+
   print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
 
   XX = CORRS.index('xx');
@@ -184,7 +194,7 @@ if __name__ == "__main__":
       return funklet.coeff;
     else:
       return funklet.coeff.ravel()[0];
-          
+
 
   def read_complex_parms (pt,prefix="dE"):
     """Reads complex c00 funklets from the given parmtable (given as filename).
@@ -234,7 +244,7 @@ if __name__ == "__main__":
   # subtract mean phase over all antennas and times
   # dep0 is what's left, NSPW x NSRC x NANT x NCORR x NTIME
   dep0 = de_phase - (de_phase.mean(4).mean(2))[:,:,numpy.newaxis,:,numpy.newaxis];
-  # cut outb the last ("mean") antenna
+  # cut out the last ("mean") antenna
   dep0 = dep0[:,:,0:-1,:,:];
 
   # now fit phase offset and slope over array
@@ -486,7 +496,7 @@ if __name__ == "__main__":
     return save;
 
   def make_skymap (ll,mm,
-    markers,  # marker is a list of strings or dicts. For each marker, axes.plot() is invoked  
+    markers,  # marker is a list of strings or dicts. For each marker, axes.plot() is invoked
               # as plot(x,y,str) or plot(x,y,**dict).
     labels=None,
     suptitle=None,      # title of plot
@@ -534,7 +544,7 @@ if __name__ == "__main__":
     # make circles at 30' and 1deg
     x = numpy.cos(numpy.arange(0,360)*math.pi/180);
     y = numpy.sin(numpy.arange(0,360)*math.pi/180);
-    
+
     for R in numpy.arange(2)*30:
       plt.plot(x*R,y*R,linestyle=':',color='black');
 
@@ -758,7 +768,7 @@ if __name__ == "__main__":
 
       antplots.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, RT%s"%ant,save="dE_ant%s"%ant));
-    
+
     # try to make summary plot
     if options.output_type.upper() == "PNG":
       try:
@@ -806,7 +816,7 @@ if __name__ == "__main__":
 
       frames.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, antenna %s, time slice %d"%(antname,k),save="dE_ant%s_%03d"%(antname,k)));
-      
+
     # try to make animation
     if options.output_type.upper() == "PNG":
       for f in frames:
