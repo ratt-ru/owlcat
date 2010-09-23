@@ -49,10 +49,22 @@ if __name__ == "__main__":
                     help="Prefix output filenames with PREFIX_");
   group.add_option("--papertype",dest="papertype",type="string",
                     help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
+  group.add_option("-W","--width",type="int",
+                    help="set explicit plot width, in mm. (Useful for .eps output)");
+  group.add_option("-H","--height",type="int",
+                    help="set explicit plot height, in mm. (Useful for .eps output)");
+  group.add_option("--portrait",action="store_true",
+                  help="Force portrait orientation. Default is to select orientation based on plot size");
+  group.add_option("--landscape",action="store_true",
+                  help="Force landscape orientation.");
+  group.add_option("--notitle",action="store_true",
+                  help="Suppress plot titles.");
+  group.add_option("--borders",metavar="L,R,B,T",type="string",
+                  help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
   parser.add_option_group(group);
 
-  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",
-    output_prefix="",output_type="png",papertype='a4');
+  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",borders="0.05,0.99,0.05,0.95",
+    output_prefix="",output_type="png",papertype='a4',width=0,height=0);
 
   (options,args) = parser.parse_args();
 
@@ -65,6 +77,16 @@ if __name__ == "__main__":
 
   if not args:
     parser.error("No parmtables specified.");
+
+  if (options.width or options.height) and not (options.width and options.height):
+    parser.error("Either both -W/--width and -H/--height must be specified, or neither.");
+
+  try:
+    borders = [ float(x) for x in options.borders.split(",") ];
+  except:
+    borders = [];
+  if len(borders) != 4:
+    parser.error("Bad --borders specification.");
 
   import os.path
   import os
@@ -203,16 +225,25 @@ if __name__ == "__main__":
     and forms up and returns a complex array.
     This assumes that the parm only changes in time.
     """
+    #mask = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=bool);
     arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=complex);
+    #arr = numpy.ma.masked_array(mask,arr,fill_value=1.0);
     for i,src in enumerate(SRCS):
       for j,ant in enumerate(ANTS):
         for k,corr in enumerate(CORRS):
           fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
           fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
-          if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
-            print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
-            sys.exit(1);
-          arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
+          # table is allowed to contain either NO funklets for this src/ant/corr combination,
+          # or the same number as all other tables.
+          if len(fs_real) or len(fs_imag): 
+            if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
+              print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
+              sys.exit(1);
+            arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
+          # no funklets -- use 1, and mask the array
+          else:
+            arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
+#            arr.mask[i,j,k,:] = True;
     return arr;
 
   #
@@ -221,7 +252,11 @@ if __name__ == "__main__":
   #
   MEAN = len(ANTS);
 
+  # stuff down the line does not handle masked arrays properly, so we don't use them
+  #mask = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=bool);
   de = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
+  #de = numpy.ma.masked_array(de,mask,fill_value=1.0);
+  
   for spw,tabname in enumerate(args):
     print "Reading",tabname;
     pt = ParmTab(tabname);
@@ -387,14 +422,18 @@ if __name__ == "__main__":
       raise TypeError,"misshaped datum returned: %d Y elements, %d Yerr elements"""%(len(y),len(yerr));
     return x,y,yerr;
 
-  # figure sizes
-  # more sources than antennas
-  if len(SRCS) < (len(ANTS)+1):
-    sz_as = ( 210,min(290,30*len(ANTS)));
-    sz_sa = ( 290,min(210,30*len(SRCS)));
+  # figure out sizes
+  if options.width or options.height:
+    sz_as = sz_sa = (options.width,options.height);
+  # figure out automatically depending on whether we have more sources or antennas
   else:
-    sz_as = ( 290,min(210,30*len(ANTS)));
-    sz_sa = ( 210,min(290,30*len(SRCS)));
+    # more sources than antennas
+    if len(SRCS) < (len(ANTS)+1):
+      sz_as = ( 210,min(290,30*len(ANTS)));
+      sz_sa = ( 290,min(210,30*len(SRCS)));
+    else:
+      sz_as = ( 290,min(210,30*len(ANTS)));
+      sz_sa = ( 210,min(290,30*len(SRCS)));
 
 
   def make_figure (rows,cols,  # (irow,row) and (icol,col) list
@@ -457,6 +496,8 @@ if __name__ == "__main__":
         iplot += 1;
         plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
         # plt.axis("off");
+        if ylock and ylock != "col" and icol:
+          plt.set_yticklabels([]);
         plt.set_xticks([]);
         data = datafunc(irow,icol);
         if mode is PLOT_SINGLE:
@@ -483,14 +524,25 @@ if __name__ == "__main__":
       plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
       plt.axis("off");
     # adjust layout
-    fig.subplots_adjust(left=0.05,right=.99,top=0.95,bottom=0.05);
+    #
+    #if options.nomargin:
+    #  fig.subplots_adjust(left=0.03,right=1.03,top=0.96,bottom=0.01);
+    #else:
+    #  fig.subplots_adjust(left=0.05,right=.99,top=0.95,bottom=0.05);
+    fig.subplots_adjust(left=borders[0],right=borders[1],top=borders[3],bottom=borders[2]);
     # plot if asked to
-    if suptitle:
+    if suptitle and not options.notitle:
       fig.suptitle(suptitle);
     if save:
+      if options.portrait:
+        orientation = 'portrait';
+      elif options.landscape:
+        orientation = 'landscape';
+      else:
+        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
       fig.savefig(save,papertype=options.papertype,
-                  orientation='portrait' if figsize[0]<figsize[1] else 'landscape');
-      print "Wrote",save;
+                  orientation=orientation);
+      print "Wrote",save,"in",orientation,"orientation";
       fig = None;
       pyplot.close("all");
     return save;
@@ -698,6 +750,16 @@ if __name__ == "__main__":
         hline=0,ylock="row",mode=PLOT_MULTI,
         suptitle="Fractional instrumental polarization per band",
         save="dEpol_mean_sa_perband");
+
+
+  if options.phase:
+    de_mean_phase = de_phase.mean(3);
+    make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
+      lambda isrc,iant:(numpy.mean(de_mean_phase[:,isrc,iant,:],0),
+                        numpy.std(de_mean_phase[:,isrc,iant,:],0)),
+      hline=0,ylock="row",figsize=sz_sa,mode=PLOT_ERRORBARS,
+      suptitle="dE phase (deg) mean & stddev across all bands",
+      save="dEphase_mean");
 
   if options.ampl:
     make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
