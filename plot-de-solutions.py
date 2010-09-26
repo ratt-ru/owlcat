@@ -6,7 +6,7 @@ if __name__ == "__main__":
   # setup some standard command-line option parsing
   #
   from optparse import OptionParser,OptionGroup
-  parser = OptionParser(usage="""%prog: [plots & options] parmtables""",
+  parser = OptionParser(usage="""%prog: [plots & options] <parmtable(s) or cache file>""",
       description="""Makes various plots of dE solutions.""");
 
   parser.add_option("-l","--list",action="store_true",
@@ -33,10 +33,49 @@ if __name__ == "__main__":
                     help="makes plots of a slope fit for dE-amplitudes");
   parser.add_option("--phase-slope",action="store_true",
                     help="makes plots of a slope fit for dE-phases");
+  parser.add_option("--phase-slope-rot-offset",metavar="DEG",type="float",
+                    help="...including phase slopes corresponding to rotational offset (EXPERIMENTAL)");
+  parser.add_option("--phase-slope-time-offset",metavar="FRAC",type="float",
+                    help="...including phase slopes corresponding to time offset (EXPERIMENTAL)");
+  parser.add_option("--phase-slope-res",action="store_true",
+                    help="makes plots of residuals w.r.t. slope fit for dE-phases");
+  parser.add_option("--phase-slope-dlm",action="store_true",
+                    help="makes plots of dl/dm offsets corresponding to phase slopes (EXPERIMENTAL)");
   parser.add_option("--lsm",type="string",
                     help="LSM file (for source positions in circle plots.) Default is first *.lsm.html file found.");
+  parser.add_option("--update-lsm",action="store_true",
+                    help="updates LSM file based of dE solutions (EXPERIMENTAL)");
+  parser.add_option("--ms",type="string",
+                    help="Measurement Set (for UVW coordinates and such)");
   parser.add_option("-s","--sources",type="string",
                     help="source subset (default is ':' meaning all, use --list to list)");
+  parser.add_option("-c","--cache",metavar="FILENAME",type="string",
+                    help="cache parms to file, which can be given instead of parmtables next time, for quicker startup");
+
+  group = OptionGroup(parser,"Plotting options");
+  group.add_option("--radius",type="int",
+                    help="radius of circle plots, in arcmin. Default is auto-sizing.");
+  group.add_option("-G","--grid-circle",metavar="ARCMIN",type="int",action="append",
+                    help="sets radius of grid circle(s) in circle plots. May be given multiple times. Default is 30 and 60.");
+  group.add_option("--title-fontsize",metavar="POINTS",type="int",
+                  help="Set plot title font size, 0 for no title. Default is %default.");
+  group.add_option("--label-fontsize",metavar="POINTS",type="int",
+                  help="Set plot label font size, 0 for no labels. Default is %default.");
+  group.add_option("--axis-fontsize",metavar="POINTS",type="int",
+                  help="Set axis tickmark font size, 0 for no axis tickmarks. Default is %default.");
+  group.add_option("--names-only",action="store_true",
+                  help="Use only source names for labels in circle plots. Default is name, mean and std values.");
+  group.add_option("--circle-minsize",metavar="POINTS",type="int",
+                  help="Set minimum size of marker in circle plots. Default is %default.");
+  group.add_option("--circle-maxsize",metavar="POINTS",type="int",
+                  help="Set maximum size of marker in circle plots. Default is %default.");
+  group.add_option("--circle-linewidth",metavar="SCALE",type="int",
+                  help="Max linewidth used to draw open circles in circle plots. The width corresponds to 3 sigmas. Default is %default.");
+  group.add_option("--circle-label-offset",metavar="FRAC",type="float",
+                  help="Vertical offset of circle labels. Use 0 to center labels on source position. Default is %default.");
+  group.add_option("--borders",metavar="L,R,B,T",type="str",
+                  help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
+  parser.add_option_group(group);
 
   group = OptionGroup(parser,"Output options");
   group.add_option("-o","--output-type",metavar="TYPE",type="string",
@@ -57,26 +96,26 @@ if __name__ == "__main__":
                   help="Force portrait orientation. Default is to select orientation based on plot size");
   group.add_option("--landscape",action="store_true",
                   help="Force landscape orientation.");
-  group.add_option("--notitle",action="store_true",
-                  help="Suppress plot titles.");
-  group.add_option("--borders",metavar="L,R,B,T",type="string",
-                  help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
   parser.add_option_group(group);
 
-  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",borders="0.05,0.99,0.05,0.95",
+  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",cache=None,
+    borders="0.05,0.99,0.05,0.95",
+    title_fontsize=12,label_fontsize=8,phase_slope_rot_offset=0,
+    radius=0,
+    circle_maxsize=36,circle_minsize=0,circle_linewidth=5,circle_label_offset=0.02,
     output_prefix="",output_type="png",papertype='a4',width=0,height=0);
 
   (options,args) = parser.parse_args();
 
   if not options.circle_ampl and not options.circle_phase and \
       not options.circle_ampl_ant and not options.circle_phase_ant and \
-      not options.ampl_slope and not options.phase_slope and \
+      not options.ampl_slope and not options.phase_slope and not options.phase_slope_res and \
       not options.ampl and not options.phase and not options.pol and \
       not options.list:
     parser.error("No plots specified.");
 
   if not args:
-    parser.error("No parmtables specified.");
+    parser.error("No parmtables or cachefile specified.");
 
   if (options.width or options.height) and not (options.width and options.height):
     parser.error("Either both -W/--width and -H/--height must be specified, or neither.");
@@ -88,19 +127,46 @@ if __name__ == "__main__":
   if len(borders) != 4:
     parser.error("Bad --borders specification.");
 
+  if not options.grid_circle:
+    options.grid_circle = (30,60);
+
   import os.path
   import os
+  import cPickle
   import sys
+  # load other stuff
+  import numpy
+  from scipy import linalg
+  from Owlcat import Coordinates
 
-  # load LSM file if needed
-  if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant:
+  import matplotlib
+  import math
+  if options.output_type.upper() != "X11":
+    matplotlib.use('agg');
+  else:
+    matplotlib.use('qt4agg');
+  import matplotlib.pyplot as pyplot
+  from matplotlib.ticker import MaxNLocator
+
+  DEG = math.pi/180;
+  ARCMIN = math.pi/(180*60);
+
+
+  #
+  #========================== LOAD LSM FILE AND MS
+  #
+  if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant \
+      or options.phase_slope_rot_offset or options.phase_slope_time_offset or options.phase_slope_dlm \
+      or options.update_lsm:
+    # if LSM file not specified, use first one found
     if not options.lsm:
       lsms = [ filename for filename in os.listdir(".") if filename.endswith(".lsm.html") ];
       if not lsms:
         parser.error("No LSMs found. Use --lsm to specify one explicitly.");
-      lsm = lsms[0];
+      lsm_filename = lsms[0];
     else:
-      lsm = options.lsm;
+      lsm_filename = options.lsm;
+    #
     # find tigger
     try:
       import Tigger;
@@ -108,99 +174,173 @@ if __name__ == "__main__":
       # make plot of average dE to model
       sys.path.append(os.getenv('HOME'));
       import Tigger
-    print "Using LSM file %s"%lsm;
-    model = Tigger.load(lsm);
-
-  import numpy
-  from ParmTables import ParmTab
-  import matplotlib
-  import math
-
-  if options.output_type.upper() != "X11":
-    matplotlib.use('agg');
+    print "Using LSM file %s"%lsm_filename;
+    model = Tigger.load(lsm_filename);
+    lsm_timestamp = os.path.getmtime(lsm_filename);
+    
+    # if MS file not specified, use first one found
+    if not options.ms:
+      mss = [ filename for filename in os.listdir(".") if filename.lower().endswith(".ms") ];
+      if not mss:
+        parser.error("No MSs found. Use --ms to specify one explicitly.");
+      ms = mss[0];
+    else:
+      ms = options.ms;
+    print "Using MS %s"%ms;
+    import pyrap.tables
+    ms = pyrap.tables.table(ms);
+    nant = pyrap.tables.table(ms.getkeyword('ANTENNA')).nrows();
+    # read UVWs
+    uvw0 = ms.query('ANTENNA1==0 && ANTENNA2==%d'%(nant-1)).getcol('UVW');
+    uvw = uvw0[30::60];
+    # read phase center
+    radec0 = pyrap.tables.table(ms.getkeyword('FIELD')).getcol('PHASE_DIR')[0][0];
+    print "Phase center is at",radec0;
   else:
-    matplotlib.use('qt4agg');
-  import matplotlib.pyplot as pyplot
+    model = None;
 
 
-  SPWS = range(len(args));
+  #
+  # ========================== read parmtables
+  #
+  mep_timestamp = os.path.getmtime(args[0]);
 
-  # set of all sources, antennas and correlations
-  SRCS = set();
-  ANTS = set();
-  CORRS = set();
+  if len(args) > 1 or not args[0].endswith('.cache'):
+    ## dict of WSRT antenna positions, relative to RT0.
+    ##
+    ANTX_dict = {
+      '0':   0.0,        '1':  143.98881006, '2':  287.98154006, '3':   431.97187006,
+      '4': 575.96470004, '5':  719.95646011, '6':  863.94757006, '7':  1007.93746007,
+      '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
+      'C':2627.84690046, 'D': 2699.84118052
+    };
+    from ParmTables import ParmTab
 
-  ## dict of WSRT antenna positions, relative to RT0.
-  ##
-  ANTX_dict = {
-    '0':   0.0,        '1':  143.98881006, '2':  287.98154006, '3':   431.97187006,
-    '4': 575.96470004, '5':  719.95646011, '6':  863.94757006, '7':  1007.93746007,
-    '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
-    'C':2627.84690046, 'D': 2699.84118052
-  };
+    # spectral windows
+    SPWS = range(len(args));
+    # set of all sources, antennas and correlations
+    SRCS = set();
+    ANTS = set();
+    CORRS = set();
 
-  # complex array of dEs per each src,antenna,corr tuple
-  des = {};
+    # complex array of dEs per each src,antenna,corr tuple
+    des = {};
 
-  # vector of frequencies
-  freq0 = numpy.array([0.]*len(SPWS));
+    # vector of frequencies
+    freq0 = numpy.array([0.]*len(SPWS));
 
-  # scan funklet names to build up sets of keys
-  pt = ParmTab(args[0]);
-  for name in pt.funklet_names():
-    label,src,ant,corr,ri = name.split(':');
-    SRCS.add(src);
-    ANTS.add(ant);
-    CORRS.add(corr);
-  NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice());
+    # scan funklet names to build up sets of keys
+    pt = ParmTab(args[0]);
+    for name in pt.funklet_names():
+      label,src,ant,corr,ri = name.split(':');
+      SRCS.add(src);
+      ANTS.add(ant);
+      CORRS.add(corr);
+    NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice());
 
-  SRCS = sorted(SRCS);
-  ANTS = sorted(ANTS);
-  CORRS = sorted(CORRS);
-  if options.list:
-    print "MEP table %s contains dE's for:"%args[0];
-    print "%d correlations: %s"%(len(CORRS)," ".join(CORRS));
-    print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
-    print "%d sources: %s"%(len(SRCS)," ".join(["%d:%s"%(i,src) for i,src in enumerate(SRCS)]));
-    sys.exit(0);
+    SRCS = sorted(SRCS);
+    ANTS = sorted(ANTS);
+    CORRS = sorted(CORRS);
+    if options.list:
+      print "MEP table %s contains dE's for:"%args[0];
+      print "%d correlations: %s"%(len(CORRS)," ".join(CORRS));
+      print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
+      print "%d sources: %s"%(len(SRCS)," ".join(["%d:%s"%(i,src) for i,src in enumerate(SRCS)]));
+      sys.exit(0);
 
-  # check that antenna positions are known
-  unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
-  if unknown_antennas:
-    print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
-    sys.exit(0);
+    # check that antenna positions are known
+    unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
+    if unknown_antennas:
+      print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
+      sys.exit(0);
 
-  # make vector of antenna positions
-  ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
-  # recenter at middle of the array
-  ANTX -= ANTX[-1]/2;
+    # make vector of antenna positions
+    ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
+    # recenter at middle of the array
+    ANTX -= ANTX[-1]/2;
 
-  # source subset selection
-  if options.sources:
-    srcs = set();
-    for ss in options.sources.split(","):
-      if ss in SRCS:
-        srcs.add(ss);
-      else:
-        try:
-          ss = eval("SRCS[%s]"%ss);
-        except:
-          print "Error parsing source specification '%s'"%options.sources;
-          sys.exit(1);
-        if isinstance(ss,str):
+    # source subset selection
+    if options.sources:
+      srcs = set();
+      for ss in options.sources.split(","):
+        if ss in SRCS:
           srcs.add(ss);
         else:
-          srcs.update(ss);
-    SRCS = sorted(srcs);
+          try:
+            ss = eval("SRCS[%s]"%ss);
+          except:
+            print "Error parsing source specification '%s'"%options.sources;
+            sys.exit(1);
+          if isinstance(ss,str):
+            srcs.add(ss);
+          else:
+            srcs.update(ss);
+      SRCS = sorted(srcs);
 
-  print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
+    print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
 
-  XX = CORRS.index('xx');
-  YY = CORRS.index('yy');
-  # set of all source,antenna,corr combinations
-  ALL = [ (src,ant,corr) for src in SRCS for ant in ANTS for corr in CORRS ];
+    def c00 (funklet):
+      if numpy.isscalar(funklet.coeff):
+        return funklet.coeff;
+      else:
+        return funklet.coeff.ravel()[0];
 
-  # check options that specify antennas by name
+    def read_complex_parms (pt,prefix="dE"):
+      """Reads complex c00 funklets from the given parmtable (given as filename).
+      For each key in the 'keys' list, forms up keystring (by joining the elements
+      of key weith ":"), then reads <prefix>:<keystring>:r and reads <prefix>:<keystring>:i,
+      and forms up and returns a complex array.
+      This assumes that the parm only changes in time.
+      """
+      #mask = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=bool);
+      arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=complex);
+      #arr = numpy.ma.masked_array(mask,arr,fill_value=1.0);
+      for i,src in enumerate(SRCS):
+        for j,ant in enumerate(ANTS):
+          for k,corr in enumerate(CORRS):
+            fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
+            fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
+            # table is allowed to contain either NO funklets for this src/ant/corr combination,
+            # or the same number as all other tables.
+            if len(fs_real) or len(fs_imag): 
+              if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
+                print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
+                sys.exit(1);
+              arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
+            # no funklets -- use 1, and mask the array
+            else:
+              arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
+  #            arr.mask[i,j,k,:] = True;
+      return arr;
+
+    # stuff down the line does not handle masked arrays properly, so we don't use them
+    #mask = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=bool);
+    de = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
+    #de = numpy.ma.masked_array(de,mask,fill_value=1.0);
+    
+    for spw,tabname in enumerate(args):
+      print "Reading",tabname;
+      pt = ParmTab(tabname);
+      mep_timestamp = max(mep_timestamp,os.path.getmtime(tabname));
+      freq0[spw] = sum(pt.envelope_domain().freq)/2;
+      de[spw,:,0:len(ANTS),:,:] = read_complex_parms(pt);
+
+    print "Read %d parmtables"%len(args);
+
+    # write cache
+    if options.cache:
+      cachefile = options.cache+'.cache';
+      cPickle.dump((freq0,de,SPWS,SRCS,ANTS,CORRS,NTIMES,ANTX),file(cachefile,'w'));
+      print "Cached all structures to file",cachefile;
+
+  #
+  # ========================== read cache file
+  #
+  else:
+    print "Reading cache file",args[0];
+    freq0,de,SPWS,SRCS,ANTS,CORRS,NTIMES,ANTX = cPickle.load(file(args[0]));
+
+  # check options that specify antennas by name, to make sure antenna is known
   for ant in 'circle_ampl_ant','circle_phase_ant':
     antname = getattr(options,ant,None);
     if antname:
@@ -211,57 +351,24 @@ if __name__ == "__main__":
     else:
       globals()[ant] = None;
 
-  def c00 (funklet):
-    if numpy.isscalar(funklet.coeff):
-      return funklet.coeff;
-    else:
-      return funklet.coeff.ravel()[0];
-
-
-  def read_complex_parms (pt,prefix="dE"):
-    """Reads complex c00 funklets from the given parmtable (given as filename).
-    For each key in the 'keys' list, forms up keystring (by joining the elements
-    of key weith ":"), then reads <prefix>:<keystring>:r and reads <prefix>:<keystring>:i,
-    and forms up and returns a complex array.
-    This assumes that the parm only changes in time.
-    """
-    #mask = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=bool);
-    arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=complex);
-    #arr = numpy.ma.masked_array(mask,arr,fill_value=1.0);
-    for i,src in enumerate(SRCS):
-      for j,ant in enumerate(ANTS):
-        for k,corr in enumerate(CORRS):
-          fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
-          fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
-          # table is allowed to contain either NO funklets for this src/ant/corr combination,
-          # or the same number as all other tables.
-          if len(fs_real) or len(fs_imag): 
-            if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
-              print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
-              sys.exit(1);
-            arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
-          # no funklets -- use 1, and mask the array
-          else:
-            arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
-#            arr.mask[i,j,k,:] = True;
-    return arr;
-
-  #
   # de is an NSPW x NSRC x NANT x NCORR x NTIME array of complex dEs
   # (NANT+1 actually, the last one is the mean-across-antennas value)
   #
-  MEAN = len(ANTS);
-
-  # stuff down the line does not handle masked arrays properly, so we don't use them
-  #mask = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=bool);
-  de = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
-  #de = numpy.ma.masked_array(de,mask,fill_value=1.0);
   
-  for spw,tabname in enumerate(args):
-    print "Reading",tabname;
-    pt = ParmTab(tabname);
-    freq0[spw] = sum(pt.envelope_domain().freq)/2;
-    de[spw,:,0:len(ANTS),:,:] = de1 = read_complex_parms(pt);
+  # some more constants
+  MEAN = len(ANTS);         # index of "mean" antenna
+  XX = CORRS.index('xx');
+  YY = CORRS.index('yy');
+  # set of all source,antenna,corr combinations
+  ALL = [ (src,ant,corr) for src in SRCS for ant in ANTS for corr in CORRS ];
+
+  # print per-source mean de_xx and de_yy amplitudes
+  # (skip the last antenna since it's the MEAN one.)
+  dex = abs(de[:,:,:-1,XX,:]).mean(2).mean(2).mean(0);
+  dey = abs(de[:,:,:-1,YY,:]).mean(2).mean(2).mean(0);
+  print "=== Mean |dExx|, |dEyy|:";
+  for isrc,src in enumerate(SRCS):
+    print "%8s=[%16.8f,%16.8f],"%(src,dex[isrc],dey[isrc]);
 
   # take mean along antenna axis
   de[:,:,MEAN,:,:] = de1 = numpy.mean(de[:,:,0:len(ANTS),:,:],2);
@@ -279,15 +386,17 @@ if __name__ == "__main__":
   # subtract mean phase over all antennas and times
   # dep0 is what's left, NSPW x NSRC x NANT x NCORR x NTIME
   dep0 = de_phase - (de_phase.mean(4).mean(2))[:,:,numpy.newaxis,:,numpy.newaxis];
+  # Then we take the mean across correlations. dep0 becomes NSPW x NSRC x NANT x NTIME.
+  dep0 = dep0.mean(3);
   # cut out the last ("mean") antenna
-  dep0 = dep0[:,:,0:-1,:,:];
+  dep0 = dep0[:,:,0:-1,:];
 
   # now fit phase offset and slope over array
   # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
   sx = ANTX.sum()
   sx2 = (ANTX**2).sum();
   sy = dep0.sum(2)
-  sxy = (dep0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis]).sum(2);
+  sxy = (dep0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis]).sum(2);
   n = len(ANTX);
   ## slope of linear fit
   dep0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
@@ -296,9 +405,9 @@ if __name__ == "__main__":
   ## stddev w.r.t. linear fit
   #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
 
-  # now also compute residuals w.r.t. the slope fits
-  dep0_fitted = dep0_b0[:,:,numpy.newaxis,:,:] + \
-    dep0_b1[:,:,numpy.newaxis,:,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis];
+  # now also compute residuals w.r.t. the slope fits, NSPW x NSRC x NANT x NTIME
+  dep0_fitted = dep0_b0[:,:,numpy.newaxis,:] + \
+    dep0_b1[:,:,numpy.newaxis,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis];
   dep0_res = dep0 - dep0_fitted;
 
   # same analysis for amplitudes
@@ -387,7 +496,30 @@ if __name__ == "__main__":
   # i.e. mean gain across all antennas
   de_renorm = de_norm/((de_norm[:,:,MEAN,:])[:,:,numpy.newaxis,:]);
 
-  print "Read %d parmtables"%len(args);
+  # read in source positions, if plotting mode requires it
+  if model:
+    maxabsdelog = math.sqrt(0.5); # abs(delog).max();
+    maxsize = options.circle_maxsize;
+    minsize = options.circle_minsize;
+    lsrc = numpy.zeros(len(SRCS),float);
+    msrc = numpy.zeros(len(SRCS),float);
+    nsrc = numpy.zeros(len(SRCS),float);
+    for i,name in enumerate(SRCS):
+      src = model.findSource(name);
+      lsrc[i],msrc[i],nsrc[i] = Coordinates.radec_to_lmn(src.pos.ra,src.pos.dec,*radec0);
+
+  # figure out optimal plot sizes
+  if options.width or options.height:
+    sz_as = sz_sa = (options.width,options.height);
+  # figure out automatically depending on whether we have more sources or antennas
+  else:
+    # more sources than antennas
+    if len(SRCS) < (len(ANTS)+1):
+      sz_as = ( 210,min(290,30*len(ANTS)));
+      sz_sa = ( 290,min(210,30*len(SRCS)));
+    else:
+      sz_as = ( 290,min(210,30*len(ANTS)));
+      sz_sa = ( 210,min(290,30*len(SRCS)));
 
   PLOT_SINGLE = 'single';
   PLOT_MULTI  = 'multi';
@@ -422,20 +554,9 @@ if __name__ == "__main__":
       raise TypeError,"misshaped datum returned: %d Y elements, %d Yerr elements"""%(len(y),len(yerr));
     return x,y,yerr;
 
-  # figure out sizes
-  if options.width or options.height:
-    sz_as = sz_sa = (options.width,options.height);
-  # figure out automatically depending on whether we have more sources or antennas
-  else:
-    # more sources than antennas
-    if len(SRCS) < (len(ANTS)+1):
-      sz_as = ( 210,min(290,30*len(ANTS)));
-      sz_sa = ( 290,min(210,30*len(SRCS)));
-    else:
-      sz_as = ( 290,min(210,30*len(ANTS)));
-      sz_sa = ( 210,min(290,30*len(SRCS)));
-
-
+  #
+  #============================ MAKE_FIGURE() plotting function
+  #
   def make_figure (rows,cols,  # (irow,row) and (icol,col) list
                   datafunc,   # datafunc(irow,icol) returns plot data for plot i,j
                   mode=PLOT_SINGLE,xaxis=None,
@@ -449,7 +570,7 @@ if __name__ == "__main__":
     if save and (format or options.output_type.upper()) != 'X11':
       save = "%s.%s"%(save,format or options.output_type);
       if options.output_prefix:
-        save = "%s_%s.%s"%(options.output_prefix,save);
+        save = "%s_%s"%(options.output_prefix,save);
       # exit if figure already exists, and we're not refreshing
       if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
         print save,"exists, not redoing";
@@ -498,6 +619,8 @@ if __name__ == "__main__":
         # plt.axis("off");
         if ylock and ylock != "col" and icol:
           plt.set_yticklabels([]);
+        else:
+          plt.yaxis.set_major_locator(MaxNLocator(4));
         plt.set_xticks([]);
         data = datafunc(irow,icol);
         if mode is PLOT_SINGLE:
@@ -531,8 +654,8 @@ if __name__ == "__main__":
     #  fig.subplots_adjust(left=0.05,right=.99,top=0.95,bottom=0.05);
     fig.subplots_adjust(left=borders[0],right=borders[1],top=borders[3],bottom=borders[2]);
     # plot if asked to
-    if suptitle and not options.notitle:
-      fig.suptitle(suptitle);
+    if suptitle and options.title_fontsize:
+      fig.suptitle(suptitle,fontsize=options.title_fontsize);
     if save:
       if options.portrait:
         orientation = 'portrait';
@@ -547,10 +670,17 @@ if __name__ == "__main__":
       pyplot.close("all");
     return save;
 
+  #
+  #============================ MAKE_SKYMAP() plotting function
+  #
   def make_skymap (ll,mm,
-    markers,  # marker is a list of strings or dicts. For each marker, axes.plot() is invoked
-              # as plot(x,y,str) or plot(x,y,**dict).
+    markers,  # marker is a list of strings or dicts or tuples. 
+              # For each marker, if str: axes.plot(x,y,str) is called
+              # if dict: axes.plot(x,y,**dict)
+              # else tuple is func,arg,kwargs
+              # and axes.func(*args,**kwargs) is called
     labels=None,
+    radius=None,        # plot radius. If None, then it's set automatically
     suptitle=None,      # title of plot
     save=None,          # filename to save to
     format=None,        # format: use options.output_type by default
@@ -559,7 +689,7 @@ if __name__ == "__main__":
     if save and (format or options.output_type.upper()) != 'X11':
       save = "%s.%s"%(save,format or options.output_type);
       if options.output_prefix:
-        save = "%s_%s.%s"%(options.output_prefix,save);
+        save = "%s_%s"%(options.output_prefix,save);
       # exit if figure already exists, and we're not refreshing
       if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
         print save,"exists, not redoing";
@@ -569,9 +699,13 @@ if __name__ == "__main__":
 
     figsize = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize,dpi=600);
-    plt = fig.add_axes([.05,.05,.9,.9]);
+    plt = fig.add_axes([borders[0],borders[2],borders[1]-borders[0],borders[3]-borders[2]]);
     plt.axhline(y=0,color='black',linestyle=':');
     plt.axvline(x=0,color='black',linestyle=':');
+
+    # if ll is None, use length of markers for everything
+    if ll is None:
+      ll = mm = numpy.zeros(len(markers),float);
 
     if not isinstance(markers,(list,tuple)):
       markers = [markers]*len(ll);
@@ -579,10 +713,13 @@ if __name__ == "__main__":
     if not labels:
       labels = [None]*len(ll);
 
-    ARCMIN = math.pi/(180*60);
-
     # set limits
-    lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
+    if options.radius:
+      lim = options.radius;
+    elif radius:
+      lim = radius;
+    else:
+      lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
 
     # plot markers
     for l,m,mark,label in zip(ll/ARCMIN,mm/ARCMIN,markers,labels):
@@ -590,29 +727,43 @@ if __name__ == "__main__":
         plt.plot(l,m,mark);
       elif isinstance(mark,dict):
         plt.plot(l,m,**mark);
-      if label:
-        plt.text(l,m-lim/50,label,fontsize=8,horizontalalignment='center',verticalalignment='top');
+      elif isinstance(mark,tuple):
+        func,args,kwargs = mark;
+        getattr(plt,func)(*args,**kwargs);
+      if label and options.label_fontsize:
+        plt.text(l,m-lim*options.circle_label_offset,
+          label,fontsize=options.label_fontsize,
+          horizontalalignment='center',
+          verticalalignment='top' if options.circle_label_offset else 'center');
 
-    # make circles at 30' and 1deg
-    x = numpy.cos(numpy.arange(0,360)*math.pi/180);
-    y = numpy.sin(numpy.arange(0,360)*math.pi/180);
+    x = numpy.cos(numpy.arange(0,361)*math.pi/180);
+    y = numpy.sin(numpy.arange(0,361)*math.pi/180);
 
-    for R in numpy.arange(2)*30:
+    for R in options.grid_circle:
       plt.plot(x*R,y*R,linestyle=':',color='black');
 
-    plt.set_xlim(-lim,lim);
+    plt.set_xlim(lim,-lim);
     plt.set_ylim(-lim,lim);
 
-    if suptitle:
-      fig.suptitle(suptitle);
+    if suptitle and options.title_fontsize:
+      fig.suptitle(suptitle,fontsize=options.title_fontsize);
     if save:
+      if options.portrait:
+        orientation = 'portrait';
+      elif options.landscape:
+        orientation = 'landscape';
+      else:
+        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
       fig.savefig(save,papertype=options.papertype,
-                  orientation='portrait' if figsize[0]<figsize[1] else 'landscape');
-      print "Wrote",save;
+                  orientation=orientation);
+      print "Wrote",save,"in",orientation,"orientation";
       fig = None;
       pyplot.close("all");
     return save;
 
+  #
+  #============================ VARIOUS PER-CORRELATION PLOTS
+  #
   if options.per_corr:
     for corr in XX,YY:
       if options.phase:
@@ -653,13 +804,6 @@ if __name__ == "__main__":
         #hline=0,ylock="row",mode=PLOT_ERRORBARS,
         #suptitle="dE%s residual phase (w.r.t. slope fit) mean & stddev across all bands"%CORRS[corr],
         #save="dEphase_array_%s_res"%CORRS[corr]);
-      if options.phase_slope:
-        make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),
-          lambda isrc,iant:(dep0_res[:,isrc,iant,corr,:].mean(0),
-                            dep0_res[:,isrc,iant,corr,:].std(0)),
-          hline=0,ylock="row",mode=PLOT_ERRORBARS,figsize=sz_sa,
-          suptitle="dE%s residual phase (w.r.t. slope fit) mean & stddev across all bands"%CORRS[corr],
-          save="dEphase_array_%s_res"%CORRS[corr]);
       if options.ampl_slope:
       #make_figure(enumerate(ANTS[:-1]),enumerate(SRCS),
         #lambda iant,isrc:(dea0_res[:,isrc,iant,corr,:].mean(0),
@@ -674,16 +818,133 @@ if __name__ == "__main__":
           suptitle="dE%s residual ampl (w.r.t. slope fit) mean & stddev across all bands"%CORRS[corr],
           save="dEampl_array_%s_res"%CORRS[corr]);
 
-  # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
-  if options.phase_slope:
-    dep0s = [ dep0_b1[:,:,XX,:],dep0_b1[:,:,YY,:],dep0_b0[:,:,XX,:],dep0_b0[:,:,YY,:] ];
-    make_figure(enumerate(("X slope deg/m","Y slope deg/m","X offset, deg","Y offset, deg")),enumerate(SRCS),
-      lambda i,isrc:(numpy.mean(dep0s[i][:,isrc,:],0),
-                    numpy.std(dep0s[i][:,isrc,:],0)),
-      ylock=False,mode=PLOT_ERRORBARS,
-      suptitle="Fitted differential phase slope over array",
-      save="dEphase_array_slopes");
+  #
+  #============================ DLM OFFSETS
+  #
+  dlm_offsets = dphase_lmfit = None; # will be set if we fit them below
+  if options.phase_slope_dlm:
+    # compute best-fitting per-source offset
+    # convert phase slope into phase offset on 0D baseline
+    p0wl = dep0_b1*(ANTX[-1]-ANTX[0])*DEG;
+    p0wl /= 2*math.pi*freq0[:,numpy.newaxis,numpy.newaxis]/299792458.
+    # take mean across SPWs (since we've eliminated dependence on freq),
+    # p0wl is now NSRCxNTIME
+    p0wl = p0wl.mean(0);
+    # uv needs to be NTIMEx2
+    uv = uvw[:,:2];
+    # dlm will be NSRCx2
+    dlm = dlm_offsets = numpy.zeros((len(SRCS),2),float);
+    print "=== Fitted dl,dm offsets:";
+    for isrc,src in enumerate(SRCS):
+      x,res,rank,sing = linalg.lstsq(uv,p0wl[isrc,:]);
+      print "%8s=[%16.8g,%16.8g],     # %.2f\", %.2f\""%(src,x[0],x[1],x[0]/ARCMIN*60,x[1]/ARCMIN*60);
+      dlm[isrc,:] = x; 
+    # shape is now 2xNSRC
+    dlm = dlm.transpose();
+    # now make fitted phase curves
+    ulvmwn = (uvw[:,:2,numpy.newaxis]*dlm[numpy.newaxis,:,:]).sum(1);
+    dphase_lmfit = (ulvmwn*2*math.pi*freq0.mean()/299792458.)/(DEG*(ANTX[-1]-ANTX[0]));
 
+    # make figure
+    markers = [];
+    labels = [];
+    # set dlmscale so that longet arrow is .2 of max radius
+    maxlm = math.sqrt((lsrc**2+msrc**2).max());
+    maxdlm = math.sqrt((dlm_offsets**2).sum(0).max());
+    dlmscale = 0.2*maxlm/maxdlm; 
+    # make l/m and dl/dm array (in arcmin)
+    l0m0 = numpy.array([lsrc,msrc]).copy()/ARCMIN;
+    dldm = dlm_offsets.transpose().copy()*dlmscale/ARCMIN;
+    radius = max(math.sqrt((l0m0**2).sum(0).max()),math.sqrt(((l0m0+dldm)**2).sum(0).max()))*1.01;
+    # loop over sources
+    for isrc,name in enumerate(SRCS):
+      l0,m0 = l0m0[:,isrc];
+      r = (math.sqrt((dlm_offsets[isrc,:]**2).sum())/DEG)*3600;
+      mark = ('arrow',list(l0m0[:,isrc])+list(dldm[:,isrc]),dict(
+        width=1,head_width=2,head_length=2,
+      ));
+      markers.append(mark);
+      markers.append(('text',(l0,m0,"%.2f\""%r),dict(
+          fontsize=options.label_fontsize,
+          horizontalalignment='left' if dldm[0,isrc]>0 else 'right',
+          verticalalignment='top' if dldm[1,isrc]>0 else 'bottom')));
+
+    make_skymap(None,None,markers,labels=labels,radius=radius,
+      figsize=(210,210),suptitle="Fitted l/m offsets",save="dE_lm_offsets");
+
+  #
+  #============================ PHASE SLOPE PLOTS
+  #
+  # dep0_b0/1 will be NSPWxNSRCxNTIME
+  if options.phase_slope:
+    # compute rotational offset curves, if needed
+    dr = options.phase_slope_rot_offset;
+    dt = options.phase_slope_time_offset;
+    if dr or dt:
+      # dr: rotate lm by fixed angle
+      if dr:
+        # compute l1,m1,n1: rotated source lmn
+        dr *= DEG;
+        cr,sr = math.cos(dr),math.sin(dr);
+        l1 = lsrc*cr - msrc*sr;
+        m1 = lsrc*sr + msrc*cr;
+        n1 = numpy.sqrt(1-l1**2-m1**2);
+        # compute dlmn: delta-lmn, shape is 3xNSRC
+        dlmn = numpy.array([lsrc-l1,msrc-m1,nsrc-n1]);
+        # work out the corresponding phase difference (ul+vm+wn term)
+        # shape is NTIMEx3xNSRC, then sum second axis, giving NTIMExNSRC
+        ulvmwn = (uvw[:,:,numpy.newaxis]*dlmn[numpy.newaxis,:,:]).sum(1);
+      # dt: introduce a time lag into the UVWs (in fractions of a timeslot)
+      if dt:
+        duvw = (uvw0[31::60]-uvw)*dt;
+        lmn = numpy.array([lsrc,msrc,nsrc-1]);
+        # work out the corresponding phase difference (ul+vm+wn term)
+        # shape is NTIMEx3xNSRC, then sum second axis, giving NTIMExNSRC
+        ulvmwn = (duvw[:,:,numpy.newaxis]*lmn[numpy.newaxis,:,:]).sum(1);
+      # now multiply (ul+vm+wn) by 2*pi/c
+      dphase = ulvmwn*2*math.pi/299792458.
+      # now, convert this into a phase offset per NTIMExNSRC
+      dphase = dphase[:,:]*freq0.mean();
+      # and to deg/m
+      dphase = dphase/(DEG*(ANTX[-1]-ANTX[0]));
+      # if he've fitted a dphase corresponding to dlm, add it here
+      if dphase_lmfit is None:
+        plotfunc = lambda i,isrc:(
+            (None,numpy.mean(dep0_b1[:,isrc,:],0),numpy.std(dep0_b1[:,isrc,:],0)),
+            dphase[:,isrc]
+          );
+      else:
+        plotfunc = lambda i,isrc:(
+            (None,numpy.mean(dep0_b1[:,isrc,:],0),numpy.std(dep0_b1[:,isrc,:],0)),
+            dphase_lmfit[:,isrc],dphase[:,isrc]
+          );
+      # make the plot
+      make_figure(enumerate(("",)),enumerate(SRCS),plotfunc,
+        ylock=False,mode=PLOT_MULTI,
+        suptitle="Fitted differential phase slope over array",
+        save="dEphase_array_slopes");
+    else:
+      make_figure(enumerate(("",)),enumerate(SRCS),
+        lambda i,isrc:(numpy.mean(dep0_b1[:,isrc,:],0),
+                      numpy.std(dep0_b1[:,isrc,:],0)),
+        ylock=False,mode=PLOT_ERRORBARS,
+        suptitle="Fitted differential phase slope over array",
+        save="dEphase_array_slopes");
+
+  #
+  #============================ RESIDUALS W.R.T. PHASE SLOPE
+  #
+  if options.phase_slope_res:
+    make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),
+      lambda isrc,iant:(dep0_res[:,isrc,iant,:].mean(0),
+                        dep0_res[:,isrc,iant,:].std(0)),
+      hline=0,ylock="row",mode=PLOT_ERRORBARS,figsize=sz_sa,
+      suptitle="dE residual phase (w.r.t. slope fit) mean & stddev across all bands",
+      save="dEphase_array_slopes_res");
+
+  #
+  #============================ AMPLITUDE SLOPE PLOTS
+  #
   if options.ampl_slope:
     dea0s = [ dea0_b1[:,:,XX,:],dea0_b1[:,:,YY,:],dea0_b0[:,:,XX,:],dea0_b0[:,:,YY,:] ];
     make_figure(enumerate(("X slope 1/m","Y slope 1/m","X offset","Y offset")),enumerate(SRCS),
@@ -738,6 +999,9 @@ if __name__ == "__main__":
     #save="dEampl_array_yy");
 
 
+  #
+  #============================ POLARIZATION PLOT
+  #
   if options.pol:
     make_figure(enumerate(SRCS),enumerate(ANTS),
       lambda isrc,iant:(numpy.mean(de_fpol[:,isrc,iant,:],0),numpy.std(de_fpol[:,isrc,iant,:],0)),
@@ -752,6 +1016,9 @@ if __name__ == "__main__":
         save="dEpol_mean_sa_perband");
 
 
+  #
+  #============================ dE PHASE PLOTS
+  #
   if options.phase:
     de_mean_phase = de_phase.mean(3);
     make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
@@ -761,6 +1028,9 @@ if __name__ == "__main__":
       suptitle="dE phase (deg) mean & stddev across all bands",
       save="dEphase_mean");
 
+  #
+  #============================ dE AMPLITUDE PLOTS
+  #
   if options.ampl:
     make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
       lambda isrc,iant:(numpy.mean(de_renorm[:,isrc,iant,:],0),numpy.std(de_renorm[:,isrc,iant,:],0)),
@@ -787,23 +1057,17 @@ if __name__ == "__main__":
     #suptitle="|dExx|,|dEyy| averaged across all bands",
     #save="dE_mean_xx_yy");
 
-  if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant:
-    maxabsdelog = math.sqrt(0.5); # abs(delog).max();
-    maxsize = 36
-    minsize = 0
-    lsrc = numpy.zeros(len(SRCS),float);
-    msrc = numpy.zeros(len(SRCS),float);
-    for i,name in enumerate(SRCS):
-      src = model.findSource(name);
-      lsrc[i],msrc[i] = src._lm_ncp;
-
+  #
+  #============================ ROGUES GALLERY AMPLITUDES
+  #
   if options.circle_ampl:
     # de_renorm is NSPWxNSRCxNANTxNTIME
     # reshape as NSRCxNANTxNSPWxNTIME
     de_r1 = de_renorm.copy().transpose((1,2,0,3));
     demean = de_r1.mean(2).mean(2);
     # stddev is sqrt(s1^2+s2^2), where s1 is mean error, and s2 is error of mean
-    destd  = numpy.sqrt((de_r1.std(2).mean(2)/math.sqrt(NTIMES-1))**2 + de_r1.mean(2).std(2)**2);
+    destd  = de_r1.std(2).mean(2)/math.sqrt(NTIMES-1);
+#    destd  = numpy.sqrt((de_r1.std(2).mean(2)/math.sqrt(NTIMES-1))**2 + de_r1.mean(2).std(2)**2);
     delog = numpy.where(demean>=1,numpy.sqrt(demean-1),-numpy.sqrt(1-demean));
 
     antplots = [];
@@ -819,14 +1083,18 @@ if __name__ == "__main__":
         sigmas = abs(1-mean)/std;
         if sigmas >= 3:
           mark['markerfacecolor'] = color;
-        elif sigmas >= 2:
-          mark['markeredgewidth'] = 3;
-        elif sigmas >= 1:
-          mark['markeredgewidth'] = 2;
         else:
-          mark['markeredgewidth'] = 1;
+          sigmas = max(sigmas,1);
+          mark['markeredgewidth'] = options.circle_linewidth*((sigmas-1)/2.)+1;
+#        elif sigmas >= 1:
+#          mark['markeredgewidth'] = 2*options.circle_linewidth;
+#        else:
+#          mark['markeredgewidth'] = 1;
         markers.append(mark);
-        labels.append("%s %.2f+-%.2f"%(name,mean,std));
+        if options.names_only:
+          labels.append(name);
+        else:
+          labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
       antplots.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, RT%s"%ant,save="dE_ant%s"%ant));
@@ -855,6 +1123,9 @@ if __name__ == "__main__":
           img.paste(subimg,(x0*plotsize,y0*plotsize));
         img.save("dE_ant_gallery.png","PNG");
 
+  #
+  #============================ ROGUES GALLERY ANIMATION
+  #
   if circle_ampl_ant is not None:
     # make animation for given antenna
     antname = ANTS[circle_ampl_ant];
@@ -874,7 +1145,10 @@ if __name__ == "__main__":
         mark = dict(marker='o',markersize=minsize + (maxsize-minsize)*(abs(log)/maxabsdelog),
                     markeredgecolor=color,markerfacecolor=color);
         markers.append(mark);
-        labels.append("%s %.2f+-%.2f"%(name,mean,std));
+        if options.names_only:
+          labels.append(name);
+        else:
+          labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
       frames.append(make_skymap(lsrc,msrc,markers,labels=labels,
         figsize=(210,210),suptitle="Average ||dE||, antenna %s, time slice %d"%(antname,k),save="dE_ant%s_%03d"%(antname,k)));
@@ -888,6 +1162,37 @@ if __name__ == "__main__":
                   "dE_ant%s_anim.gif"%antname));
       os.system("rm -f %s"%" ".join([f+".gif" for f in frames]));
 
+  #
+  #============================ UPDATE LSM
+  #
+  if options.update_lsm:
+    if lsm_timestamp >= mep_timestamp:
+      if raw_input("Your LSM file appears to be newer than the dE solutions. Really update (y/n)? "
+          ).lower()[:1] != "y":
+        print "LSM update cancelled.";
+        sys.exit(1);
+    # update sources
+    print "=== Updating model sources";
+    A = (dex**2+dey**2)/2;
+    B = (dex**2-dey**2)/2;
+    for isrc,name in enumerate(SRCS):
+      for src in model.sources:
+        if src.name.startswith(name):
+          if hasattr(src.flux,'Q'):
+            I,Q = src.flux.I,src.flux.Q;
+            src.flux.I = A[isrc]*I+B[isrc]*Q;
+            src.flux.Q = A[isrc]*Q+B[isrc]*I;
+            print "%8s I=%f Q=%f --> I=%f Q=%f"%(src.name,I,Q,src.flux.I,src.flux.Q);
+          if dlm_offsets is not None:
+            ra,dec = src.pos.ra,src.pos.dec;
+            l,m,n = Coordinates.radec_to_lmn(ra,dec,*radec0);
+            l += dlm_offsets[isrc,0];
+            m += dlm_offsets[isrc,1];
+            src.pos.ra,src.pos.dec = Coordinates.lm_to_radec(l,m,*radec0);
+            print "%8s position %.8f,%.8f --> %.8f %.8f"%(src.name,ra,dec,src.pos.ra,src.pos.dec);
+    newname = "updated-"+lsm_filename;
+    model.save(newname);
+    print "Wrote updated sky model",newname;
 
   if options.output_type.upper() == "X11":
     from pylab import plt
