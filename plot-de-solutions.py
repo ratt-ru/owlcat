@@ -59,10 +59,18 @@ if __name__ == "__main__":
                     help="sets radius of grid circle(s) in circle plots. May be given multiple times. Default is 30 and 60.");
   group.add_option("--title-fontsize",metavar="POINTS",type="int",
                   help="Set plot title font size, 0 for no title. Default is %default.");
+  group.add_option("--subtitle-fontsize",metavar="POINTS",type="int",
+                  help="Set plot subtitle font size, 0 for none. Default is %default.");
   group.add_option("--label-fontsize",metavar="POINTS",type="int",
                   help="Set plot label font size, 0 for no labels. Default is %default.");
   group.add_option("--axis-fontsize",metavar="POINTS",type="int",
-                  help="Set axis tickmark font size, 0 for no axis tickmarks. Default is %default.");
+                  help="Set axis label font size, 0 for no axis labels. Default is %default.");
+  group.add_option("--circle-title-fontsize",metavar="POINTS",type="int",
+                  help="Set plot title font size in circle plots, 0 for no title. Default is %default.");
+  group.add_option("--circle-label-fontsize",metavar="POINTS",type="int",
+                  help="Set plot label font size in circle plots, 0 for no labels. Default is %default.");
+  group.add_option("--circle-axis-fontsize",metavar="POINTS",type="int",
+                  help="Set axis label font size in circle_plots, 0 for no axis labels. Default is %default.");
   group.add_option("--names-only",action="store_true",
                   help="Use only source names for labels in circle plots. Default is name, mean and std values.");
   group.add_option("--circle-minsize",metavar="POINTS",type="int",
@@ -73,8 +81,14 @@ if __name__ == "__main__":
                   help="Max linewidth used to draw open circles in circle plots. The width corresponds to 3 sigmas. Default is %default.");
   group.add_option("--circle-label-offset",metavar="FRAC",type="float",
                   help="Vertical offset of circle labels. Use 0 to center labels on source position. Default is %default.");
+  group.add_option("--dlm-scale",metavar="N",type="float",
+                  help="Scale for arrows indicating dl/dm offset, as N:1. Default is to auto-scale based on max length.");
   group.add_option("--borders",metavar="L,R,B,T",type="str",
                   help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
+  group.add_option("--circle-borders",metavar="L,R,B,T",type="str",
+                  help="Set left/right/bottom/top circle-plot borders, in normalized page coordinates. Default is %default.");
+  group.add_option("--subplot-wspace",metavar="W",type="float",
+                  help="Set spacing between subplots, as fraction of subplot width. Default is automatic.");
   parser.add_option_group(group);
 
   group = OptionGroup(parser,"Output options");
@@ -99,9 +113,11 @@ if __name__ == "__main__":
   parser.add_option_group(group);
 
   parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",cache=None,
-    borders="0.05,0.99,0.05,0.95",
-    title_fontsize=12,label_fontsize=8,phase_slope_rot_offset=0,
-    radius=0,
+    borders="0.05,0.99,0.05,0.95",circle_borders=".05,.9,.05,.9",subplot_wspace=0,
+    title_fontsize=12,subtitle_fontsize=10,label_fontsize=8,axis_fontsize=5,
+    circle_title_fontsize=12,circle_label_fontsize=8,circle_axis_fontsize=5,
+    phase_slope_rot_offset=0,
+    radius=0,dlm_scale=0,
     circle_maxsize=36,circle_minsize=0,circle_linewidth=5,circle_label_offset=0.02,
     output_prefix="",output_type="png",papertype='a4',width=0,height=0);
 
@@ -126,6 +142,12 @@ if __name__ == "__main__":
     borders = [];
   if len(borders) != 4:
     parser.error("Bad --borders specification.");
+  try:
+    circle_borders = [ float(x) for x in options.circle_borders.split(",") ];
+  except:
+    circle_borders = [];
+  if len(circle_borders) != 4:
+    parser.error("Bad --circle-borders specification.");
 
   if not options.grid_circle:
     options.grid_circle = (30,60);
@@ -339,6 +361,8 @@ if __name__ == "__main__":
   else:
     print "Reading cache file",args[0];
     freq0,de,SPWS,SRCS,ANTS,CORRS,NTIMES,ANTX = cPickle.load(file(args[0]));
+    print "Read %s: %d spws, %d srcs, %d ants, %d corrs, %d times"%(args[0],
+        len(SPWS),len(SRCS),len(ANTS),len(CORRS),NTIMES);
 
   # check options that specify antennas by name, to make sure antenna is known
   for ant in 'circle_ampl_ant','circle_phase_ant':
@@ -609,7 +633,8 @@ if __name__ == "__main__":
       iplot += 1;
       plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
       plt.axis("off");
-      plt.text(.5,0,col,fontsize='x-small',horizontalalignment='center',verticalalignment='bottom');
+      plt.text(.5,0,col,fontsize=options.subtitle_fontsize,
+        horizontalalignment='center',verticalalignment='bottom');
     iplot += 1;
     # now make plots
     for irow,row in rows:
@@ -640,19 +665,15 @@ if __name__ == "__main__":
         if hline is not None:
           plt.axhline(y=hline,color='black');
         for lab in plt.get_yticklabels():
-          lab.set_fontsize(5);
+          lab.set_fontsize(options.axis_fontsize);
       # add row label
       iplot += 1;
       plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
       plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
       plt.axis("off");
     # adjust layout
-    #
-    #if options.nomargin:
-    #  fig.subplots_adjust(left=0.03,right=1.03,top=0.96,bottom=0.01);
-    #else:
-    #  fig.subplots_adjust(left=0.05,right=.99,top=0.95,bottom=0.05);
-    fig.subplots_adjust(left=borders[0],right=borders[1],top=borders[3],bottom=borders[2]);
+    fig.subplots_adjust(left=borders[0],right=borders[1],top=borders[3],bottom=borders[2],
+      wspace=options.subplot_wspace or None);
     # plot if asked to
     if suptitle and options.title_fontsize:
       fig.suptitle(suptitle,fontsize=options.title_fontsize);
@@ -684,7 +705,7 @@ if __name__ == "__main__":
     suptitle=None,      # title of plot
     save=None,          # filename to save to
     format=None,        # format: use options.output_type by default
-    figsize=sz_as       # figure width,height in mm
+    figsize=(210,210),       # figure width,height in mm
     ):
     if save and (format or options.output_type.upper()) != 'X11':
       save = "%s.%s"%(save,format or options.output_type);
@@ -699,7 +720,8 @@ if __name__ == "__main__":
 
     figsize = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize,dpi=600);
-    plt = fig.add_axes([borders[0],borders[2],borders[1]-borders[0],borders[3]-borders[2]]);
+    plt = fig.add_axes([circle_borders[0],circle_borders[2],circle_borders[1]-circle_borders[0],
+                        circle_borders[3]-circle_borders[2]]);
     plt.axhline(y=0,color='black',linestyle=':');
     plt.axvline(x=0,color='black',linestyle=':');
 
@@ -730,9 +752,9 @@ if __name__ == "__main__":
       elif isinstance(mark,tuple):
         func,args,kwargs = mark;
         getattr(plt,func)(*args,**kwargs);
-      if label and options.label_fontsize:
+      if label and options.circle_label_fontsize:
         plt.text(l,m-lim*options.circle_label_offset,
-          label,fontsize=options.label_fontsize,
+          label,fontsize=options.circle_label_fontsize,
           horizontalalignment='center',
           verticalalignment='top' if options.circle_label_offset else 'center');
 
@@ -744,9 +766,11 @@ if __name__ == "__main__":
 
     plt.set_xlim(lim,-lim);
     plt.set_ylim(-lim,lim);
+    for lab in list(plt.get_xticklabels())+list(plt.get_yticklabels()):
+      lab.set_fontsize(options.circle_axis_fontsize);
 
     if suptitle and options.title_fontsize:
-      fig.suptitle(suptitle,fontsize=options.title_fontsize);
+      fig.suptitle(suptitle,fontsize=options.circle_title_fontsize);
     if save:
       if options.portrait:
         orientation = 'portrait';
@@ -836,13 +860,14 @@ if __name__ == "__main__":
     dlm = dlm_offsets = numpy.zeros((len(SRCS),2),float);
     print "=== Fitted dl,dm offsets:";
     for isrc,src in enumerate(SRCS):
-      x,res,rank,sing = linalg.lstsq(uv,p0wl[isrc,:]);
+      # flip sign of phase offset, since phase is -(ul+vm+w(n-1))
+      x,res,rank,sing = linalg.lstsq(uv,-p0wl[isrc,:]);
       print "%8s=[%16.8g,%16.8g],     # %.2f\", %.2f\""%(src,x[0],x[1],x[0]/ARCMIN*60,x[1]/ARCMIN*60);
       dlm[isrc,:] = x; 
     # shape is now 2xNSRC
     dlm = dlm.transpose();
     # now make fitted phase curves
-    ulvmwn = (uvw[:,:2,numpy.newaxis]*dlm[numpy.newaxis,:,:]).sum(1);
+    ulvmwn = -(uvw[:,:2,numpy.newaxis]*dlm[numpy.newaxis,:,:]).sum(1);
     dphase_lmfit = (ulvmwn*2*math.pi*freq0.mean()/299792458.)/(DEG*(ANTX[-1]-ANTX[0]));
 
     # make figure
@@ -851,11 +876,11 @@ if __name__ == "__main__":
     # set dlmscale so that longet arrow is .2 of max radius
     maxlm = math.sqrt((lsrc**2+msrc**2).max());
     maxdlm = math.sqrt((dlm_offsets**2).sum(0).max());
-    dlmscale = 0.2*maxlm/maxdlm; 
+    dlmscale = options.dlm_scale or 0.2*maxlm/maxdlm; 
     # make l/m and dl/dm array (in arcmin)
     l0m0 = numpy.array([lsrc,msrc]).copy()/ARCMIN;
     dldm = dlm_offsets.transpose().copy()*dlmscale/ARCMIN;
-    radius = max(math.sqrt((l0m0**2).sum(0).max()),math.sqrt(((l0m0+dldm)**2).sum(0).max()))*1.01;
+    radius = options.radius; max(math.sqrt((l0m0**2).sum(0).max()),math.sqrt(((l0m0+dldm)**2).sum(0).max()))*1.01;
     # loop over sources
     for isrc,name in enumerate(SRCS):
       l0,m0 = l0m0[:,isrc];
@@ -865,7 +890,7 @@ if __name__ == "__main__":
       ));
       markers.append(mark);
       markers.append(('text',(l0,m0,"%.2f\""%r),dict(
-          fontsize=options.label_fontsize,
+          fontsize=options.circle_label_fontsize,
           horizontalalignment='left' if dldm[0,isrc]>0 else 'right',
           verticalalignment='top' if dldm[1,isrc]>0 else 'bottom')));
 
@@ -910,13 +935,13 @@ if __name__ == "__main__":
       # if he've fitted a dphase corresponding to dlm, add it here
       if dphase_lmfit is None:
         plotfunc = lambda i,isrc:(
-            (None,numpy.mean(dep0_b1[:,isrc,:],0),numpy.std(dep0_b1[:,isrc,:],0)),
-            dphase[:,isrc]
+            (None,numpy.mean(dep0_b1[:,isrc,:]*1000,0),numpy.std(dep0_b1[:,isrc,:]*1000,0)),
+            dphase[:,isrc]*1000
           );
       else:
         plotfunc = lambda i,isrc:(
-            (None,numpy.mean(dep0_b1[:,isrc,:],0),numpy.std(dep0_b1[:,isrc,:],0)),
-            dphase_lmfit[:,isrc],dphase[:,isrc]
+            (None,numpy.mean(dep0_b1[:,isrc,:]*1000,0),numpy.std(dep0_b1[:,isrc,:]*1000,0)),
+            dphase_lmfit[:,isrc]*1000,dphase[:,isrc]*1000
           );
       # make the plot
       make_figure(enumerate(("",)),enumerate(SRCS),plotfunc,
@@ -924,10 +949,16 @@ if __name__ == "__main__":
         suptitle="Fitted differential phase slope over array",
         save="dEphase_array_slopes");
     else:
-      make_figure(enumerate(("",)),enumerate(SRCS),
-        lambda i,isrc:(numpy.mean(dep0_b1[:,isrc,:],0),
-                      numpy.std(dep0_b1[:,isrc,:],0)),
-        ylock=False,mode=PLOT_ERRORBARS,
+      if dphase_lmfit is None:
+        plotfunc = lambda i,isrc:(
+            (None,numpy.mean(dep0_b1[:,isrc,:]*1000,0),numpy.std(dep0_b1[:,isrc,:],0)*1000),);
+      else:
+        plotfunc = lambda i,isrc:(
+            (None,numpy.mean(dep0_b1[:,isrc,:]*1000,0),numpy.std(dep0_b1[:,isrc,:]*1000,0)),
+            dphase_lmfit[:,isrc]*1000
+          );
+      make_figure(enumerate(("",)),enumerate(SRCS),plotfunc,
+        ylock=False,mode=PLOT_MULTI,
         suptitle="Fitted differential phase slope over array",
         save="dEphase_array_slopes");
 
@@ -1060,6 +1091,7 @@ if __name__ == "__main__":
   #
   #============================ ROGUES GALLERY AMPLITUDES
   #
+  output_prefix = options.output_prefix+"_" if options.output_prefix else "";
   if options.circle_ampl:
     # de_renorm is NSPWxNSRCxNANTxNTIME
     # reshape as NSRCxNANTxNSPWxNTIME
@@ -1121,7 +1153,10 @@ if __name__ == "__main__":
           subimg = subimg.resize((plotsize,plotsize),PIL.Image.ANTIALIAS);
           y0,x0 = divmod(i,ncol);
           img.paste(subimg,(x0*plotsize,y0*plotsize));
-        img.save("dE_ant_gallery.png","PNG");
+        outname = "%sdE_ant_gallery.png"%output_prefix;
+        img.save(outname,"PNG");
+        print "Wrote",outname;
+        
 
   #
   #============================ ROGUES GALLERY ANIMATION
@@ -1151,16 +1186,18 @@ if __name__ == "__main__":
           labels.append("%s %.2f+-%.2f"%(name,mean,std));
 
       frames.append(make_skymap(lsrc,msrc,markers,labels=labels,
-        figsize=(210,210),suptitle="Average ||dE||, antenna %s, time slice %d"%(antname,k),save="dE_ant%s_%03d"%(antname,k)));
+        figsize=(210,210),suptitle="Average ||dE||, antenna %s, time slice %d"%(antname,k),save="%sdE_ant%s_%03d"%(output_prefix,antname,k)));
 
     # try to make animation
     if options.output_type.upper() == "PNG":
       for f in frames:
         os.system("pngtopnm %s | ppmquant 256 | ppmtogif >%s.gif"%(f,f));
+      outname = "%sdE_ant%s_anim.gif"%(output_prefix,antname);
       os.system("gifsicle -d 15 -l0 --colors 256 %s >%s"%
                 (" ".join([f+".gif" for f in frames + frames[-1::-1]]),
-                  "dE_ant%s_anim.gif"%antname));
+                  outname));
       os.system("rm -f %s"%" ".join([f+".gif" for f in frames]));
+      print "Wrote",outname;
 
   #
   #============================ UPDATE LSM

@@ -607,7 +607,7 @@ class Flagger (Timba.dmi.verbosity):
           flag=None,                         # set the flagmask (or flagset name, optionally "+L")
           unflag=None,                       # clear the flagmask (or flagset name, optionally "+L")
           create=False,                      # if True and 'flag' is a string, creates new flagset as needed
-          fill_legacy=None,                  # if true, legacy flags will be filled (within all of subset A)
+          fill_legacy=None,                  # if not None, legacy flags will be filled (within all of subset A)
                                              # using this mask
 
               # The following options restrict the subset to be flagged. Effect is cumulative.
@@ -839,7 +839,7 @@ class Flagger (Timba.dmi.verbosity):
         self.dprintf(2,"subset C (data clipping) leaves %d visibilities\n",nv);
         
         # now, do the actual flagging
-        if flag or unflag or fill_legacy:
+        if flag or unflag or fill_legacy is not None:
           rf = rowflags();
           vf = visflags();
           # flag/unflag visibilities
@@ -859,6 +859,7 @@ class Flagger (Timba.dmi.verbosity):
             ms.putcol('BITFLAG_ROW',numpy.asarray(rf&self.BITMASK_ALL,self._bitflag_dtype),row0,nrows);
           # write legacy flags
           if fill_legacy is not None or (flag|unflag)&self.LEGACY:
+            self.dprintf(4,"filling legacy flags for rows %d:%d\n"%(row0,row0+nrows));
             ms.putcol('FLAG',(vf&self.LEGACY)!=0,row0,nrows);
             ms.putcol('FLAG_ROW',(rf&self.LEGACY)!=0,row0,nrows);
     if progress_callback:

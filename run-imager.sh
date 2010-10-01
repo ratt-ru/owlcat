@@ -106,6 +106,8 @@ eval $confirm
 
 CELLSIZE=`python -c "print $img_arcmin*60./float($img_npix)"`
 
+# helper function: protects / and - in filenames with backslash,
+# so image2fits does not interpret them as LEL arithmetic
 sanitize ()
 {
   name="$1"
@@ -173,8 +175,8 @@ make_image ()
       echo "Success"
       remove=true
     fi
-    # the ridiculous-looking pattern below replaces "/" in imgname/model/residual/restored
-    # with "\/", so that image2fits does not interpret them as a divide operation
+    # call sanitize() (see above) to make sure / and - in filenames is not interpreted  
+    # as LEL expressions
     if [ "$img_oper" == "image" ]; then
       image2fits in="`sanitize $imgname`" out=$imgname_fits && $remove -fr $imgname
     else
