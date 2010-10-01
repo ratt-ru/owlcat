@@ -648,7 +648,7 @@ class Flagger (Timba.dmi.verbosity):
     # for these two masks, it's more convenient that they're set to 0 if missing
     flag = flag or 0;
     unflag = unflag or 0;
-    if not self.has_bitflags and (flag|unflag)&self.BITFLAG_ALL:
+    if not self.has_bitflags and (flag|unflag)&self.BITMASK_ALL:
       raise RuntimeError,"no BITFLAG column in this MS, can't change bitflags";
     # stats 
     # total number of rows 
