@@ -160,6 +160,83 @@ class PlotCollection (object):
     return fig;
 
 
+class ComplexCirclePlot (PlotCollection):
+  """ScatterPlot plots a complex circle plot""";
+  # plot colors: xx xy yx yy
+  colors = ("blue","red","purple","green");
+
+  # function to make single-page plot
+  # function to make single-page plot
+  def make_figure (self,keylist=None,suptitle=None,save=None,
+                   dual=True,offset_std=10,
+                   figsize=(210,290),dpi=100,papertype='a4',landscape=False):
+    figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
+    fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
+    if keylist:
+      datalist = [ (key,self.data.get(key)) for key in keylist ];
+    else:
+      datalist = data.iteritems();
+    # margin sizes. We want to keep them fixed in absolute terms,
+    # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
+    # we rescale them accordingly.
+    mleft   = 0.06 * 210./figsize[0];
+    mbottom = 0.06 * 210./figsize[1];
+    mright  = 0.01 * 210./figsize[0];
+    mtop    = 0.04 * 210./figsize[1];
+    ytitle  = 1 - 0.01 * 210./figsize[1];
+    width   = ( 1 - mleft - mright );
+    height  = ( 1 - mtop - mbottom );
+    plt = fig.add_axes([mleft,mbottom,width,height]);
+    # find length of common prefix of labels
+    labels = [lab for lab in self.label.itervalues() if lab];
+    if labels:
+      prefix = 1;
+      while len(labels[0])>prefix and all([lab.startswith(labels[0][:prefix]) for lab in labels]):
+        prefix += 1;
+    # plot data over text labels
+    ncorr = 0;
+    rad = 0;
+    for key,data in datalist:
+      label = self.label.get(key);
+      ncorr = max(ncorr,data.shape[-1]);
+      for icorr in range(data.shape[-1]):
+        color = self.colors[icorr];
+        d = data[...,icorr];
+        rad = max(rad,abs(d).max());
+        if d.size > 1 or not label:
+          plt.plot(d.real,d.imag,".-",mec=color,mfc=color,zorder=0);
+        if label:
+          d0 = d[-1] if d.ndim else d;
+          plt.text(d0.real,d0.imag,label[prefix-1:],horizontalalignment='center',
+                  verticalalignment='center',zorder=1,fontsize=8,color=color);
+    # plot arrow to means
+    for icorr in range(ncorr):
+      color = self.colors[icorr];
+      datameans = [d[...,icorr].mean() for d in self.data.itervalues() if d.shape[-1]>icorr ];
+      meanval = sum(datameans)/len(datameans) if datameans else 0;
+      plt.arrow(0,0,meanval.real,meanval.imag,color=color);
+      # plot circle
+      phi = numpy.arange(0,1.001,0.001)*2*math.pi;
+      plt.plot(numpy.cos(phi)*abs(meanval),numpy.sin(phi)*abs(meanval),"-",color=color);
+    for lab in plt.get_xticklabels():
+      lab.set_fontsize(10);
+    for lab in plt.get_yticklabels():
+      lab.set_fontsize(10);
+      lab.set_rotation('vertical');
+    # plot title if asked to
+    plt.set_xlim(-rad,rad);
+    plt.set_ylim(-rad,rad);
+    if suptitle:
+      fig.suptitle(suptitle,y=ytitle,size=10);
+    if save:
+      fig.savefig(save,papertype=papertype,
+                  orientation='portrait' if not landscape else 'landscape');
+      print "===> Wrote",save;
+    return fig;
+
+
+
+
 class ScatterPlot (object):
   """ScatterPlot plots a complex scatterplot""";
   def __init__ (self,options):

@@ -13,43 +13,57 @@ import Owlcat
 
 from Owlcat import Parsing
 
+COMPLEX_CIRCLE = "cc";  # identifier for the complex circle plot type
+COMPLEX_CIRCLE_MEAN = "ccm"; # identifier for the complex circle plot type
 
 #
 # NB: these need to be constructed on-the-fly based on polarization info from the MS.
 # Otherwise we don't support circular without kludging
 #
 
+def cca_datafunc (data):
+  while data.ndim > 1:
+    data = data.mean(0);
+  return data;
+
+PT_DATATRACK = 0;
+PT_FLAGTRACK = 1;
+PT_CC = 2;
+
 # Each plotter func is a tuple of
-#   label,description,callable,flags_only
+#   label,description,callable,plot_type
 # The 'callable' transforms data into plottables
-# If 'flags_only' is False, callable(visibilities) should return an array of real plottables
+# If type is PT_DATATRACK, callable(visibilities) should return an array of real plottables
 # the same shape as the visibilities masked_array.
-# If 'flags_only' is False, callable(flags,axis) should return an array of flag densities
+# If type is PT_FLAGTRACK, callable(flags,axis) should return an array of flag densities
 # along the specified axis. The returned array should be reduced along 'axis'.
-#
+# If type is PT_CC, callable(visibilities) should return an array of complex points to plot.
+# The last axis is correlation.
 Plotters = [
-  ("I","Stokes I",lambda data:(abs(data[...,0])+abs(data[...,3]))/2,False),
-  ("Q","Stokes Q",lambda data:(abs(data[...,0])-abs(data[...,3]))/2,False),
-  ("U","Stokes U",lambda data:(data[...,1].real+data[...,2].real)/2,False),
-  ("V","Stokes V",lambda data:(data[...,1].imag-data[...,2].imag)/2,False),
+  ("I","Stokes I",lambda data:(abs(data[...,0])+abs(data[...,3]))/2,PT_DATATRACK),
+  ("Q","Stokes Q",lambda data:(abs(data[...,0])-abs(data[...,3]))/2,PT_DATATRACK),
+  ("U","Stokes U",lambda data:(data[...,1].real+data[...,2].real)/2,PT_DATATRACK),
+  ("V","Stokes V",lambda data:(data[...,1].imag-data[...,2].imag)/2,PT_DATATRACK),
+  ("cc","Complex circle plot",lambda data:data,PT_CC),
+  ("cca","Complex circle averages plot",cca_datafunc,PT_CC),
   ("flags_I","I/Q flag density",
         lambda flags,meanaxis:
-          (flags[...,0]|flags[...,3]).mean(meanaxis),True ),
+          (flags[...,0]|flags[...,3]).mean(meanaxis),PT_FLAGTRACK ),
   ("flags_all","2x2 flag density",
         lambda flags,meanaxis:
-          (flags[...,0]|flags[...,1]|flags[...,2]|flags[...,3]).mean(meanaxis),True ),
+          (flags[...,0]|flags[...,1]|flags[...,2]|flags[...,3]).mean(meanaxis),PT_FLAGTRACK ),
 ];
 
 for icorr,corr in enumerate(("XX","XY","YX","YY")):
   Plotters += [
-    (corr,corr+" amplitude",lambda data,i=icorr:abs(data[...,i]),False ),
+    (corr,corr+" amplitude",lambda data,i=icorr:abs(data[...,i]),PT_DATATRACK ),
     (corr+"phase",corr+" phase",lambda data,i=icorr:numpy.ma.masked_array(numpy.angle(data[...,i]),
-                                                                            data[...,i].mask),False ),
-    (corr+"r",corr+" real",lambda data,i=icorr:data[...,i].real,False ),
-    (corr+"i",corr+" imag",lambda data,i=icorr:data[...,i].imag,False ),
+                                                                            data[...,i].mask),PT_DATATRACK ),
+    (corr+"r",corr+" real",lambda data,i=icorr:data[...,i].real,PT_DATATRACK ),
+    (corr+"i",corr+" imag",lambda data,i=icorr:data[...,i].imag,PT_DATATRACK ),
     ("flags_"+corr,corr+" flag density",
         lambda flags,meanaxis,i=icorr:
-          flags[...,i].mean(meanaxis),True ),
+          flags[...,i].mean(meanaxis),PT_FLAGTRACK ),
  ];
 
 
@@ -245,13 +259,13 @@ BITFLAG/FLAG columns are shared among all data columns.
     column0 = "DATA";
   # go through list of arguments, or default list 
   for arg in (args[1:] or ["I"]):
-    # parse as "[column[.reduce]:]plottype[.reduce]"
+    # parse as "[column[.reduce]:]plot[.reduce]"
     m = re.match('^(\w+)(\.(\w+))?(:(\w+)(.(\w+))?)?$',arg);
     if not m:
       parser.error("'%s': invalid argument"%arg);
     g = m.groups();
     # groups 0-2 are the first field, 3-6 are the second field
-    # if 3 didn't match, then we only have one field, which we treat as a plottype
+    # if 3 didn't match, then we only have one field, which we treat as a 'plot' designator (I, XX, etc.)
     if g[3]:
       column,datareduce,plot,plotreduce = g[0],g[2],g[4],g[6];
     else:
@@ -264,11 +278,12 @@ BITFLAG/FLAG columns are shared among all data columns.
       if func not in [None,'mean','std','min','max','sum','product' ]:
         parser.error("'%s': '%s' is not a valid reduction function"%(arg,func));
     # lookup plotter
-    plotdesc,func,is_flagplot = Plotters.get(plot,(None,None,None));
+    plotdesc,func,plot_type = Plotters.get(plot,(None,None,None));
     if func is None:
       parser.error("'%s': unknown plot type '%s'"%(arg,plot));
     # more sanity checks
-    if is_flagplot:
+    if plot_type is PT_FLAGTRACK:
+      has_flagplots = True;
       if plotreduce or datareduce:
         parser.error("'%s': can't use '.%s' with flagplots"%(arg,(plotreduce or datareduce)));
       if column:
@@ -282,8 +297,7 @@ BITFLAG/FLAG columns are shared among all data columns.
         plotreduce = 'mean';
       plotdesc = " ".join(filter(bool,[datareduce,column0,plotreduce,plotdesc]));  
     # add to list of plots
-    has_flagplots |= is_flagplot;
-    plots.append((plot,plotdesc,func,is_flagplot,column0,datareduce,plotreduce));
+    plots.append((plot,plotdesc,func,plot_type,column0,datareduce,plotreduce));
  
   # collect applicable TaQL queries here
   taqls = [];
@@ -399,12 +413,15 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
   # Helper function to get a PC associated with the given trackkey
   # Creates one if it doesn't exist, and inserts it into the plotcolls dict
   # for every other track in the stacked set.
-  def get_plot_collection (track):
+  def get_plot_collection (track,plottype):
     pc = plotcolls.get(track);
     if pc:
       return pc;
     # make new PlotCollection
-    pc = plotcolls[track] = Owlcat.Plotting.PlotCollection(options);
+    if plottype is PT_CC:
+      pc = plotcolls[track] = Owlcat.Plotting.ComplexCirclePlot(options);
+    else:
+      pc = plotcolls[track] = Owlcat.Plotting.PlotCollection(options);
 #    print "New pc for",track;
     # associate it with every track that will go on it, by looping over stacked keys
     for plot1 in (keyranges[0] if PLOT in options.stack else [track[0]]):
@@ -458,11 +475,11 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
     datacols = {};
 
     colname0 = None;
-    for iplot,(plottype,plotdesc,plotfunc,is_flagplot,colname,datareduce,plotreduce) in enumerate(plots):
+    for iplot,(plotwhat,plotdesc,plotfunc,plot_type,colname,datareduce,plotreduce) in enumerate(plots):
       if colname0 and colname and colname != colname0:
-        labelattrs['plot'] = "%s:%s"%(colname,plottype);
+        labelattrs['plot'] = "%s:%s"%(colname,plotwhat);
       else:
-        labelattrs['plot'] = plottype;
+        labelattrs['plot'] = plotwhat;
       colname0 = colname;
       print "===> Making plot",plotdesc;
       # read in data column, if not already read
@@ -491,11 +508,11 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         labelattrs['baseline'] = round(ifrset.baseline(p,q));
         labelattrs['ifr'] = ifrset.ifr_label(p,q);
         # 
-        if is_flagplot:
+        if plot_type is PT_FLAGTRACK:
           d1 = numpy.ma.masked_array(plotfunc(flagcol[idx,...],meanaxis));
         else:
           d1 = plotfunc(dc[idx,...]);
-          if plotreduce:
+          if plotreduce and d1.ndim > meanaxis:
             d1 = getattr(d1,plotreduce)(meanaxis);
           d1.fill_value = 0;
         # check that this data track  is not fully flagged
@@ -503,9 +520,9 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
           continue;
         active_ifrs.add((p,q));
         # get a plot collection object, or make a new one
-        plotcoll = get_plot_collection(track);
+        plotcoll = get_plot_collection(track,plot_type);
         # for flag-density plots, set the plot offset
-        if is_flagplot:
+        if plot_type is PT_FLAGTRACK:
           plotcoll.offset = max(plotcoll.offset,d1.max()*0.11*options.offset);
         # add or update track
         count = plotcoll.get_track_count(track);
@@ -524,7 +541,11 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         # insert track data
         labelattrs['mean'] = mean = d1.mean();
         labelattrs['stddev'] = std = d1.std();
-        plotcoll.add_track(track,d1,count=count+1,mean=mean,stddev=std,label=label_format%labelattrs);
+        if plot_type is PT_CC:
+          label = labelattrs['ifr'] if options.label_ifr else "";
+        else:
+          label = label_format%labelattrs;
+        plotcoll.add_track(track,d1,count=count+1,mean=mean,stddev=std,label=label);
 
   # deallocate datacubes
   datacols = flagcol = dc = None;
@@ -607,7 +628,8 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
       if PLOT in options.page:
         title0 += " "+plots[nplot][1];
     # split keylist if needed
-    for nkey0 in range(0,len(keylist),options.ppp):
+    ppp = options.ppp if type(plotcoll) is Owlcat.Plotting.PlotCollection else len(keylist);
+    for nkey0 in range(0,len(keylist),ppp):
       nkey1 = min(nkey0+options.ppp,len(keylist));
       keys = keylist[nkey0:nkey1];
       # make filename, if saving file
