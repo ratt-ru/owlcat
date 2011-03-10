@@ -116,8 +116,8 @@ if __name__ == "__main__":
 
   group = OptionGroup(parser,"Selection by subset");
   group.add_option("-L","--channels",type="string",
-                    help="channel selection, as <chan> or <start>:<end>:[:<step>]. 'end' is inclusive. Can also "
-                    "be a comma-separated list.");
+                    help="channel selection: single number or start:end[:step] to select channels start through end-1, "
+                    "or start~end[:step] to select channels start through end, with an optional stepping.");
   group.add_option("-X","--corrs",type="string",
                     help="correlation selection. Use comma-separated list of correlation indices.");
   group.add_option("-S","--stations",type="string",

@@ -178,11 +178,11 @@ make_image ()
     # call sanitize() (see above) to make sure / and - in filenames is not interpreted  
     # as LEL expressions
     if [ "$img_oper" == "image" ]; then
-      image2fits in="`sanitize $imgname`" out=$imgname_fits && $remove -fr $imgname
+      image2fits in="`sanitize $imgname`"*$img_flux_scale out=$imgname_fits && $remove -fr $imgname
     else
-      image2fits in="`sanitize $model`" out=$model_fits && $remove -fr $model
-      image2fits in="`sanitize $residual`" out=$residual_fits && $remove -fr $residual
-      image2fits in="`sanitize $restored`" out=$restored_fits && $remove -fr $restored
+      image2fits in="`sanitize $model`"*$img_flux_scale out=$model_fits && $remove -fr $model
+      image2fits in="`sanitize $residual`"*$img_flux_scale out=$residual_fits && $remove -fr $residual
+      image2fits in="`sanitize $restored`"*$img_flux_scale out=$restored_fits && $remove -fr $restored
     fi
     return 0
   else
