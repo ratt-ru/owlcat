@@ -58,12 +58,12 @@ if __name__ == "__main__":
 
   (options,args) = parser.parse_args();
 
-  if not options.circle_pe and not options.circle_phase and \
-      not options.circle_ampl_ant and not options.circle_phase_ant and \
-      not options.ampl_slope and not options.phase_slope and \
-      not options.ampl and not options.phase and not options.pol and \
-      not options.list:
-    parser.error("No plots specified.");
+  #if not options.circle_pe and not options.circle_phase and \
+      #not options.circle_ampl_ant and not options.circle_phase_ant and \
+      #not options.ampl_slope and not options.phase_slope and \
+      #not options.ampl and not options.phase and not options.pol and \
+      #not options.list:
+    #parser.error("No plots specified.");
 
   if not args:
     parser.error("No parmtables specified.");
@@ -125,8 +125,9 @@ if __name__ == "__main__":
   # scan funklet names to build up sets of keys
   pt = ParmTab(args[0]);
   for name in pt.funklet_names():
-    fields = name.split(':');
-    ANTS.add(fields[-1]);
+    if name.startswith("E::dl"):
+      fields = name.split(':');
+      ANTS.add(fields[-1]);
   NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice());
 
   ANTS = sorted(ANTS);
@@ -163,50 +164,56 @@ if __name__ == "__main__":
     else:
       return funklet.coeff.ravel()[0];
 
-
-  def read_complex_parms (pt,prefix="dE"):
-    """Reads complex c00 funklets from the given parmtable (given as filename).
-    For each key in the 'keys' list, forms up keystring (by joining the elements
-    of key weith ":"), then reads <prefix>:<keystring>:r and reads <prefix>:<keystring>:i,
-    and forms up and returns a complex array.
-    This assumes that the parm only changes in time.
-    """
-    arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=complex);
-    for i,src in enumerate(SRCS):
-      for j,ant in enumerate(ANTS):
-        for k,corr in enumerate(CORRS):
-          fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
-          fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
-          if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
-            print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
-            sys.exit(1);
-          arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
-    return arr;
-
-
   # dl,dm is a 2 x NSPW x  NANT x NTIME array of poitning offsets
   dlm = numpy.zeros((2,len(SPWS),len(ANTS),NTIMES),dtype=float);
+
+  # bsz is a 2 x 2 x NSPW x  NANT x NTIME array of beam sizes
+  # first index is x/y, second is l/m
+  bsz = numpy.zeros((2,2,len(SPWS),len(ANTS),NTIMES),dtype=float);
+  beam_sizes = 0;
 
   for spw,tabname in enumerate(args):
     print "Reading",tabname;
     pt = ParmTab(tabname);
     freq0[spw] = sum(pt.envelope_domain().freq)/2;
     for i,ant in enumerate(ANTS):
-      fsl = pt.funkset('E::dlm::dl:%s'%ant).get_slice();
-      fsm = pt.funkset('E::dlm::dm:%s'%ant).get_slice();
+      # fill dlm
+      fsl = pt.funkset('E::dl:%s'%ant).get_slice();
+      fsm = pt.funkset('E::dm:%s'%ant).get_slice();
       if len(fsl) != len(fsm) or len(fsl) != NTIMES:
         print "Error: table contains %d funklets for dl and %d for dm; %d expected"%(len(fsl),len(fsm),NTIMES);
         sys.exit(1);
       dlm[0,spw,i,:] = map(c00,fsl);
       dlm[1,spw,i,:] = map(c00,fsm);
+      # fill beam sizes
+      if 'E::beamshape:%s'%ant in pt.funklet_names():
+        beam_sizes = 1;
+        fs = pt.funkset('E::beamshape:%s'%ant).get_slice();
+        bsz[0,0,spw,i,:] = map(c00,fs);
+      elif 'E::beamshape:xy:lm:%s'%ant in pt.funklet_names():
+        beam_sizes = 4;
+        for ixy,xy in enumerate("xy"):
+          for ilm,lm in enumerate("lm"):
+            fs = pt.funkset('E::beamshape:%s:%s:%s'%(ant,xy,lm)).get_slice();
+            bsz[ixy,ilm,spw,i,:] = map(c00,fs);
 
-  # convert to millidegrees
+  # convert dlm to millidegrees
   dlm *= 180*1000/math.pi;
+  # invert sizes
+  bsz = 1/bsz;
 
   # take mean and std along freq axis
   # these are now 2 x NANT x NTIME arrays
   dlm_mean = dlm.mean(1);
   dlm_std  = dlm.std(1);
+  bsz_mean = bsz.mean(2);
+  bsz_std  = bsz.std(2);
+  # and along time axis
+  # these are now 2 x NSPW x NANT
+  dlm_fmean = dlm.mean(3);
+  dlm_fstd  = dlm.std(3);
+  bsz_fmean = bsz.mean(4);
+  bsz_fstd  = bsz.std(4);
 
   print "Read %d parmtables"%len(args);
 
@@ -248,6 +255,7 @@ if __name__ == "__main__":
                   mode=PLOT_SINGLE,xaxis=None,
                   hline=None, # plot horizontal line at Y position, None for none
                   ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot
+                  mean_format="%.2f",
                   suptitle=None,      # title of plot
                   save=None,          # filename to save to
                   format=None,        # format: use options.output_type by default
@@ -305,8 +313,11 @@ if __name__ == "__main__":
         # plt.axis("off");
         plt.set_xticks([]);
         data = datafunc(irow,icol);
+        realplot = True;
         if mode is PLOT_SINGLE:
           plt.plot(range(len(data)) if xaxis is None else xaxis,data);
+          if xaxis is None:
+            plt.set_xlim(-1,len(data));
         elif mode is PLOT_MULTI:
           for dd in data:
             x,y,yerr = get_plot_data(dd,xaxis);
@@ -316,14 +327,25 @@ if __name__ == "__main__":
               plt.errorbar(x,y,yerr,fmt=None,capsize=1);
         elif mode is PLOT_ERRORBARS:
           y,yerr = data;
-          print y,yerr;
-          plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
-        if ylock:
-          plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
-          if ylock is not "col" and icol:
-            plt.set_yticks([]);
-        if hline is not None:
-          plt.axhline(y=hline,color='black');
+          if len(y) == 1:
+            plt.text(0,0.6,mean_format%y[0],
+                fontsize='x-small',horizontalalignment='left',verticalalignment='bottom');
+            plt.text(0,0.5,"+/-"+(mean_format%yerr[0]),
+                fontsize='x-small',horizontalalignment='left',verticalalignment='top');
+            plt.axis("off");
+            plt.set_ylim(0,1);
+            realplot = False;
+          else:
+            plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
+            if xaxis is None:
+              plt.set_xlim(-1,len(y));
+        if realplot:
+          if ylock:
+            plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
+            if ylock is not "col" and icol:
+              plt.set_yticklabels([]);
+          if hline is not None:
+            plt.axhline(y=hline,color='black');
         for lab in plt.get_yticklabels():
           lab.set_fontsize(5);
       # add row label
@@ -410,13 +432,72 @@ if __name__ == "__main__":
       pyplot.close("all");
     return save;
 
-  sz_pnt = ( 290,60 );
+  funcs = [
+    lambda iant:(dlm_mean[0,iant,:],dlm_std[0,iant,:]),
+    lambda iant:( numpy.array([dlm_mean[0,iant,:].mean()]),
+                  numpy.array([dlm_mean[0,iant,:].std()])),
+    lambda iant:(dlm_mean[1,iant,:],dlm_std[1,iant,:]),
+    lambda iant:( numpy.array([dlm_mean[1,iant,:].mean()]),
+                  numpy.array([dlm_mean[1,iant,:].std()])),
+    lambda iant:(dlm_fmean[0,:,iant],dlm_fstd[0,:,iant]),
+    lambda iant:(dlm_fmean[1,:,iant],dlm_fstd[1,:,iant])
+  ];
 
-  make_figure(enumerate(("dl","dm")),enumerate(ANTS),
-    lambda i,iant:(dlm_mean[i,iant,:],dlm_std[i,iant,:]),
-      hline=0,ylock=True,figsize=sz_pnt,mode=PLOT_ERRORBARS,
-      suptitle="Pointing offset mean & stddev across all bands, millideg.",
+  make_figure(enumerate(("dl","","dm","","dl, freq","dm, freq")),enumerate(ANTS),
+        lambda i,iant:funcs[i](iant),
+      hline=0,ylock=True,figsize=(290,150),mode=PLOT_ERRORBARS,
+      suptitle="Pointing offset mean & stddev across all bands (top two plots) and times (bottom two plots), millideg.",
       save="Epnt_mean");
+
+  for iant,ant in enumerate(ANTS):
+    print "mean offset %s: %6.2f %6.2f"%(ant,dlm_mean[0,iant,:].mean(),dlm_mean[1,iant,:].mean());
+
+
+  if beam_sizes == 4:
+    funcs = [];
+    for i0 in range(2):
+      for j0 in range(2):
+        funcs += [
+          lambda iant,i=i0,j=j0:(bsz_mean[i,j,iant,:],bsz_std[i,j,iant,:]),
+          lambda iant,i=i0,j=j0:( numpy.array([bsz_mean[i,j,iant,:].mean()]),
+                        numpy.array([bsz_mean[i,j,iant,:].std()]))
+        ];
+
+    make_figure(enumerate(("Lx","","Mx","","Ly","","My","")),enumerate(ANTS),
+          lambda i,iant:funcs[i](iant),
+        hline=1,ylock=True,figsize=(290,210),mode=PLOT_ERRORBARS,
+        mean_format="%.4f",
+        suptitle="Beam extent in L/M, for X and Y dipoles, mean over time",
+        save="Eshape_mean");
+
+    funcs = [];
+    for i0 in range(2):
+      for j0 in range(2):
+        funcs += [
+          lambda iant,i=i0,j=j0:(bsz_fmean[i,j,:,iant],bsz_fstd[i,j,:,iant]),
+          lambda iant,i=i0,j=j0:( numpy.array([bsz_fmean[i,j,:,iant].mean()]),
+                        numpy.array([bsz_fmean[i,j,:,iant].std()]))
+        ];
+    make_figure(enumerate(("Lx","","Mx","","Ly","","My","")),enumerate(ANTS),
+          lambda i,iant:funcs[i](iant),
+        mean_format="%.4f",
+        hline=1,ylock=True,figsize=(290,210),mode=PLOT_ERRORBARS,
+        suptitle="Beam extent in L/M, for X/Y dipoles, mean over frequency",
+        save="Eshape_mean_fq");
+  elif beam_sizes == 1:
+    funcs = [
+      lambda iant:(bsz_mean[0,0,iant,:],bsz_std[0,0,iant,:]),
+      lambda iant:( numpy.array([bsz_mean[0,0,iant,:].mean()]),
+                    numpy.array([bsz_mean[0,0,iant,:].std()])),
+      lambda iant:(bsz_fmean[0,0,:,iant],bsz_fstd[0,0,:,iant]),
+    ];
+    make_figure(enumerate(("size","","size fq")),enumerate(ANTS),
+          lambda i,iant:funcs[i](iant),
+        mean_format="%.4f",
+        hline=1,ylock=True,figsize=(290,75),mode=PLOT_ERRORBARS,
+        suptitle="Beam extent",
+        save="Eshape");
+
 
   if options.output_type.upper() == "X11":
     from pylab import plt
