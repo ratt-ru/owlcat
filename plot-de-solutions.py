@@ -42,15 +42,17 @@ if __name__ == "__main__":
   parser.add_option("--phase-slope-dlm",action="store_true",
                     help="makes plots of dl/dm offsets corresponding to phase slopes (EXPERIMENTAL)");
   parser.add_option("--lsm",type="string",
-                    help="LSM file (for source positions in circle plots.) Default is first *.lsm.html file found.");
+                    help="LSM file (for source positions where needed). Default is first *.lsm.html file found.");
   parser.add_option("--update-lsm",action="store_true",
-                    help="updates LSM file based of dE solutions (EXPERIMENTAL)");
+                    help="updates LSM file based on dE solutions (EXPERIMENTAL)");
   parser.add_option("--ms",type="string",
                     help="Measurement Set (for UVW coordinates and such)");
   parser.add_option("-s","--sources",type="string",
                     help="source subset (default is ':' meaning all, use --list to list)");
   parser.add_option("-c","--cache",metavar="FILENAME",type="string",
                     help="cache parms to file, which can be given instead of parmtables next time, for quicker startup");
+  parser.add_option("--pe",metavar="FILENAME",type="string",
+                    help="cache file from plot-pointing-errors.py script. If given, |dE| given by the pointing model will be plotted");
 
   group = OptionGroup(parser,"Plotting options");
   group.add_option("--radius",type="int",
@@ -179,7 +181,7 @@ if __name__ == "__main__":
   #
   if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant \
       or options.phase_slope_rot_offset or options.phase_slope_time_offset or options.phase_slope_dlm \
-      or options.update_lsm:
+      or options.update_lsm or (options.pe and options.ampl):
     # if LSM file not specified, use first one found
     if not options.lsm:
       lsms = [ filename for filename in os.listdir(".") if filename.endswith(".lsm.html") ];
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     print "Using LSM file %s"%lsm_filename;
     model = Tigger.load(lsm_filename);
     lsm_timestamp = os.path.getmtime(lsm_filename);
-    
+
     # if MS file not specified, use first one found
     if not options.ms:
       mss = [ filename for filename in os.listdir(".") if filename.lower().endswith(".ms") ];
@@ -324,7 +326,7 @@ if __name__ == "__main__":
             fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
             # table is allowed to contain either NO funklets for this src/ant/corr combination,
             # or the same number as all other tables.
-            if len(fs_real) or len(fs_imag): 
+            if len(fs_real) or len(fs_imag):
               if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
                 print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
                 sys.exit(1);
@@ -339,7 +341,7 @@ if __name__ == "__main__":
     #mask = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=bool);
     de = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
     #de = numpy.ma.masked_array(de,mask,fill_value=1.0);
-    
+
     for spw,tabname in enumerate(args):
       print "Reading",tabname;
       pt = ParmTab(tabname);
@@ -375,10 +377,24 @@ if __name__ == "__main__":
     else:
       globals()[ant] = None;
 
+  # read pointing errors cache
+  if options.pe:
+    pe_dlm,pe_bsz,pe_beam_sizes = cPickle.load(file(options.pe));
+
+  # pe_dlm is 2 x NSPW x NANT x NTIME
+  # pe_bsz is 2 x 2 x NSPW x NANT x NTIME
+  if pe_dlm.shape != (2,len(SPWS),len(ANTS),NTIMES) or \
+     pe_bsz.shape != (2,2,len(SPWS),len(ANTS),NTIMES):
+    print "Shape of cached arrays in file %s does not match: %s, %s"%(options.pe,pe_dlm.shape,pe_bsz_shape);
+    sys.exit(1);
+  print "Read pointing errors and %d beam extent(s) from %s"%(pe_beam_sizes,options.pe);
+  if pe_beam_sizes > 1:
+    print "WARNING: more than 1 beam extent is not currently supported";
+
   # de is an NSPW x NSRC x NANT x NCORR x NTIME array of complex dEs
   # (NANT+1 actually, the last one is the mean-across-antennas value)
   #
-  
+
   # some more constants
   MEAN = len(ANTS);         # index of "mean" antenna
   XX = CORRS.index('xx');
@@ -456,45 +472,9 @@ if __name__ == "__main__":
     dea0_b1[:,:,numpy.newaxis,:,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis];
   dea0_res = dea0 - dea0_fitted;
 
-
-  ## fitr offset and slope of mean (in freq) phases
-  #dep0m = dep0.mean(0);   # NSRCxNANTxNCORRxNTIME
-  #sy = dep0.sum(0)
-  #sxy = (dep0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis]).sum(0);
-  #n = len(ANTX);
-  ## slope of linear fit
-  #dep0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
-  ## offset of linear fit
-  #dep0_b0 = sy/n - dep0_b1*(sx/n);
-
-
-  ### TEC analysis
-  ## convert to dTEC corresponding to each spw's reference freq
-  #K = (1.3445*2*math.pi*1e+9)   # radians*GHz/TECU
-  #dtec = de_phase_rad*freq0[:,numpy.newaxis,numpy.newaxis,numpy.newaxis,numpy.newaxis]/K;
-  ## get mean TEC across corrs and spws (NSRCxNANTxNTIME)
-  #dtec_mean = dtec.mean(3).mean(0);
-  ## stddev of dE phase - mean dE phase in freq (NSRCxNANTxNTIME)
-  #deph_mean_std = (deph - deph_mean).std(0);
-  ## stddev of dE phase - dE phase given by mean TEC (NSRCxNANTxNTIME)
-  #deph_tec_std = (deph - dtec_mean*K/freq0[:,numpy.newaxis,numpy.newaxis,numpy.newaxis]).std(0);
-  ## if slope fits better, then deph_fromtec will be consistently lower than deph_meanspw. This is then the
-  ## confidence ratio (NSRCxNANTxNTIME)
-  ## conf_ratio = deph_mean_std/deph_fromtec;
-
-  ### try a linear fit in freq to the phases
-  #fq = freq0*1e-9;
-  #sx = fq.sum()
-  #sx2 = (fq**2).sum();
-  #sy = deph.sum(0)
-  #sxy = (deph*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis]).sum(0);
-  #n = len(fq);
-  ## slope of linear fit
-  #deph_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
-  ## offset of linear fit
-  #deph_b0 = sy/n - deph_b1*(sx/n);
-  ## stddev w.r.t. linear fit
-  #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
+  # unnormalized average dE (for pointing error plots), NSPWxNSRCxNANTxNTIME
+  de_unnorm = numpy.sqrt((abs(de[:,:,:,XX,:])**2+abs(de[:,:,:,YY,:])**2)/2);
+  de_unnorm[:,:,MEAN,:] = numpy.mean(de_unnorm[:,:,0:len(ANTS),:],2);
 
   # now normalize each dE by mean dE across all times and antennas (this takes out
   # corrections for due to imperfect LSMs)
@@ -528,9 +508,14 @@ if __name__ == "__main__":
     lsrc = numpy.zeros(len(SRCS),float);
     msrc = numpy.zeros(len(SRCS),float);
     nsrc = numpy.zeros(len(SRCS),float);
+    beam_lm_src = numpy.zeros((2,len(SRCS)),float);
     for i,name in enumerate(SRCS):
       src = model.findSource(name);
       lsrc[i],msrc[i],nsrc[i] = Coordinates.radec_to_lmn(src.pos.ra,src.pos.dec,*radec0);
+      if hasattr(src,"beam_lm"):
+        beam_lm_src[:,i] = src.beam_lm;
+      else:
+        beam_lm_src[:,i] = lsrc[i],msrc[i];
 
   # figure out optimal plot sizes
   if options.width or options.height:
@@ -650,6 +635,8 @@ if __name__ == "__main__":
         data = datafunc(irow,icol);
         if mode is PLOT_SINGLE:
           plt.plot(range(len(data)) if xaxis is None else xaxis,data);
+          if xaxis is None:
+            plt.set_xlim(-1,len(data));
         elif mode is PLOT_MULTI:
           for dd in data:
             x,y,yerr = get_plot_data(dd,xaxis);
@@ -657,9 +644,13 @@ if __name__ == "__main__":
               plt.plot(x,y);
             else:
               plt.errorbar(x,y,yerr,fmt=None,capsize=1);
+            if x == range(len(y)):
+              plt.set_xlim(-1,len(y));
         elif mode is PLOT_ERRORBARS:
           y,yerr = data;
           plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
+          if xaxis is None:
+            plt.set_xlim(-1,len(y));
         if ylock:
           plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
         if hline is not None:
@@ -695,7 +686,7 @@ if __name__ == "__main__":
   #============================ MAKE_SKYMAP() plotting function
   #
   def make_skymap (ll,mm,
-    markers,  # marker is a list of strings or dicts or tuples. 
+    markers,  # marker is a list of strings or dicts or tuples.
               # For each marker, if str: axes.plot(x,y,str) is called
               # if dict: axes.plot(x,y,**dict)
               # else tuple is func,arg,kwargs
@@ -863,7 +854,7 @@ if __name__ == "__main__":
       # flip sign of phase offset, since phase is -(ul+vm+w(n-1))
       x,res,rank,sing = linalg.lstsq(uv,-p0wl[isrc,:]);
       print "%8s=[%16.8g,%16.8g],     # %.2f\", %.2f\""%(src,x[0],x[1],x[0]/ARCMIN*60,x[1]/ARCMIN*60);
-      dlm[isrc,:] = x; 
+      dlm[isrc,:] = x;
     # shape is now 2xNSRC
     dlm = dlm.transpose();
     # now make fitted phase curves
@@ -876,7 +867,7 @@ if __name__ == "__main__":
     # set dlmscale so that longet arrow is .2 of max radius
     maxlm = math.sqrt((lsrc**2+msrc**2).max());
     maxdlm = math.sqrt((dlm_offsets**2).sum(0).max());
-    dlmscale = options.dlm_scale or 0.2*maxlm/maxdlm; 
+    dlmscale = options.dlm_scale or 0.2*maxlm/maxdlm;
     # make l/m and dl/dm array (in arcmin)
     l0m0 = numpy.array([lsrc,msrc]).copy()/ARCMIN;
     dldm = dlm_offsets.transpose().copy()*dlmscale/ARCMIN;
@@ -932,7 +923,7 @@ if __name__ == "__main__":
       dphase = dphase[:,:]*freq0.mean();
       # and to deg/m
       dphase = dphase/(DEG*(ANTX[-1]-ANTX[0]));
-      # if he've fitted a dphase corresponding to dlm, add it here
+      # if we've fitted a dphase corresponding to dlm, add it here
       if dphase_lmfit is None:
         plotfunc = lambda i,isrc:(
             (None,numpy.mean(dep0_b1[:,isrc,:]*1000,0),numpy.std(dep0_b1[:,isrc,:]*1000,0)),
@@ -985,51 +976,6 @@ if __name__ == "__main__":
       suptitle="Fitted differential ampl slope over array",
       save="dEampl_array_slopes");
 
-  #TIMELIST = [(h*2,"%dh"%h) for h in range(10)];
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dep0[:,isrc,:,XX,itime],0),
-                      #numpy.mean(dep0[:,isrc,:,YY,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_MULTI,xaxis=ANTX,
-    #suptitle="Differential XX+YY phase (deg) over array, evolution in time",
-    #save="dEphase_array");
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dep0[:,isrc,:,XX,itime],0),
-                      #numpy.std(dep0[:,isrc,:,XX,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_ERRORBARS,xaxis=ANTX,
-    #suptitle="Differential XX phase (deg) over array, evolution in time",
-    #save="dEphase_array_xx");
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dep0[:,isrc,:,YY,itime],0),
-                      #numpy.std(dep0[:,isrc,:,YY,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_ERRORBARS,xaxis=ANTX,
-    #suptitle="Differential YY phase (deg) over array, evolution in time",
-    #save="dEphase_array_yy");
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dea0[:,isrc,:,XX,itime],0),
-                      #numpy.mean(dea0[:,isrc,:,YY,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_MULTI,xaxis=ANTX,
-    #suptitle="Differential XX+YY ampl (deg) over array, evolution in time",
-    #save="dEampl_array");
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dea0[:,isrc,:,XX,itime],0),
-                      #numpy.std(dea0[:,isrc,:,XX,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_ERRORBARS,xaxis=ANTX,
-    #suptitle="Differential XX ampl (deg) over array, evolution in time",
-    #save="dEampl_array_xx");
-
-  #make_figure(TIMELIST,enumerate(SRCS),
-    #lambda itime,isrc:(numpy.mean(dea0[:,isrc,:,YY,itime],0),
-                      #numpy.std(dea0[:,isrc,:,YY,itime],0)),
-    #hline=0,ylock="row",mode=PLOT_ERRORBARS,xaxis=ANTX,
-    #suptitle="Differential YY ampl (deg) over array, evolution in time",
-    #save="dEampl_array_yy");
-
-
   #
   #============================ POLARIZATION PLOT
   #
@@ -1063,11 +1009,53 @@ if __name__ == "__main__":
   #============================ dE AMPLITUDE PLOTS
   #
   if options.ampl:
-    make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
-      lambda isrc,iant:(numpy.mean(de_renorm[:,isrc,iant,:],0),numpy.std(de_renorm[:,isrc,iant,:],0)),
-      hline=1,ylock="row",figsize=sz_sa,mode=PLOT_ERRORBARS,
-      suptitle="Renormalized ||dE|| mean & stddev across all bands",
-      save="dE_mean");
+    if options.pe:
+      de_pe = numpy.zeros(de_unnorm.shape,float);
+      de_peshape = numpy.zeros(de_unnorm.shape,float);
+      # pe_dlm is 2 x NSPW x NANT x NTIME
+      # beam_lm_src is 2 x NSRC
+      # compute theoretical gain [NSRC]
+      r0 = numpy.sqrt((beam_lm_src**2).sum(0));
+      # gain0 is NSRC x NSPW
+      gain0 = r0[:,numpy.newaxis]*freq0[numpy.newaxis,:]*6.5e-8;
+      gain0 = numpy.maximum(numpy.cos(gain0)**3,0.1);
+      # lm is then the actual source offset: this is 2 x NSRC x NSPW x NANT x NTIME
+#      lm = numpy.zeros((2,len(SRCS),len(ANTS),NTIMES),float);
+      lm = beam_lm_src[:,:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - \
+        pe_dlm[:,numpy.newaxis,:,:,:];
+      # convert to r=sqrt(l^2+m^2)*freq*C: NSRC x NSPW x NANT x NTIME
+      pe_r = numpy.sqrt((lm**2).sum(0)); ## sqrt(l^2+m^2)
+      # multiply by C and freq
+      pe_r *= freq0[numpy.newaxis,:,numpy.newaxis,numpy.newaxis]*6.5e-8;
+      # convert to gain
+      beamgain_pe = numpy.maximum(numpy.cos(pe_r)**3,.1);
+      beamgain_pe = beamgain_pe / gain0[:,:,numpy.newaxis,numpy.newaxis];
+      # if we have shape, compute also beamgain due to shape
+      if pe_beam_sizes > 0:
+        beamgain_pe_shape = numpy.maximum(numpy.cos(pe_r/pe_bsz[0,0,numpy.newaxis,:,:,:])**3,.1);
+        beamgain_pe_shape = beamgain_pe_shape / gain0[:,:,numpy.newaxis,numpy.newaxis]
+        # make plotting func
+        plotfunc = lambda isrc,iant:(
+            (None,numpy.mean(de_unnorm[:,isrc,iant,:],0),numpy.std(de_unnorm[:,isrc,iant,:],0)),
+            beamgain_pe[isrc,:,iant,:].mean(0),
+            beamgain_pe_shape[isrc,:,iant,:].mean(0),
+          );
+      else:
+        plotfunc = lambda isrc,iant:(
+            (None,numpy.mean(de_unnorm[:,isrc,iant,:],0),numpy.std(de_unnorm[:,isrc,iant,:],0)),
+            beamgain_pe[isrc,:,iant,:].mean(0),
+          );
+      make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),
+        plotfunc,
+        hline=1,ylock="row",figsize=sz_sa,mode=PLOT_MULTI,
+        suptitle="||dE|| mean & stddev across all bands, plus fitted ||dE|| due to pointing error",
+        save="dE_mean");
+    else:
+      make_figure(enumerate(SRCS),enumerate(ANTS[:-1]),  # omit MEAN antenna since it's 1 by definition
+        lambda isrc,iant:(numpy.mean(de_renorm[:,isrc,iant,:],0),numpy.std(de_renorm[:,isrc,iant,:],0)),
+        hline=1,ylock="row",figsize=sz_sa,mode=PLOT_ERRORBARS,
+        suptitle="Renormalized ||dE|| mean & stddev across all bands",
+        save="dE_mean");
     if options.per_band:
       make_figure(enumerate(SRCS),enumerate(ANTS),
         lambda isrc,iant:[de_renorm[spw,isrc,iant,:] for spw in SPWS],
@@ -1156,7 +1144,7 @@ if __name__ == "__main__":
         outname = "%sdE_ant_gallery.png"%output_prefix;
         img.save(outname,"PNG");
         print "Wrote",outname;
-        
+
 
   #
   #============================ ROGUES GALLERY ANIMATION

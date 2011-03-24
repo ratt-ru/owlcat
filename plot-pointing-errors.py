@@ -11,34 +11,8 @@ if __name__ == "__main__":
 
   parser.add_option("-l","--list",action="store_true",
                     help="lists stuff found in MEP tables, then exits");
-  parser.add_option("--ampl",action="store_true",
-                    help="makes amplitude plots");
-  parser.add_option("--phase",action="store_true",
-                    help="makes phase plots");
-  parser.add_option("--pol",action="store_true",
-                    help="makes instrumental polarization plots");
-  parser.add_option("--per-corr",action="store_true",
-                    help="includes per-correlation plots in the above");
-  parser.add_option("--per-band",action="store_true",
-                    help="includes combined per-band plots in the above");
-  parser.add_option("--circle-pe",action="store_true",
-                    help="makes circle plots of average pointing error per antenna");
-  parser.add_option("--circle-ampl",action="store_true",
-                    help="makes circle plots of average dE-amplitudes per antenna");
-  parser.add_option("--circle-phase",action="store_true",
-                    help="makes circle plots of average dE-phases per antenna");
-  parser.add_option("--circle-ampl-ant",metavar="ANTENNA",type="string",
-                    help="makes per-timeslot plots of average dE-amplitudes for the given antenna");
-  parser.add_option("--circle-phase-ant",metavar="ANTENNA",type="string",
-                    help="makes per-timeslot plots of average dE-phases for the given antenna");
-  parser.add_option("--ampl-slope",action="store_true",
-                    help="makes plots of a slope fit for dE-amplitudes");
-  parser.add_option("--phase-slope",action="store_true",
-                    help="makes plots of a slope fit for dE-phases");
-  parser.add_option("--lsm",type="string",
-                    help="LSM file (for source positions in circle plots.) Default is first *.lsm.html file found.");
-  parser.add_option("-s","--sources",type="string",
-                    help="source subset (default is ':' meaning all, use --list to list)");
+  parser.add_option("-c","--cache",metavar="FILENAME",type="string",
+                    help="cache parms to file, which can be fed to plot-de-solutions script");
 
   group = OptionGroup(parser,"Output options");
   group.add_option("-o","--output-type",metavar="TYPE",type="string",
@@ -53,17 +27,10 @@ if __name__ == "__main__":
                     help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
   parser.add_option_group(group);
 
-  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",
+  parser.set_defaults(
     output_prefix="",output_type="png",papertype='a4');
 
   (options,args) = parser.parse_args();
-
-  #if not options.circle_pe and not options.circle_phase and \
-      #not options.circle_ampl_ant and not options.circle_phase_ant and \
-      #not options.ampl_slope and not options.phase_slope and \
-      #not options.ampl and not options.phase and not options.pol and \
-      #not options.list:
-    #parser.error("No plots specified.");
 
   if not args:
     parser.error("No parmtables specified.");
@@ -71,25 +38,6 @@ if __name__ == "__main__":
   import os.path
   import os
   import sys
-
-  # load LSM file if needed
-  if options.circle_ampl or options.circle_phase or options.circle_ampl_ant or options.circle_phase_ant:
-    if not options.lsm:
-      lsms = [ filename for filename in os.listdir(".") if filename.endswith(".lsm.html") ];
-      if not lsms:
-        parser.error("No LSMs found. Use --lsm to specify one explicitly.");
-      lsm = lsms[0];
-    else:
-      lsm = options.lsm;
-    # find tigger
-    try:
-      import Tigger;
-    except ImportError:
-      # make plot of average dE to model
-      sys.path.append(os.getenv('HOME'));
-      import Tigger
-    print "Using LSM file %s"%lsm;
-    model = Tigger.load(lsm);
 
   import numpy
   from ParmTables import ParmTab
@@ -118,9 +66,6 @@ if __name__ == "__main__":
 
   # complex array of dEs per each src,antenna,corr tuple
   des = {};
-
-  # vector of frequencies
-  freq0 = numpy.array([0.]*len(SPWS));
 
   # scan funklet names to build up sets of keys
   pt = ParmTab(args[0]);
@@ -175,7 +120,6 @@ if __name__ == "__main__":
   for spw,tabname in enumerate(args):
     print "Reading",tabname;
     pt = ParmTab(tabname);
-    freq0[spw] = sum(pt.envelope_domain().freq)/2;
     for i,ant in enumerate(ANTS):
       # fill dlm
       fsl = pt.funkset('E::dl:%s'%ant).get_slice();
@@ -197,10 +141,15 @@ if __name__ == "__main__":
             fs = pt.funkset('E::beamshape:%s:%s:%s'%(ant,xy,lm)).get_slice();
             bsz[ixy,ilm,spw,i,:] = map(c00,fs);
 
+  # write cache
+  if options.cache:
+    import cPickle
+    cachefile = options.cache+'.cache';
+    cPickle.dump((dlm,bsz,beam_sizes),file(cachefile,'w'));
+    print "Cached all structures to file",cachefile;
+
   # convert dlm to millidegrees
   dlm *= 180*1000/math.pi;
-  # invert sizes
-  bsz = 1/bsz;
 
   # take mean and std along freq axis
   # these are now 2 x NANT x NTIME arrays
@@ -366,71 +315,6 @@ if __name__ == "__main__":
       pyplot.close("all");
     return save;
 
-  def make_skymap (ll,mm,
-    markers,  # marker is a list of strings or dicts. For each marker, axes.plot() is invoked
-              # as plot(x,y,str) or plot(x,y,**dict).
-    labels=None,
-    suptitle=None,      # title of plot
-    save=None,          # filename to save to
-    format=None,        # format: use options.output_type by default
-    figsize=(290,210)       # figure width,height in mm
-    ):
-    if save and (format or options.output_type.upper()) != 'X11':
-      save = "%s.%s"%(save,format or options.output_type);
-      if options.output_prefix:
-        save = "%s_%s.%s"%(options.output_prefix,save);
-      # exit if figure already exists, and we're not refreshing
-      if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-        print save,"exists, not redoing";
-        return save;
-    else:
-      save = None;
-
-    figsize = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize,dpi=600);
-    plt = fig.add_axes([.05,.05,.9,.9]);
-    plt.axhline(y=0,color='black',linestyle=':');
-    plt.axvline(x=0,color='black',linestyle=':');
-
-    if not isinstance(markers,(list,tuple)):
-      markers = [markers]*len(ll);
-
-    if not labels:
-      labels = [None]*len(ll);
-
-    ARCMIN = math.pi/(180*60);
-
-    # set limits
-    lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
-
-    # plot markers
-    for l,m,mark,label in zip(ll/ARCMIN,mm/ARCMIN,markers,labels):
-      if isinstance(mark,str):
-        plt.plot(l,m,mark);
-      elif isinstance(mark,dict):
-        plt.plot(l,m,**mark);
-      if label:
-        plt.text(l,m-lim/50,label,fontsize=8,horizontalalignment='center',verticalalignment='top');
-
-    # make circles at 30' and 1deg
-    x = numpy.cos(numpy.arange(0,360)*math.pi/180);
-    y = numpy.sin(numpy.arange(0,360)*math.pi/180);
-
-    for R in numpy.arange(2)*30:
-      plt.plot(x*R,y*R,linestyle=':',color='black');
-
-    plt.set_xlim(-lim,lim);
-    plt.set_ylim(-lim,lim);
-
-    if suptitle:
-      fig.suptitle(suptitle);
-    if save:
-      fig.savefig(save,papertype=options.papertype,
-                  orientation='portrait' if figsize[0]<figsize[1] else 'landscape');
-      print "Wrote",save;
-      fig = None;
-      pyplot.close("all");
-    return save;
 
   funcs = [
     lambda iant:(dlm_mean[0,iant,:],dlm_std[0,iant,:]),
