@@ -17,6 +17,8 @@ if __name__ == "__main__":
                     help="cache parms to file, which can be fed to plot-de-solutions script");
   parser.add_option("-n","--nominals",metavar="FILENAME",type="string",
                     help="includes nominal offsets on plot (supply filename)");
+  parser.add_option("--nominal-circle",metavar="mDEG",type="float",default=10,
+                    help="size of circle around nominal offsets");
 
   plotgroup = OptionGroup(parser,"Plotting options");
   outputgroup = OptionGroup(parser,"Output options");
@@ -251,7 +253,11 @@ if __name__ == "__main__":
     exec(file(options.nominals));
   else:
     nominals = {};
-      
+    
+  circlex = numpy.cos(numpy.arange(0,1.05,.05)*math.pi*2)*options.nominal_circle/(1000/60.);
+  circley = numpy.sin(numpy.arange(0,1.05,.05)*math.pi*2)*options.nominal_circle/(1000/60.);
+  print circley;
+  
   for iant,ant in enumerate(ANTS):
     dl = dlm0[0,:,iant,:];
     dm = dlm0[1,:,iant,:];
@@ -266,11 +272,13 @@ if __name__ == "__main__":
       markers += [
         ("text",(dl0/ARCMIN,dm0/ARCMIN,ant),
             dict(color='blue',ha='center',va='center',size='large',weight='bold')),
+        ("plot",(dl0/ARCMIN+circlex,dm0/ARCMIN+circley,":"),
+            dict(color='blue')),
         ("plot",((dl0/ARCMIN,dl_mean/ARCMIN),(dm0/ARCMIN,dm_mean/ARCMIN),':'),
             dict(color='grey')),
         ];
-      ll += [ dl0,dl0 ];
-      mm += [ dm0,dl0 ];
+      ll += [ dl0,dl0,dl0 ];
+      mm += [ dm0,dl0,dl0 ];
       color = "red";
     # plot fitted position
     markers += [
@@ -282,7 +290,9 @@ if __name__ == "__main__":
     mm += [ dm_mean,dm_mean ];
     
     
-  make_skymap(numpy.array(ll),numpy.array(mm),markers,suptitle="Fitted pointing offsets",save="Eplot");
+  make_skymap(numpy.array(ll),numpy.array(mm),markers,
+    zero_lines=False,
+    suptitle="Fitted pointing offsets",save="Eplot");
 
 
   if options.output_type.upper() == "X11":

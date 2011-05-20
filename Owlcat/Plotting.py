@@ -640,6 +640,7 @@ class SkyPlot (AbstractBasePlot):
               # and axes.func(*args,**kwargs) is called
     labels=None,
     radius=None,        # plot radius. If None, then it's set automatically
+    zero_lines=True,    # plot l=0 and m=0 lines
     suptitle=None,      # title of plot
     save=None,          # filename to save to
     format=None,        # format: use self.options.output_type by default
@@ -660,8 +661,9 @@ class SkyPlot (AbstractBasePlot):
     fig = pyplot.figure(figsize=figsize,dpi=600);
     plt = fig.add_axes([self._borders[0],self._borders[2],self._borders[1]-self._borders[0],
                         self._borders[3]-self._borders[2]]);
-    plt.axhline(y=0,color='black',linestyle=':');
-    plt.axvline(x=0,color='black',linestyle=':');
+    if zero_lines:
+      plt.axhline(y=0,color='black',linestyle=':');
+      plt.axvline(x=0,color='black',linestyle=':');
 
     # if ll is None, use length of markers for everything
     if ll is None:
