@@ -1,12 +1,26 @@
 # -*- coding: utf-8 -*-
-import matplotlib.pyplot as pyplot
 import numpy
 import numpy.ma
 import math
 import sys
 import traceback
-
+import os.path
 import matplotlib
+
+DEG = math.pi/180;
+ARCMIN = math.pi/(180*60);
+
+
+def init_pyplot (output_type="X11"):
+  """Initializes the pyplot singleton. Inits the matplotlib back-end
+  corresponding to the specified plot type""";
+  if 'pyplot' not in globals():
+    if output_type.upper() != "X11":
+      matplotlib.use('agg');
+    else:
+      matplotlib.use('qt4agg');
+    global pyplot;
+    import matplotlib.pyplot as pyplot
 
 def _int_or_0 (x):
   try:
@@ -48,6 +62,7 @@ class PlotCollection (object):
   def make_figure (self,keylist=None,suptitle=None,save=None,
                    dual=True,offset_std=10,
                    figsize=(210,290),dpi=100,papertype='a4',landscape=False):
+    import matplotlib.pyplot as pyplot
     # setup sizes
     keylist = keylist or sorted(self.data.keys());
     # compute inter-plot offset, based on the median stddev
@@ -161,7 +176,7 @@ class PlotCollection (object):
 
 
 class ComplexCirclePlot (PlotCollection):
-  """ScatterPlot plots a complex circle plot""";
+  """ComplexCirclePlot plots a complex circle plot""";
   # plot colors: xx xy yx yy
   colors = ("blue","red","purple","green");
 
@@ -170,6 +185,7 @@ class ComplexCirclePlot (PlotCollection):
   def make_figure (self,keylist=None,suptitle=None,save=None,
                    dual=True,offset_std=10,
                    figsize=(210,290),dpi=100,papertype='a4',landscape=False):
+    import matplotlib.pyplot as pyplot
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
     if keylist:
@@ -261,6 +277,7 @@ class ScatterPlot (object):
   def make_figure (self,suptitle=None,save=None,xlabel=None,ylabel=None,
                    offset_std=10,
                    figsize=(210,210),dpi=100,papertype='a4',landscape=False):
+    import matplotlib.pyplot as pyplot
     # create Figure object of given size and resolution
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
@@ -317,4 +334,395 @@ class ScatterPlot (object):
                   orientation='portrait' if not landscape else 'landscape');
       print "===> Wrote",save;
     return fig;
+
+
+PLOT_SINGLE = 'single';
+PLOT_MULTI  = 'multi';
+PLOT_ERRORBARS = 'errorbars';
+
+
+class AbstractBasePlot (object):
+  """Abstract base class for the various plotting objects""";
+  
+  def __init__ (self,options,figsize=(290,210)):
+    init_pyplot(options.output_type);
+    self.options = options;
+    if options.width and options.height:
+      self._default_figsize = (options.width,options.height);
+    else:
+      self._default_figsize = figsize;
+
+  @classmethod
+  def init_options (self,plotgroup,outputgroup):
+    """Initializes options relevant to this plotting class""";
+    self._plotgroup = plotgroup;
+    self._outputgroup = outputgroup;
+      
+  @classmethod
+  def add_plot_option (self,opt,*args,**kw):
+    """Helper method: adds a plot option, if it's not already defined""";
+    if not self._plotgroup.has_option(opt):
+      self._plotgroup.add_option(opt,*args,**kw);
+        
+  @classmethod 
+  def add_output_option (self,opt,*args,**kw):
+    """Helper method: adds an output option, if it's not already defined""";
+    if not self._outputgroup.has_option(opt):
+      self._outputgroup.add_option(opt,*args,**kw);
+
+class MultigridPlot (AbstractBasePlot):
+  """MultigridPlot makes NxM plotson a single page""";
+
+  def __init__ (self,options,figsize=(290,210)):
+    AbstractBasePlot.__init__(self,options,figsize);
+    self._borders = [ 0.05,0.99,0.05,0.95 ];
+    if options.borders and isinstance(options.borders,str):
+      try:
+        self._borders = [ float(x) for x in options.borders.split(",") ];
+      except:
+        pass;
+        
+  @classmethod
+  def init_options (self,plotgroup,outputgroup):
+    AbstractBasePlot.init_options(plotgroup,outputgroup);
+    self.add_plot_option("--title-fontsize",metavar="POINTS",type="int",default=12,
+                    help="Set plot title font size, 0 for no title. Default is %default.");
+    self.add_plot_option("--subtitle-fontsize",metavar="POINTS",type="int",default=10,
+                    help="Set plot subtitle font size, 0 for none. Default is %default.");
+    self.add_plot_option("--label-fontsize",metavar="POINTS",type="int",default=8,
+                    help="Set plot label font size, 0 for no labels. Default is %default.");
+    self.add_plot_option("--axis-fontsize",metavar="POINTS",type="int",default=5,
+                    help="Set axis label font size, 0 for no axis labels. Default is %default.");
+    self.add_plot_option("--borders",metavar="L,R,B,T",type="str",
+                    help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
+    self.add_plot_option("--subplot-wspace",metavar="W",type="float",default=0,
+                    help="Set spacing between subplots, as fraction of subplot width. Default is automatic.");
+    self.add_output_option("-o","--output-type",metavar="TYPE",type="string",default="png",
+                      help="File format, see matplotlib documentation "
+                      "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
+                      "plots interactively. Default is '%default.'");
+    self.add_output_option("-r","--refresh",action="store_true",
+                      help="Refresh plots even if they already exist (default is to keep existing plots.)");
+    self.add_output_option("--output-prefix",metavar="PREFIX",type="string",default="",
+                      help="Prefix output filenames with PREFIX_");
+    self.add_output_option("--papertype",dest="papertype",type="string",default="a4",
+                      help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
+    self.add_output_option("-W","--width",type="int",default=0,
+                      help="set explicit plot width, in mm. (Useful for .eps output)");
+    self.add_output_option("-H","--height",type="int",default=0,
+                      help="set explicit plot height, in mm. (Useful for .eps output)");
+    self.add_output_option("--portrait",action="store_true",
+                    help="Force portrait orientation. Default is to select orientation based on plot size");
+    self.add_output_option("--landscape",action="store_true",
+                    help="Force landscape orientation.");
+  
+  @staticmethod
+  def get_plot_data (data,xaxis=None):
+    """Helper function, interprets the plot data returned by a datafunc.
+    'data' is input data as returned by the datafunc argument to make_figure() below.
+    'xaxis' is default X axis, Note to use ordinal numbering.
+    Return value is tuple of X,Y,Yerr. Yerr is None if no error bars are provided.
+    """;
+    # a 2- or 3-tuple is interpreted as x,y[,yerr]
+    if isinstance(data,tuple):
+      if len(data) == 2:
+        x,y = data;
+        yerr = None;
+      elif len(data) == 3:
+        x,y,yerr = data;
+      else:
+        raise TypeError,"incorrect datum returned: 2- or 3-tuple expected, got %d-tuple"""%len(data);
+    # else interpret data as Y
+    else:
+      y = data;
+      x = yerr = None;
+    # set X axis
+    if x is None:
+      x = range(len(y)) if xaxis is None else xaxis;
+    # check lengths
+    if len(x) != len(y):
+      raise TypeError,"misshaped datum returned: %d X elements, %d Y elements"""%(len(x),len(y));
+    if yerr is not None and len(yerr) != len(y):
+      raise TypeError,"misshaped datum returned: %d Y elements, %d Yerr elements"""%(len(y),len(yerr));
+    return x,y,yerr;
+
+  def make_figure (self,rows,cols,  # (irow,row) and (icol,col) list
+                  datafunc,   # datafunc(irow,icol) returns plot data for plot i,j
+                  mode=PLOT_SINGLE,xaxis=None,
+                  hline=None, # plot horizontal line at Y position, None for none
+                  ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot
+                  mean_format="%.2f",
+                  suptitle=None,      # title of plot
+                  save=None,          # filename to save to
+                  format=None,        # format: use options.output_type by default
+                  figsize=None        # figure width,height in mm
+                  ):
+    from matplotlib.ticker import MaxNLocator
+    if save and (format or self.options.output_type.upper()) != 'X11':
+      save = "%s.%s"%(save,format or self.options.output_type);
+      if self.options.output_prefix:
+        save = "%s_%s"%(self.options.output_prefix,save);
+      # exit if figure already exists, and we're not refreshing
+      if os.path.exists(save) and not self.options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
+        print save,"exists, not redoing";
+        return save;
+    else:
+      save = None;
+
+    figsize = numpy.array(figsize or self._default_figsize)/25.4;
+    fig = pyplot.figure(figsize=figsize,dpi=600);
+    iplot = 0;
+    rows = list(rows);
+    cols = list(cols);
+    if ylock:
+      # form up ymin, ymax: NROWxNCOL arrays of min/max values per each plot
+      if mode is PLOT_SINGLE:
+        ymin = numpy.array([[datafunc(row[0],col[0]).min() for col in cols ] for row in rows ]);
+        ymax = numpy.array([[datafunc(row[0],col[0]).max() for col in cols ] for row in rows]);
+      elif mode is PLOT_MULTI:
+        ymin = numpy.array([[ min([self.get_plot_data(dd,xaxis)[1].min() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
+        ymax = numpy.array([[ max([self.get_plot_data(dd,xaxis)[1].max() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
+      elif mode is PLOT_ERRORBARS:
+        ymin = numpy.array([[ (datafunc(row[0],col[0])[0]-datafunc(row[0],col[0])[1]).min() for col in cols ] for row in rows]);
+        ymax = numpy.array([[ (datafunc(row[0],col[0])[0]+datafunc(row[0],col[0])[1]).max() for col in cols ] for row in rows]);
+      # now collapse them according to ylock mode
+      if ylock == "row":
+        ymin[...] = ymin.min(1)[:,numpy.newaxis];
+        ymax[...] = ymax.max(1)[:,numpy.newaxis];
+      elif ylock == "col":
+        ymin[...] = ymin.min(0)[numpy.newaxis,:];
+        ymax[...] = ymax.max(0)[numpy.newaxis,:];
+      else:
+        ymin[...] = ymin.min();
+        ymax[...] = ymax.max();
+    # make legend across the top
+    for icol,col in cols:
+      iplot += 1;
+      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
+      plt.axis("off");
+      plt.text(.5,0,col,fontsize=self.options.subtitle_fontsize or 'x-small',
+        horizontalalignment='center',verticalalignment='bottom');
+    iplot += 1;
+    # now make plots
+    for irow,row in rows:
+      for icol,col in cols:
+        iplot += 1;
+        plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
+        # plt.axis("off");
+        if ylock and ylock != "col" and icol:
+          plt.set_yticklabels([]);
+        else:
+          plt.yaxis.set_major_locator(MaxNLocator(4));
+        plt.set_xticks([]);
+        data = datafunc(irow,icol);
+        realplot = True;
+        if mode is PLOT_SINGLE:
+          plt.plot(range(len(data)) if xaxis is None else xaxis,data);
+          if xaxis is None:
+            plt.set_xlim(-1,len(data));
+        elif mode is PLOT_MULTI:
+          for dd in data:
+            x,y,yerr = self.get_plot_data(dd,xaxis);
+            if yerr is None:
+              plt.plot(x,y);
+            else:
+              plt.errorbar(x,y,yerr,fmt=None,capsize=1);
+            if x == range(len(y)):
+              plt.set_xlim(-1,len(y));
+        elif mode is PLOT_ERRORBARS:
+          y,yerr = data;
+          if len(y) == 1:
+            plt.text(0,0.6,mean_format%y[0],
+                fontsize='x-small',horizontalalignment='left',verticalalignment='bottom');
+            plt.text(0,0.5,"+/-"+(mean_format%yerr[0]),
+                fontsize='x-small',horizontalalignment='left',verticalalignment='top');
+            plt.axis("off");
+            plt.set_ylim(0,1);
+            realplot = False;
+          else:
+            plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
+            if xaxis is None:
+              plt.set_xlim(-1,len(y));
+        if realplot:
+          if ylock:
+            plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
+            if ylock is not "col" and icol:
+              plt.set_yticklabels([]);
+          if hline is not None:
+            plt.axhline(y=hline,color='black');
+        for lab in plt.get_yticklabels():
+          lab.set_fontsize(self.options.axis_fontsize or 5);
+      # add row label
+      iplot += 1;
+      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
+      plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
+      plt.axis("off");
+    # adjust layout
+    fig.subplots_adjust(left=self._borders[0],right=self._borders[1],
+      top=self._borders[3],bottom=self._borders[2],
+      wspace=self.options.subplot_wspace or None);
+    # plot title if asked to
+    if suptitle and self.options.title_fontsize:
+      fig.suptitle(suptitle,fontsize=self.options.title_fontsize);
+    if save:
+      if self.options.portrait:
+        orientation = 'portrait';
+      elif self.options.landscape:
+        orientation = 'landscape';
+      else:
+        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
+      fig.savefig(save,papertype=self.options.papertype,
+                  orientation=orientation);
+      print "Wrote",save,"in",orientation,"orientation";
+      fig = None;
+      pyplot.close("all");
+    return save;
+
+
+class SkyPlot (AbstractBasePlot):
+  """SkyPlot plots things in an l,m plot""";
+  def __init__ (self,options,figsize=(290,210)):
+    AbstractBasePlot.__init__(self,options,figsize);
+    self._borders = [ .05,.9,.05,.9 ];
+    if options.circle_borders and isinstance(options.circle_borders,str):
+      try:
+        self._borders = [ float(x) for x in options.circle_borders.split(",") ];
+      except:
+        pass;
+        
+  @classmethod
+  def init_options (self,plotgroup,outputgroup):
+    AbstractBasePlot.init_options(plotgroup,outputgroup);
+    self.add_plot_option("--radius",type="int",default=0,
+                      help="radius of circle plots, in arcmin. Default is auto-sizing.");
+    self.add_plot_option("-G","--grid-circle",metavar="ARCMIN",type="int",action="append",
+                      help="sets radius of grid circle(s) in circle plots. May be given multiple times. Default is 30 and 60.");
+    self.add_plot_option("--circle-title-fontsize",metavar="POINTS",type="int",default=12,
+                    help="Set plot title font size in circle plots, 0 for no title. Default is %default.");
+    self.add_plot_option("--circle-label-fontsize",metavar="POINTS",type="int",default=8,
+                    help="Set plot label font size in circle plots, 0 for no labels. Default is %default.");
+    self.add_plot_option("--circle-axis-fontsize",metavar="POINTS",type="int",default=5,
+                    help="Set axis label font size in circle_plots, 0 for no axis labels. Default is %default.");
+    self.add_plot_option("--names-only",action="store_true",
+                    help="Use only source names for labels in circle plots. Default is name, mean and std values.");
+    self.add_plot_option("--circle-label-offset",metavar="FRAC",type="float",default=0.02,
+                    help="Vertical offset of circle labels. Use 0 to center labels on source position. Default is %default.");
+    self.add_plot_option("--circle-borders",metavar="L,R,B,T",type="str",
+                    help="Set left/right/bottom/top circle-plot borders, in normalized page coordinates. Default is %default.");
+    self.add_plot_option("-S","--subtitle",type="str",default="",
+                      help="Subtitle for plot, added (in parentheses) after plot title");
+                      
+    self.add_output_option("-o","--output-type",metavar="TYPE",type="string",default="png",
+                    help="File format, see matplotlib documentation "
+                    "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
+                    "plots interactively. Default is '%default.'");
+    self.add_output_option("-r","--refresh",action="store_true",
+                      help="Refresh plots even if they already exist (default is to keep existing plots.)");
+    self.add_output_option("--output-prefix",metavar="PREFIX",type="string",default="",
+                      help="Prefix output filenames with PREFIX_");
+    self.add_output_option("--papertype",dest="papertype",type="string",default="a4",
+                      help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
+    self.add_output_option("-W","--width",type="int",
+                      help="set explicit plot width, in mm. (Useful for .eps output)");
+    self.add_output_option("-H","--height",type="int",
+                      help="set explicit plot height, in mm. (Useful for .eps output)");
+    self.add_output_option("--portrait",action="store_true",
+                    help="Force portrait orientation. Default is to select orientation based on plot size");
+    self.add_output_option("--landscape",action="store_true",
+                    help="Force landscape orientation.");
+
+  """Plotting function""";
+  def make_figure (self,ll,mm,
+    markers,  # marker is a list of strings or dicts or tuples.
+              # For each marker, if str: axes.plot(x,y,str) is called
+              # if dict: axes.plot(x,y,**dict)
+              # else tuple is func,arg,kwargs
+              # and axes.func(*args,**kwargs) is called
+    labels=None,
+    radius=None,        # plot radius. If None, then it's set automatically
+    suptitle=None,      # title of plot
+    save=None,          # filename to save to
+    format=None,        # format: use self.options.output_type by default
+    figsize=(210,210),       # figure width,height in mm
+    ):
+    if save and (format or self.options.output_type.upper()) != 'X11':
+      save = "%s.%s"%(save,format or self.options.output_type);
+      if self.options.output_prefix:
+        save = "%s_%s"%(self.options.output_prefix,save);
+      # exit if figure already exists, and we're not refreshing
+      if os.path.exists(save) and not self.options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
+        print save,"exists, not redoing";
+        return save;
+    else:
+      save = None;
+
+    figsize = numpy.array(figsize or self._default_figsize)/25.4;
+    fig = pyplot.figure(figsize=figsize,dpi=600);
+    plt = fig.add_axes([self._borders[0],self._borders[2],self._borders[1]-self._borders[0],
+                        self._borders[3]-self._borders[2]]);
+    plt.axhline(y=0,color='black',linestyle=':');
+    plt.axvline(x=0,color='black',linestyle=':');
+
+    # if ll is None, use length of markers for everything
+    if ll is None:
+      ll = mm = numpy.zeros(len(markers),float);
+
+    if not isinstance(markers,(list,tuple)):
+      markers = [markers]*len(ll);
+
+    if not labels:
+      labels = [None]*len(ll);
+
+    # set limits
+    if self.options.radius:
+      lim = self.options.radius;
+    elif radius:
+      lim = radius;
+    else:
+      lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
+
+    # plot markers
+    for l,m,mark,label in zip(ll/ARCMIN,mm/ARCMIN,markers,labels):
+      if isinstance(mark,str):
+        plt.plot(l,m,mark);
+      elif isinstance(mark,dict):
+        plt.plot(l,m,**mark);
+      elif isinstance(mark,tuple):
+        func,args,kwargs = mark;
+        getattr(plt,func)(*args,**kwargs);
+      if label and self.options.circle_label_fontsize:
+        plt.text(l,m-lim*self.options.circle_label_offset,
+          label,fontsize=self.options.circle_label_fontsize,
+          horizontalalignment='center',
+          verticalalignment='top' if self.options.circle_label_offset else 'center');
+
+    x = numpy.cos(numpy.arange(0,361)*math.pi/180);
+    y = numpy.sin(numpy.arange(0,361)*math.pi/180);
+
+    gc = self.options.grid_circle or (30,60);
+    for R in gc:
+      plt.plot(x*R,y*R,linestyle=':',color='black');
+
+    plt.set_xlim(lim,-lim);
+    plt.set_ylim(-lim,lim);
+    for lab in list(plt.get_xticklabels())+list(plt.get_yticklabels()):
+      lab.set_fontsize(self.options.circle_axis_fontsize);
+
+    if suptitle and self.options.title_fontsize:
+      if self.options.subtitle:
+        suptitle = "%s (%s)"%(suptitle,self.options.subtitle);
+      fig.suptitle(suptitle,fontsize=self.options.circle_title_fontsize);
+    if save:
+      if self.options.portrait:
+        orientation = 'portrait';
+      elif self.options.landscape:
+        orientation = 'landscape';
+      else:
+        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
+      fig.savefig(save,papertype=self.options.papertype,
+                  orientation=orientation);
+      print "Wrote",save,"in",orientation,"orientation";
+      fig = None;
+      pyplot.close("all");
+    return save;
 

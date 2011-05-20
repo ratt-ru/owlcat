@@ -6,6 +6,8 @@ if __name__ == "__main__":
   # setup some standard command-line option parsing
   #
   from optparse import OptionParser,OptionGroup
+  from Owlcat.Plotting import MultigridPlot,SkyPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
+  
   parser = OptionParser(usage="""%prog: [plots & options] parmtables""",
       description="""Makes various plots of dE solutions.""");
 
@@ -13,22 +15,16 @@ if __name__ == "__main__":
                     help="lists stuff found in MEP tables, then exits");
   parser.add_option("-c","--cache",metavar="FILENAME",type="string",
                     help="cache parms to file, which can be fed to plot-de-solutions script");
+  parser.add_option("-n","--nominals",metavar="FILENAME",type="string",
+                    help="includes nominal offsets on plot (supply filename)");
 
-  group = OptionGroup(parser,"Output options");
-  group.add_option("-o","--output-type",metavar="TYPE",type="string",
-                  help="File format, see matplotlib documentation "
-                  "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
-                  "plots interactively. Default is '%default.'");
-  group.add_option("-r","--refresh",action="store_true",
-                  help="Refresh plots even if they already exist (default is to keep existing plots.)");
-  group.add_option("--output-prefix",metavar="PREFIX",type="string",
-                    help="Prefix output filenames with PREFIX_");
-  group.add_option("--papertype",dest="papertype",type="string",
-                    help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
-  parser.add_option_group(group);
-
-  parser.set_defaults(
-    output_prefix="",output_type="png",papertype='a4');
+  plotgroup = OptionGroup(parser,"Plotting options");
+  outputgroup = OptionGroup(parser,"Output options");
+  MultigridPlot.init_options(plotgroup,outputgroup);
+  SkyPlot.init_options(plotgroup,outputgroup);
+ 
+  parser.add_option_group(plotgroup);
+  parser.add_option_group(outputgroup);
 
   (options,args) = parser.parse_args();
 
@@ -40,15 +36,10 @@ if __name__ == "__main__":
   import sys
 
   import numpy
-  from ParmTables import ParmTab
-  import matplotlib
+  from Owlcat.ParmTables import ParmTab
   import math
-
-  if options.output_type.upper() != "X11":
-    matplotlib.use('agg');
-  else:
-    matplotlib.use('qt4agg');
-  import matplotlib.pyplot as pyplot
+  DEG = math.pi/180;
+  ARCMIN = math.pi/(180*60);
 
   SPWS = range(len(args));
 
@@ -68,9 +59,12 @@ if __name__ == "__main__":
   des = {};
 
   # scan funklet names to build up sets of keys
+  oldtable = False;
   pt = ParmTab(args[0]);
   for name in pt.funklet_names():
-    if name.startswith("E::dl"):
+    if name.startswith("E::dlm::dl"):
+      oldtable = True;
+    if name.startswith("E::dlm::dl:") or name.startswith("E::dl:"):
       fields = name.split(':');
       ANTS.add(fields[-1]);
   NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice());
@@ -122,8 +116,12 @@ if __name__ == "__main__":
     pt = ParmTab(tabname);
     for i,ant in enumerate(ANTS):
       # fill dlm
-      fsl = pt.funkset('E::dl:%s'%ant).get_slice();
-      fsm = pt.funkset('E::dm:%s'%ant).get_slice();
+      if oldtable:
+        fsl = pt.funkset('E::dlm::dl:%s'%ant).get_slice();
+        fsm = pt.funkset('E::dlm::dm:%s'%ant).get_slice();
+      else:
+        fsl = pt.funkset('E::dl:%s'%ant).get_slice();
+        fsm = pt.funkset('E::dm:%s'%ant).get_slice();
       if len(fsl) != len(fsm) or len(fsl) != NTIMES:
         print "Error: table contains %d funklets for dl and %d for dm; %d expected"%(len(fsl),len(fsm),NTIMES);
         sys.exit(1);
@@ -149,6 +147,7 @@ if __name__ == "__main__":
     print "Cached all structures to file",cachefile;
 
   # convert dlm to millidegrees
+  dlm0 = dlm.copy();
   dlm *= 180*1000/math.pi;
 
   # take mean and std along freq axis
@@ -166,155 +165,15 @@ if __name__ == "__main__":
 
   print "Read %d parmtables"%len(args);
 
-  PLOT_SINGLE = 'single';
-  PLOT_MULTI  = 'multi';
-  PLOT_ERRORBARS = 'errorbars';
-
-  def get_plot_data (data,xaxis=None):
-    """Helper function, interprets the plot data returned by a datafunc.
-    'data' is input data as returned by the datafunc argument to make_figure() below.
-    'xaxis' is default X axis, Note to use ordinal numbering.
-    Return value is tuple of X,Y,Yerr. Yerr is None if no error bars are provided.
-    """;
-    # a 2- or 3-tuple is interpreted as x,y[,yerr]
-    if isinstance(data,tuple):
-      if len(data) == 2:
-        x,y = data;
-        yerr = None;
-      elif len(data) == 3:
-        x,y,yerr = data;
-      else:
-        raise TypeError,"incorrect datum returned: 2- or 3-tuple expected, got %d-tuple"""%len(data);
-    # else interpret data as Y
-    else:
-      y = data;
-      x = yerr = None;
-    # set X axis
-    if x is None:
-      x = range(len(y)) if xaxis is None else xaxis;
-    # check lengths
-    if len(x) != len(y):
-      raise TypeError,"misshaped datum returned: %d X elements, %d Y elements"""%(len(x),len(y));
-    if yerr is not None and len(yerr) != len(y):
-      raise TypeError,"misshaped datum returned: %d Y elements, %d Yerr elements"""%(len(y),len(yerr));
-    return x,y,yerr;
-
-  def make_figure (rows,cols,  # (irow,row) and (icol,col) list
-                  datafunc,   # datafunc(irow,icol) returns plot data for plot i,j
-                  mode=PLOT_SINGLE,xaxis=None,
-                  hline=None, # plot horizontal line at Y position, None for none
-                  ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot
-                  mean_format="%.2f",
-                  suptitle=None,      # title of plot
-                  save=None,          # filename to save to
-                  format=None,        # format: use options.output_type by default
-                  figsize=(290,210)      # figure width,height in mm
-                  ):
-    if save and (format or options.output_type.upper()) != 'X11':
-      save = "%s.%s"%(save,format or options.output_type);
-      if options.output_prefix:
-        save = "%s_%s.%s"%(options.output_prefix,save);
-      # exit if figure already exists, and we're not refreshing
-      if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-        print save,"exists, not redoing";
-        return save;
-    else:
-      save = None;
-
-    figsize = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize,dpi=600);
-    iplot = 0;
-    rows = list(rows);
-    cols = list(cols);
-    if ylock:
-      # form up ymin, ymax: NROWxNCOL arrays of min/max values per each plot
-      if mode is PLOT_SINGLE:
-        ymin = numpy.array([[datafunc(row[0],col[0]).min() for col in cols ] for row in rows ]);
-        ymax = numpy.array([[datafunc(row[0],col[0]).max() for col in cols ] for row in rows]);
-      elif mode is PLOT_MULTI:
-        ymin = numpy.array([[ min([get_plot_data(dd,xaxis)[1].min() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
-        ymax = numpy.array([[ max([get_plot_data(dd,xaxis)[1].max() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
-      elif mode is PLOT_ERRORBARS:
-        ymin = numpy.array([[ (datafunc(row[0],col[0])[0]-datafunc(row[0],col[0])[1]).min() for col in cols ] for row in rows]);
-        ymax = numpy.array([[ (datafunc(row[0],col[0])[0]+datafunc(row[0],col[0])[1]).max() for col in cols ] for row in rows]);
-      # now collapse them according to ylock mode
-      if ylock == "row":
-        ymin[...] = ymin.min(1)[:,numpy.newaxis];
-        ymax[...] = ymax.max(1)[:,numpy.newaxis];
-      elif ylock == "col":
-        ymin[...] = ymin.min(0)[numpy.newaxis,:];
-        ymax[...] = ymax.max(0)[numpy.newaxis,:];
-      else:
-        ymin[...] = ymin.min();
-        ymax[...] = ymax.max();
-    # make legend across the top
-    for icol,col in cols:
-      iplot += 1;
-      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-      plt.axis("off");
-      plt.text(.5,0,col,fontsize='x-small',horizontalalignment='center',verticalalignment='bottom');
-    iplot += 1;
-    # now make plots
-    for irow,row in rows:
-      for icol,col in cols:
-        iplot += 1;
-        plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-        # plt.axis("off");
-        plt.set_xticks([]);
-        data = datafunc(irow,icol);
-        realplot = True;
-        if mode is PLOT_SINGLE:
-          plt.plot(range(len(data)) if xaxis is None else xaxis,data);
-          if xaxis is None:
-            plt.set_xlim(-1,len(data));
-        elif mode is PLOT_MULTI:
-          for dd in data:
-            x,y,yerr = get_plot_data(dd,xaxis);
-            if yerr is None:
-              plt.plot(x,y);
-            else:
-              plt.errorbar(x,y,yerr,fmt=None,capsize=1);
-        elif mode is PLOT_ERRORBARS:
-          y,yerr = data;
-          if len(y) == 1:
-            plt.text(0,0.6,mean_format%y[0],
-                fontsize='x-small',horizontalalignment='left',verticalalignment='bottom');
-            plt.text(0,0.5,"+/-"+(mean_format%yerr[0]),
-                fontsize='x-small',horizontalalignment='left',verticalalignment='top');
-            plt.axis("off");
-            plt.set_ylim(0,1);
-            realplot = False;
-          else:
-            plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
-            if xaxis is None:
-              plt.set_xlim(-1,len(y));
-        if realplot:
-          if ylock:
-            plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
-            if ylock is not "col" and icol:
-              plt.set_yticklabels([]);
-          if hline is not None:
-            plt.axhline(y=hline,color='black');
-        for lab in plt.get_yticklabels():
-          lab.set_fontsize(5);
-      # add row label
-      iplot += 1;
-      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-      plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
-      plt.axis("off");
-    # adjust layout
-    fig.subplots_adjust(left=0.05,right=.99,top=0.95,bottom=0.05);
-    # plot if asked to
-    if suptitle:
-      fig.suptitle(suptitle);
-    if save:
-      fig.savefig(save,papertype=options.papertype,
-                  orientation='portrait' if figsize[0]<figsize[1] else 'landscape');
-      print "Wrote",save;
-      fig = None;
-      pyplot.close("all");
-    return save;
-
+  from Owlcat.Plotting import MultigridPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
+  
+  # initialize plot object
+  figplot = MultigridPlot(options);
+  make_figure = figplot.make_figure;
+  
+  skyplot = SkyPlot(options);
+  make_skymap = skyplot.make_figure;
+  
 
   funcs = [
     lambda iant:(dlm_mean[0,iant,:],dlm_std[0,iant,:]),
@@ -381,6 +240,49 @@ if __name__ == "__main__":
         hline=1,ylock=True,figsize=(290,75),mode=PLOT_ERRORBARS,
         suptitle="Beam extent",
         save="Eshape");
+        
+  # make skymap with average pointings
+  ll = [];
+  mm = [];
+  markers = [];
+  
+  # add nominal mispointings
+  if options.nominals:
+    exec(file(options.nominals));
+  else:
+    nominals = {};
+      
+  for iant,ant in enumerate(ANTS):
+    dl = dlm0[0,:,iant,:];
+    dm = dlm0[1,:,iant,:];
+    dl_mean = dl.mean();
+    dl_std = dl.std();
+    dm_mean = dm.mean();
+    dm_std = dm.std();
+    color = "pink" if nominals else "blue";
+    # plot nominal position, if available
+    if ant in nominals:
+      dl0,dm0 = nominals[ant];
+      markers += [
+        ("text",(dl0/ARCMIN,dm0/ARCMIN,ant),
+            dict(color='blue',ha='center',va='center',size='large',weight='bold')),
+        ("plot",((dl0/ARCMIN,dl_mean/ARCMIN),(dm0/ARCMIN,dm_mean/ARCMIN),':'),
+            dict(color='grey')),
+        ];
+      ll += [ dl0,dl0 ];
+      mm += [ dm0,dl0 ];
+      color = "red";
+    # plot fitted position
+    markers += [
+      ("errorbar",(dl_mean/ARCMIN,dm_mean/ARCMIN,dl_std/ARCMIN,dm_std/ARCMIN),dict(color='#A0A0A0')),
+      ("text",(dl_mean/ARCMIN,dm_mean/ARCMIN,"%s "%ant),
+          dict(color=color,ha='center',va='center',size='large',weight='bold',bbox=dict(fc='white',ec='grey'))),
+      ];
+    ll += [ dl_mean,dl_mean ];
+    mm += [ dm_mean,dm_mean ];
+    
+    
+  make_skymap(numpy.array(ll),numpy.array(mm),markers,suptitle="Fitted pointing offsets",save="Eplot");
 
 
   if options.output_type.upper() == "X11":
