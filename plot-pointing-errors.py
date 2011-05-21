@@ -256,8 +256,14 @@ if __name__ == "__main__":
     
   circlex = numpy.cos(numpy.arange(0,1.05,.05)*math.pi*2)*options.nominal_circle/(1000/60.);
   circley = numpy.sin(numpy.arange(0,1.05,.05)*math.pi*2)*options.nominal_circle/(1000/60.);
-  print circley;
   
+  ll.append(0);
+  mm.append(0);
+  markers.append(
+    ("plot",(circlex,circley,":"),
+        dict(color='blue'))
+  );
+
   for iant,ant in enumerate(ANTS):
     dl = dlm0[0,:,iant,:];
     dm = dlm0[1,:,iant,:];
