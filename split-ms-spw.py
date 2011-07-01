@@ -14,7 +14,7 @@ if __name__ == "__main__":
   #
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] MS""",
-    description="Splits MS into one or more output MSs by DATA_DESC_ID (which typically corresponds"
+    description="Splits MS into one or more output MSs by DATA_DESC_ID (which typically corresponds "
     "to spectral window.)");
   parser.add_option("-D","--ddid",type="int",
                     help="specific DATA_DESC_ID to extract. If not given, then all DDIDs are extracted, each into a separate MS.");

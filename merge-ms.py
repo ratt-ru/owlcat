@@ -28,7 +28,7 @@ if __name__ == "__main__":
     "the SPECTRAL_WINDOW and DATA_DESCRIPTION tables are also merged (and spwids and "
     "ddids renumbered.)");
   parser.add_option("-f","--force",dest="force",action="store_true",
-                    help="overwrites output MS if it already exists");
+                    help="proceed without confirmation, and overwrite output MS if it already exists");
   parser.add_option("-s","--renumber-spws",dest="renumber",action="store_true",
                     help="treat each MS as a separate spectral window");
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
       if col not in SKIP_COLUMNS:
         data = tab.getcol(col);
         # if renumbering DDIDs, increment the DDID column by the # of rows in the DDID table --
-        # this ensures uniqueness of DDIDs 
+        # this ensures uniqueness of DDIDs
         if options.renumber and col == "DATA_DESC_ID":
           data += ddid_tab0.nrows();
         progress.overprint("Writing column %s, shape %s"%(col,data.shape));
@@ -109,7 +109,7 @@ if __name__ == "__main__":
       for col in spw_tab.colnames():
         data = spw_tab.getcol(col);
         spw_tab0.putcol(col,data,nr0);
-      
+
 
   progress.overprint("Closing output MS %s\n"%msout);
   nr0 = tab0.nrows();
