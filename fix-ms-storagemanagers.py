@@ -28,19 +28,11 @@ if __name__ == "__main__":
   #
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] MS""",
-      description="""Sets up proper tiled storage managers for the DATA and FLAG columns of an MS.""");
-  #parser.add_option("-o","--output",dest="output",type="string",
-                    #help="name of output FITS file");
-  #parser.add_option("-z","--zoom",dest="output_quad",type="string",
-                    #help="name of zoomed output FITS file");
-  #parser.add_option("-t","--tolerance",dest="tolerance",type="float",
-                    #help="How close (in meters) two baselines need to be to each other to be considered redundant (default .1)");
-  #parser.add_option("-I","--ifrs",dest="ifrs",type="string",
-                    #help="subset of interferometers to use.");
-  #parser.add_option("-s","--select",dest="select",action="store",
-                    #help="additional TaQL selection string. Note that redundant baselines are counted only within the subset "
-                         #"given by the --ifrs and --select options.");
-#  parser.set_defaults(tolerance=.1,select="",ifrs="");
+      description=\
+      """Sets up tiled storage managers for the DATA, FLAG and BITFLAG columns of an MS,
+      and sets a fixed shape on the columns. This can speed up access to some MSs, e.g.
+      such as those produced by the uvfits2ms converter."""
+  );
 
   (options,msnames) = parser.parse_args();
 
@@ -73,12 +65,14 @@ if __name__ == "__main__":
   ncorr = datacol.shape[-1];
   nfreq = datacol.shape[-2];
   tilerow = 512;
-  os.system("addtiledmscol %s DATA complex %d %d %d %d %d 4"%
-              (msname,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow));
-  os.system("addtiledmscol %s FLAG bool %d %d %d %d %d 4"%
-              (msname,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow));
-  os.system("addtiledmscol %s BITFLAG int %d %d %d %d %d 4"%
-              (msname,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow));
+  for colname in ("DATA","FLAG","BITFLAG"):
+    progress("Adding tiled %s column"%colname);
+    rc = os.system("addtiledmscol %s %s complex %d %d %d %d %d 4"%
+                 (msname,colname,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow));
+    if rc:
+      print "addtiledmscol process killed by signal %d"%(rc&0xFF);
+      rc>>=8;
+      sys.exit(rc);
 
   # reopen table
   ms = table(msname,readonly=False);
