@@ -103,7 +103,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                     help="use time for X axis and average over channels (default)");
   group.add_option("--x-freq",dest="xaxis",action="store_const",const=1,
                     help="use frequency for X axis and average over timeslots");
-  
+
   PLOT,DDID,IFR = group_choices = [ "plot","ddid","ifr" ];
   group.add_option("-P","--page",metavar="|".join(group_choices),action="append",
                    type="choice",choices=group_choices,
@@ -128,7 +128,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                     "Default is 10. NB: for flag-density plots, unit is 0.11*maxdensity, so the "
                     "standard offset of 10 produces plots spaced at 110% of the max value.");
   parser.add_option_group(group);
-  
+
   group = OptionGroup(parser,"Plot labels");
   group.add_option("--no-label-plot",dest="label_plot",action="store_false",
                     help="do not include plot type in labels (when stacking)");
@@ -181,16 +181,16 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
     for p in Plotters:
       print "   %-16s%s"%(p[0],p[1]);
     print """
-By default, specifying "DATA:XX" is the same as "DATA:XX.mean", producing a plot of mean |XX| 
-in time or frequency (depending on choice of X axis). Use "DATA.mean:XX" to plot |mean XX| 
+By default, specifying "DATA:XX" is the same as "DATA:XX.mean", producing a plot of mean |XX|
+in time or frequency (depending on choice of X axis). Use "DATA.mean:XX" to plot |mean XX|
 instead (i.e. mean visibilities, not mean amplitudes!) Use "DATA:XX.stddev" or "DATA.stddev:XX"
 to plot standard deviations. Other options are ".sum", ".max" and ".min".
 
-Note that flag-density plots do not require a data column to be specified, since the 
+Note that flag-density plots do not require a data column to be specified, since the
 BITFLAG/FLAG columns are shared among all data columns.
 """;
     sys.exit(0);
-  
+
   # turn list of plotters into dict
   Plotters = dict([(p[0],p[1:]) for p in Plotters]);
 
@@ -257,7 +257,7 @@ BITFLAG/FLAG columns are shared among all data columns.
   column0 = "CORRECTED_DATA";
   if column0 not in ms.colnames():
     column0 = "DATA";
-  # go through list of arguments, or default list 
+  # go through list of arguments, or default list
   for arg in (args[1:] or ["I"]):
     # parse as "[column[.reduce]:]plot[.reduce]"
     m = re.match('^(\w+)(\.(\w+))?(:(\w+)(.(\w+))?)?$',arg);
@@ -295,10 +295,10 @@ BITFLAG/FLAG columns are shared among all data columns.
       # set default reduction, if nothing else is specified
       if not plotreduce and not datareduce:
         plotreduce = 'mean';
-      plotdesc = " ".join(filter(bool,[datareduce,column0,plotreduce,plotdesc]));  
+      plotdesc = " ".join(filter(bool,[datareduce,column0,plotreduce,plotdesc]));
     # add to list of plots
     plots.append((plot,plotdesc,func,plot_type,column0,datareduce,plotreduce));
- 
+
   # collect applicable TaQL queries here
   taqls = [];
 
@@ -329,7 +329,7 @@ BITFLAG/FLAG columns are shared among all data columns.
     ddids = [ int(options.ddid) ];
   # else parse as list of ints, or 'all'. In this case we need extra info from the tables
   else:
-    if ddid_str == "all": 
+    if ddid_str == "all":
       ddids = range(ddid_tab.nrows());
     else:
       try:
@@ -362,8 +362,8 @@ BITFLAG/FLAG columns are shared among all data columns.
     ms = ms.query("( " + " ) && ( ".join(taqls) + " )");
     print "===> Selected %d rows from MS"%ms.nrows();
   if not ms.nrows():
-    print """MS selection is empty. You may have specified it incorrectly: please check your 
-DATA_DESC_ID (option -D/--ddid), field (-F/--field), interferometer subset (-I/--ifrs) 
+    print """MS selection is empty. You may have specified it incorrectly: please check your
+DATA_DESC_ID (option -D/--ddid), field (-F/--field), interferometer subset (-I/--ifrs)
 and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
     sys.exit(1);
 
@@ -388,7 +388,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
   label_format = " ".join(labels);
 
   # Make list of trackkeys
-  # A trackkey is (nplot,ddid,ifr); ddid or ifr is None if averaging 
+  # A trackkey is (nplot,ddid,ifr); ddid or ifr is None if averaging
   average_ddids = DDID in options.average;
   average_ifrs = IFR in options.average;
   # ranges for each trackkey
@@ -404,8 +404,8 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
     matplotlib.use('qt4agg');
 
   import Owlcat.Plotting
-  
-  # A PlotCollection holds one set of plot tracks. 
+
+  # A PlotCollection holds one set of plot tracks.
   # This is a dict of trackkey:PC.
   # PC's are shared by multiple tracks  according to the page/stack/average settings.
   plotcolls = {};
@@ -460,10 +460,10 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
     if bitflags:
       if 'BITFLAG' in ms.colnames():
         bf = subms.getcol('BITFLAG');
-        flagcol |= ((bf&bitflags)!=0); 
+        flagcol |= ((bf&bitflags)!=0);
       if 'BITFLAG_ROW' in ms.colnames():
         bfr = subms.getcol('BITFLAG_ROW');
-        flagcol |= ((bfr&bitflags)!=0)[:,numpy.newaxis,numpy.newaxis]; 
+        flagcol |= ((bfr&bitflags)!=0)[:,numpy.newaxis,numpy.newaxis];
     flagcol = flagcol[:,freqslice,:];
     nf = flagcol.sum();
     print "===> %d of %d (%.2g%%) visibilities are flagged "%(nf,flagcol.size,(nf/float(flagcol.size))*100);
@@ -492,7 +492,8 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
           if dc is None:
             # ok, read & cache column
             dc = subms.getcol(colname)[:,freqslice,:];
-            dc = datacols[colname,None] = numpy.ma.masked_array(dc,flagcol,fill_value=complex(0,0));
+            mask = flagcol|(~numpy.isfinite(dc));
+            dc = datacols[colname,None] = numpy.ma.masked_array(dc,mask,fill_value=complex(0,0));
           # reduce and cache reduced version
           if datareduce:
             dc = datacols[colname,datareduce] = getattr(dc,datareduce)(meanaxis);
@@ -507,7 +508,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         # update label attributes
         labelattrs['baseline'] = round(ifrset.baseline(p,q));
         labelattrs['ifr'] = ifrset.ifr_label(p,q);
-        # 
+        #
         if plot_type is PT_FLAGTRACK:
           d1 = numpy.ma.masked_array(plotfunc(flagcol[idx,...],meanaxis));
         else:
@@ -558,7 +559,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
   if not active_ifrs:
     print "===> Nothing to be plotted. Check your data selection.";
     sys.exit(0);
-    
+
 
   # Now, work out the order in which we plot the tracks and PlotCollections.
   # this is determined by the options.page and options.stack order
@@ -636,7 +637,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
       savefile = options.output;
       if ipage is not None:
         if savefile:
-          basename,ext = os.path.splitext(savefile);  
+          basename,ext = os.path.splitext(savefile);
           savefile = "%s.%d%s"%(basename,ipage,ext);
         ipage += 1;
       dual = (len(keys) > options.ppp/2);

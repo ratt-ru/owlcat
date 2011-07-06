@@ -10,7 +10,7 @@ import Meow.MSUtils
 import Purr.Pipe
 
 from Meow.MSUtils import TABLE
-    
+
 _gli = Meow.MSUtils.find_exec('glish');
 if _gli:
   _GLISH = 'glish';
@@ -30,7 +30,7 @@ def _format_nbins (bins,argname):
   else:
     return "%d"%bins;
   raise TypeError,"invalid value for '%s' keyword (%s)"%(argname,bins);
-  
+
 def _format_bool (arg,argname):
   if arg: return "T";
   else:   return "F";
@@ -72,7 +72,7 @@ def _format_plotchan (arg,argname):
     return _format_bool(arg,argname);
   else:
     return _format_index(arg,argname);
-  
+
 def _format_2N (arg,argname):
   if isinstance(arg,(list,tuple)):
     return "%s"%arg;
@@ -104,7 +104,7 @@ def _format_clip (arg,argname):
       recfields.append("a%d=[%s]"%(i,','.join(subfields)));
     return "[%s]"%','.join(recfields);
   raise TypeError,"invalid value for '%s' keyword (%s)"%(argname,arg);
-    
+
 class Flagger (Timba.dmi.verbosity):
   def __init__ (self,msname,verbose=0,chunksize=200000):
     Timba.dmi.verbosity.__init__(self,name="Flagger");
@@ -116,13 +116,13 @@ class Flagger (Timba.dmi.verbosity):
     self.readwrite = False;
     self.chunksize = chunksize;
     self._reopen();
-    
+
   def close (self):
     if self.ms:
       self.dprint(2,"closing MS",self.msname);
       self.ms.close();
     self.ms = self.flagsets = None;
-    
+
   def _reopen (self,readwrite=False):
     if self.ms is None:
       self.ms = ms = TABLE(self.msname,readonly=not readwrite);
@@ -136,10 +136,10 @@ class Flagger (Timba.dmi.verbosity):
       self.ms = TABLE(self.msname,readonly=not readwrite);
       self.readwrite = readwrite;
     return self.ms;
-    
+
   def add_bitflags (self,wait=True,purr=True):
     if not self.has_bitflags:
-      global _addbitflagcol; 
+      global _addbitflagcol;
       if not _addbitflagcol:
         raise RuntimeError,"cannot find addbitflagcol utility in $PATH";
       self.close();
@@ -152,7 +152,7 @@ class Flagger (Timba.dmi.verbosity):
       # reopen and close to pick up new BITFLAG column
       self._reopen();
       self.close();
-      
+
   def remove_flagset (self,*fsnames,**kw):
     self._reopen(True);
     mask = self.flagsets.remove_flagset(*fsnames);
@@ -172,7 +172,7 @@ class Flagger (Timba.dmi.verbosity):
     kw['flag'] = flag;
     kw['unflag'] = 0;
     return self._flag(**kw);
-  
+
   def unflag (self,unflag=-1,**kw):
     kw = kw.copy();
     if kw.setdefault('purr',True):
@@ -184,7 +184,7 @@ class Flagger (Timba.dmi.verbosity):
     kw['flag'] = 0;
     kw['unflag'] = unflag;
     return self._flag(**kw);
-  
+
   def transfer (self,flag=1,replace=False,*args,**kw):
     unflag = (replace and flag) or 0;
     kw.setdefault('purr',True);
@@ -195,7 +195,7 @@ class Flagger (Timba.dmi.verbosity):
         fset = "flagset %s"%flag;
       self.purrpipe.title("Flagging").comment("Transferring FLAG/FLAG_ROW to %s"%fset,endline=False);
     return self._flag(flag=flag,unflag=unflag,transfer=True,*args,**kw);
-  
+
   def get_stats(self,flag=0,legacy=False,**kw):
     kw.setdefault('purr',True);
     if kw['purr']:
@@ -212,7 +212,7 @@ class Flagger (Timba.dmi.verbosity):
       self.purrpipe.comment(msg);
     self.dprint(1,"stats: ",msg);
     return stats;
-  
+
   def _get_bitflag_col (self,ms,row0,nrows,shape=None):
     """helper method. Gets the bitflag column at the specified location. On error (presumably,
     column is missing), returns zero array of specified shape. If shape is not specified,
@@ -223,9 +223,9 @@ class Flagger (Timba.dmi.verbosity):
       if not shape:
         shape = ms.getcol('DATA',row0,nrows).shape;
       return numpy.zeros(shape,dtype=numpy.int32);
-  
+
   def _get_submss (self,ms,ddids=None):
-    """Helper method. Splits MS into subsets by DATA_DESC_ID. 
+    """Helper method. Splits MS into subsets by DATA_DESC_ID.
     Returns list of (ddid,nrows,subms) tuples, where subms is a subset of the MS with the given DDID,
     and nrows is the number of rows in preceding submss (which is needed for progress stats)
     """;
@@ -246,9 +246,9 @@ class Flagger (Timba.dmi.verbosity):
           flag=1,                         # set this flagmask (or flagset name) or
           unflag=0,                       # clear this flagmask (or flagset name)
           create=False,                   # if True and 'flag' is a string, creates new flagset as needed
-          fill_legacy=None,               # if not None, legacy flags will be filled using the specified flagmask            
-          transfer=False,                 # if True: sets transfer mode. In transfer mode, legacy flags (within 
-                                          #     the specified subset) are transferred to the given bitflag 
+          fill_legacy=None,               # if not None, legacy flags will be filled using the specified flagmask
+          transfer=False,                 # if True: sets transfer mode. In transfer mode, legacy flags (within
+                                          #     the specified subset) are transferred to the given bitflag
           get_stats=False,                # if True: sets "get stats" mode. Instead of flagging, counts and
                                           #     returns a count of raised flags (matching the flagmask) in the subset
           include_legacy_stats=False,     # if True and get_stats=True, includes legacy flags in the stats
@@ -256,11 +256,11 @@ class Flagger (Timba.dmi.verbosity):
           ddid=None,fieldid=None,         # DATA_DESC_ID or FIELD_ID, single int or list
           channels=None,                  # channel subset (index, list of indices, or slice object)
           multichan=None,                 # list of channel subsets (as an alternative to specifying just one)
-          corrs=None,                     # correlation subset (index, list of indices, or slice object)  
+          corrs=None,                     # correlation subset (index, list of indices, or slice object)
           antennas=None,                  # list of antennas
           baselines=None,                 # list of baselines (as ip,iq pairs)
           time=None,                      # time range as (min,max) pair (can use None for either min or max)
-          reltime=None,                   # relative time (rel. to start of MS) range as (min,max) pair 
+          reltime=None,                   # relative time (rel. to start of MS) range as (min,max) pair
           taql=None,                      # additional TaQL string
           clip_above=None,                # restrict flagged subset to abs(data)>clip_above
           clip_below=None,                #                        and abs(data)<clip_below
@@ -296,7 +296,7 @@ class Flagger (Timba.dmi.verbosity):
         self.dprintf(2,"unflagging with bitmask 0x%x\n",unflag);
     else:
       self.dprintf(2,"no bitflags in MS, using legacy FLAG/FLAG_ROW columns\n",unflag);
- 
+
     # get DDIDs
     if ddid is None:
       ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),readonly=True).nrows());
@@ -333,7 +333,7 @@ class Flagger (Timba.dmi.verbosity):
         queries.append("TIME>=%f"%(time0+t0));
       if t1 is not None:
         queries.append("TIME<=%f"%(time0+t1));
-      
+
     # form up TaQL string, and extract subset of table
     if queries:
       query = "( " + " ) && ( ".join(queries)+" )";
@@ -349,10 +349,10 @@ class Flagger (Timba.dmi.verbosity):
       purr and self.purrpipe.comment("; baseline subset is %s"%
         " ".join(["%d-%d"%(p,q) for p,q in baselines]),
         endline=False);
-    
+
     # This will be true if only whole rows are being selected for. If channel/correlation/clipping
     # criteria are supplied, this will be set to False below
-    clip = not (  clip_above is None and clip_below is None and 
+    clip = not (  clip_above is None and clip_below is None and
                   clip_fm_above is None and clip_fm_below is None);
     flagrows = not clip;
     # form up channel and correlation slicers
@@ -485,7 +485,7 @@ class Flagger (Timba.dmi.verbosity):
             ms.putcol('FLAG_ROW',lfr,row0,nrows);
             ms.putcol('FLAG',lf,row0,nrows);
         # else flagging individual correlations or channels
-        else: 
+        else:
           # get flags (for clipping purposes)
           lf = ms.getcol('FLAG',row0,nrows);
           # 'mask' is what needs to be flagged/unflagged. Start with empty mask.
@@ -529,7 +529,7 @@ class Flagger (Timba.dmi.verbosity):
             bf1 = bf[rmask,:,:]&(flag|unflag);
             # clear all affected bits in rowflag
             bfr[rmask] &= ~(flag|unflag);
-            # set bits in rowflag that are set in all flags 
+            # set bits in rowflag that are set in all flags
             bfr[rmask] |= numpy.logical_and.reduce(numpy.logical_and.reduce(bf1,2),1);
             ms.putcol('BITFLAG',bf,row0,nrows);
             ms.putcol('BITFLAG_ROW',bfr,row0,nrows);
@@ -583,15 +583,15 @@ class Flagger (Timba.dmi.verbosity):
             fset = fset[:-2];
           # lookup name or number
           if re.match('^\d+$',fset):
-            flagmask |= int(fset);  
+            flagmask |= int(fset);
           elif re.match('^0[xX][\dA-Fa-f]+$',fset):
-            flagmask |= int(fset,16);  
+            flagmask |= int(fset,16);
           elif fset:
             flagmask |= self.flagsets.flagmask(fset,create=create);
       else:
         raise TypeError,"invalid flagset of type %s in list of flagsets"%type(fset);
     return flagmask;
-  
+
   @staticmethod
   def flagmaskstr (flagmask):
     """helper function: converts an integer flagmask into a printable str""";
@@ -616,16 +616,17 @@ class Flagger (Timba.dmi.verbosity):
           antennas=None,                  # list of antennas
           baselines=None,                 # list of baselines (as ip,iq pairs)
           time=None,                      # time range as (min,max) pair (can use None for either min or max)
-          reltime=None,                   # relative time (rel. to start of MS) range as (min,max) pair 
+          reltime=None,                   # relative time (rel. to start of MS) range as (min,max) pair
           taql=None,                      # additional TaQL string
               # Subset A. Freq/corr slices within the row subset.
           channels=None,                  # channel subset (index, or slice, or list of index/slices)
-          corrs=None,                     # correlation subset (index, or slice, or list of index/slices)  
-              # Subset B. Subset within subset A based on flags 
+          corrs=None,                     # correlation subset (index, or slice, or list of index/slices)
+              # Subset B. Subset within subset A based on flags
           flagmask=None,                  # any bitflag set in the given flagmask (or flagset name)
           flagmask_all=None,              # all bitflags set in the given flagmask (or flagset name)
           flagmask_none=None,             # no bitflags set in the given flagmask (or flagset name)
               # Subset C. Subset within subset B based on data clipping
+          data_nan=False,                  # restrict flagged subset to NAN/INF data
           data_above=None,                # restrict flagged subset to abs(data)>X
           data_below=None,                #                        and abs(data)<X
           data_fm_above=None,             # same as data_above/_below, but flags based on the mean
@@ -650,8 +651,8 @@ class Flagger (Timba.dmi.verbosity):
     unflag = unflag or 0;
     if not self.has_bitflags and (flag|unflag)&self.BITMASK_ALL:
       raise RuntimeError,"no BITFLAG column in this MS, can't change bitflags";
-    # stats 
-    # total number of rows 
+    # stats
+    # total number of rows
     totrows = ms.nrows();
     # rows and visibilities in the row subset
     sel_nrow = sel_nvis = 0;
@@ -733,8 +734,8 @@ class Flagger (Timba.dmi.verbosity):
     purr and self.purrpipe.comment(".");
     #
     flagsubsets = flagmask is not None or flagmask_all is not None or flagmask_none is not None;
-    dataclip = data_above is not None or data_below is not None or \
-               data_fm_above is not None or data_fm_below is not None; 
+    dataclip = data_above is not None or data_below is not None or data_nan or \
+               data_fm_above is not None or data_fm_below is not None;
     # make list of sub-MSs by DDID
     sub_mss = self._get_submss(ms,ddids);
     nrow_tot = ms.nrows();
@@ -790,7 +791,7 @@ class Flagger (Timba.dmi.verbosity):
         nv = nr*nv_per_row;
         sel_nvis += nv;
         self.dprintf(2,"Row subset (data selection) leaves %d rows and %d visibilities\n",nr,nv);
-        # get subset C 
+        # get subset C
         # vismask will be True for all selected visibilities
         vismask = numpy.zeros(datashape,bool);
         for channel_slice in channels:
@@ -816,11 +817,14 @@ class Flagger (Timba.dmi.verbosity):
         if dataclip:
           datacol = ms.getcol(data_column,row0,nrows);
           # make it a masked array: mask out stuff not in vismask
-          datamask = ~vismask;  
+          datamask = ~vismask;
           # and mask stuff in data_flagmask
           if data_flagmask is not None:
             datamask |= ( (visflags()&data_flagmask)!=0 );
           datacol = numpy.ma.masked_array(datacol,datamask);
+          # clip on NANs
+          if data_nan is not None:
+            vismask &= ~numpy.isfinite(datacol);
           # clip on amplitudes
           if data_above is not None:
             vismask &= abs(datacol)>data_above;
@@ -837,7 +841,7 @@ class Flagger (Timba.dmi.verbosity):
         nv = vismask.sum();
         nvis_C += nv;
         self.dprintf(2,"subset C (data clipping) leaves %d visibilities\n",nv);
-        
+
         # now, do the actual flagging
         if flag or unflag or fill_legacy is not None:
           rf = rowflags();
@@ -851,7 +855,7 @@ class Flagger (Timba.dmi.verbosity):
           if fill_legacy is not None:
             vf[rowmask] &= ~self.LEGACY;
             vf[rowmask] |= numpy.where(vf[rowmask,...]&fill_legacy,self.LEGACY,0);
-          # adjust the rowflags 
+          # adjust the rowflags
           rf[rowmask] = numpy.logical_and.reduce(numpy.logical_and.reduce(vf[rowmask,:,:],2),1);
           # mask bitflag, convert back to bitflag type and write out
           if self.has_bitflags and (flag|unflag)&self.BITMASK_ALL:
@@ -875,7 +879,7 @@ class Flagger (Timba.dmi.verbosity):
 
     return totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C;
 
-      
+
   def set_legacy_flags (self,flags,progress_callback=None,purr=True):
     """Fills the legacy FLAG/FLAG_ROW column by applying the specified flagmask
     to bitflags.
@@ -923,7 +927,7 @@ class Flagger (Timba.dmi.verbosity):
         ms.putcol('FLAG_ROW',(bfr&flagmask).astype(Timba.array.dtype('bool')),row0,nrows);
     if progress_callback:
       progress_callback(99,100);
-      
+
   def clear_legacy_flags (self,progress_callback=None,purr=True):
     """Clears the legacy FLAG/FLAG_ROW columns.
     """;
@@ -956,10 +960,10 @@ class Flagger (Timba.dmi.verbosity):
         ms.putcol('FLAG_ROW',Timba.array.zeros((nrows,),dtype='bool'),row0,nrows);
     if progress_callback:
       progress_callback(99,100);
-  
+
   def autoflagger (self,*args,**kw):
     return Flagger.AutoFlagger(self,*args,**kw);
-  
+
   class AutoFlagger (object):
     def __init__ (self,flagger,load=False):
       self.flagger = flagger;
@@ -968,13 +972,13 @@ class Flagger (Timba.dmi.verbosity):
         if isinstance(load,bool):
           load = 'default.af';
         self.load(load);
-      
+
     def _cmd (self,cmd):
       self._cmds.append(cmd);
-      
+
     def reset (self):
       self._cmds = [];
-      
+
     def setdata (self,chanstart=None,chanend=None,chanstep=None,spwid=None,fieldid=None,msselect=None):
       args = [];
       if chanstart is not None:
@@ -991,8 +995,8 @@ class Flagger (Timba.dmi.verbosity):
         args.append("fieldid=%d"%(fieldid+1));
       if msselect is not None:
         args.append("msselect='%s'"%msselect);
-      self._cmd("af.setdata(%s);"%(','.join(args))); 
-    
+      self._cmd("af.setdata(%s);"%(','.join(args)));
+
     _settimemed_dict    = dict(thr="%g",hw="%d",rowthr="%g",rowhw="%d",norow=_format_bool,
                                 column="'%s'",expr="'%s'",fignore=_format_bool);
     _setnewtimemed_dict = dict(thr="%g",
@@ -1015,7 +1019,7 @@ class Flagger (Timba.dmi.verbosity):
                                mode="'%s'",msselect="'%s'");
     _run_dict           = dict(plotscr=_format_list,plotdev=_format_list,devfile="'%s'",
                                 reset=_format_bool,trial=_format_bool);
-    
+
     def _setmethod (self,methodname,kwargs):
       argdict = getattr(self,'_%s_dict'%methodname);
       args = [];
@@ -1028,8 +1032,8 @@ class Flagger (Timba.dmi.verbosity):
             args.append("%s=%s"%(kw,format(value,kw)));
           else:
             args.append("%s=%s"%(kw,format%value));
-      return "af.%s(%s);"%(methodname,','.join(args)); 
-      
+      return "af.%s(%s);"%(methodname,','.join(args));
+
     def settimemed (self,**kw):
       self._cmd(self._setmethod('settimemed',kw));
     def setfreqmed (self,**kw):
@@ -1050,7 +1054,7 @@ class Flagger (Timba.dmi.verbosity):
       elif [ x for x in kw.itervalues() if x is not None ]:
         kw["mode"] = "spwids";
       self._cmd(self._setmethod('setdata',kw));
-      
+
     def run (self,wait=True,cmdfile=None,purr=True,**kw):
       runcmd = self._setmethod('run',kw);
       # init list of command strings
@@ -1085,15 +1089,15 @@ class Flagger (Timba.dmi.verbosity):
       self.flagger.dprintf(3,"temp glish command file is %s\n"%cmdfile);
       waitcode = os.P_WAIT if wait else os.P_NOWAIT;
       return os.spawnvp(waitcode,_GLISH,['glish','-l',cmdfile]);
-    
+
     def save (self,filename='default.af'):
       file(filename,"w").writelines([line+"\n" for line in self._cmds]);
       self.flagger.dprintf(2,"saved autoflag command sequence to file %s\n",filename);
-      
+
     def load (self,filename='default.af'):
       self._cmds = file(filename).readlines();
       self.flagger.dprintf(2,"loaded autoflag command sequence from file %s\n",filename);
       self.flagger.dprint(2,"sequence is:");
       for cmd in self._cmds:
         self.flagger.dprint(3,cmd);
-      
+

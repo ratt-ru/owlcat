@@ -48,7 +48,7 @@ def parse_subset_options (options):
     print "  ===> TaQL query:",options.taql;
   # channels
   if options.channels:
-    subset['channels'] = map(Parsing.parse_slice,options.channels.split(",")); 
+    subset['channels'] = map(Parsing.parse_slice,options.channels.split(","));
     print "  ===> channels:",subset['channels'];
   # corr list
   if options.corrs is not None:
@@ -81,6 +81,9 @@ def parse_subset_options (options):
     taqls.append(ifrset.taql_string());
   # clipping
   subset['data_column'] = options.data_column;
+  if options.nan:
+    subset['data_nan'] = True;
+    print "  ===> select %s = NAN or INF"%options.data_column;
   if options.above is not None:
     subset['data_above'] = options.above;
     print "  ===> select |%s|>%f"%(options.data_column,options.above);
@@ -137,12 +140,14 @@ if __name__ == "__main__":
                     help="select on abs(data)>X");
   group.add_option("--below",metavar="X",type="float",
                     help="select on abs(data)<X");
+  group.add_option("--nan",action="store_true",
+                    help="select on invalid data (NaN or infinite)");
   group.add_option("--fm-above",metavar="X",type="float",
                     help="select on mean(abs(data))>X, where mean is over frequencies");
   group.add_option("--fm-below",metavar="X",type="float",
                     help="select on mean(abs(data))<X, where mean is over frequencies");
   group.add_option("--data-column",metavar="COLUMN",type="string",
-                    help="data column for --above or --below options. Default is %default.");
+                    help="data column for --above/--below/--nan options. Default is %default.");
   group.add_option("--data-flagmask",metavar="FLAGS",type="string",
                     help="flags to apply to data column (when e.g. computing mean). Default is %default. See below for an "
                     "poverview of what FLAGS can be set to.");
@@ -178,7 +183,7 @@ if __name__ == "__main__":
   parser.add_option_group(group);
 
   group = OptionGroup(parser,"Other options");
-  group.add_option("-l","--list",action="store_true", 
+  group.add_option("-l","--list",action="store_true",
                   help="lists various info about the MS, including its flagsets.");
   group.add_option("-r","--remove",metavar="FLAGSET(s)",type="string",
                   help="unflags and removes named flagset(s). You can use a comma-separated list.");
@@ -273,7 +278,7 @@ if __name__ == "__main__":
     options.fill_legacy &= ~Flagger.LEGACY;
 
   #
-  # -r/--remove: remove flagsets 
+  # -r/--remove: remove flagsets
   #
   if options.remove is not None:
     if options.flag or options.unflag:
@@ -297,7 +302,7 @@ if __name__ == "__main__":
     if names_not_found:
       print "===> WARNING: flagset(s) not found, ignoring: %s"%",".join(names_not_found);
     print "===> removing flagset(s) %s"%",".join(names_found);
-    print "===> and clearing corresponding flagmask %s"%Flagger.flagmaskstr(flagmask); 
+    print "===> and clearing corresponding flagmask %s"%Flagger.flagmaskstr(flagmask);
     if options.fill_legacy is not None:
       print "===> and filling FLAG/FLAG_ROW using flagmask %s"%Flagger.flagmaskstr(options.fill_legacy);
     flagger.xflag(unflag=flagmask,fill_legacy=options.fill_legacy);
@@ -314,7 +319,7 @@ if __name__ == "__main__":
     print "===> flagging with flagmask %s"%flagstr;
   if options.unflag is not None:
     unflagstr = flagger.flagmaskstr(options.unflag);
-    print "===> unflagging with flagmask %s"%unflagstr; 
+    print "===> unflagging with flagmask %s"%unflagstr;
   if options.fill_legacy is not None:
     legacystr = flagger.flagmaskstr(options.fill_legacy);
     print "===> filling legacy flags with flagmask %s"%legacystr;
@@ -337,10 +342,11 @@ if __name__ == "__main__":
   percent = 100.0/sel_nvis;
   if options.channels or options.corrs:
     print "===>   Chan/corr slicing reduces this to     %8d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
-  if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):  
+  if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
     print "===>   Flag selection reduces this to        %8d visibilities (%.3g%% of selection)"%(nvis_B,nvis_B*percent);
-  if options.above is not None or options.below is not None or options.fm_above is not None or options.fm_below is not None:
-    print "===>   Data clipping reduces this to         %8d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
+  if options.nan or options.above is not None or options.below is not None or \
+      options.fm_above is not None or options.fm_below is not None:
+    print "===>   Data selection reduces this to         %8d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
   if unflagstr:
     print "===>     (which were unflagged using flagmask %s)"%unflagstr;
   if flagstr:
