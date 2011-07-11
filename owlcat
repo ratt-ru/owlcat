@@ -1,14 +1,14 @@
 #!/bin/bash
 # mpp standard wrapper to call packaged python scripts
 # will take the name of the script as the wrapper name
-dir=`dirname $(readlink -f $0)`/Owlcat
+dir=`dirname $(readlink -f $0)`
 
 usage() {
     echo "usage: `basename $0` <cmd> [args]"
     allowed=`ls ${dir}/*.py`
-    echo "        where cmd is one of:"
+    echo "       where cmd is one of:"
     for cmd in ${allowed} ; do
-        echo -n "        "
+        echo -n "          "
         echo `basename ${cmd} | cut -f1 -d.`
     done
 }
