@@ -33,7 +33,8 @@ def call_system (command,args):
       print "%s call failed with exit status",(command,stat);
       if stat == 127:
         print "Please check your MeqTrees installation for the %s utility!"%command;
-    sys.exit(stat or 1);
+  return rc;
+  
 
 
 if __name__ == "__main__":
@@ -54,6 +55,11 @@ if __name__ == "__main__":
 
   if len(msnames) != 1:
     parser.error("MS name not supplied.");
+    
+  if not Owlcat.find_exec("addtiledmscol"):
+    print "Can't find the 'addtiledmscol' utility, which is required by this script."
+    print "You may need to install or build the MeqTrees package.";
+    sys.exit(1);
 
   msname = msnames[0];
   ms = table(msname,readonly=False);
@@ -104,8 +110,9 @@ if __name__ == "__main__":
   for colname,coltype in ("DATA","complex"),("FLAG","bool"),("BITFLAG","int"):
     if colname in savedcols:
       progress("Inserting tiled %s column"%colname);
-      call_system("addtiledmscol","%s %s %s %d %d %d %d %d 4"%
-                  (msname,colname,coltype,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow));
+      if not call_system("addtiledmscol","%s %s %s %d %d %d %d %d 4"%
+                          (msname,colname,coltype,ncorr,nfreq,min(ncorr,4),min(nfreq,8),tilerow)):
+        sys.exit(1);
 
   # reopen table
   ms = table(msname,readonly=False);

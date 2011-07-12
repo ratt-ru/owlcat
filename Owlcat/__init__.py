@@ -104,3 +104,14 @@ def _setPackagePath (package):
 
 for pkg in _Packages:
   _setPackagePath(pkg);
+  
+def find_exec (execname):
+  import os
+  path = os.environ.get('PATH') or os.defpath;
+  for dirname in path.split(os.pathsep):
+    fname = os.path.join(dirname,execname);
+    if os.access(fname,os.R_OK|os.X_OK):
+      return fname;
+  return None;
+
+

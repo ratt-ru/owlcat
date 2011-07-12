@@ -7,7 +7,12 @@ import os
 
 import Meow
 import Meow.MSUtils
-import Purr.Pipe
+
+try:
+  import Purr.Pipe
+  has_purr = True;
+except:
+  has_purr = False;
 
 from Meow.MSUtils import TABLE
 
@@ -131,7 +136,7 @@ class Flagger (Timba.dmi.verbosity):
       self.has_bitflags = 'BITFLAG' in ms.colnames();
       self.flagsets = Meow.MSUtils.get_flagsets(ms);
       self.dprintf(1,"flagsets are %s\n",self.flagsets.names());
-      self.purrpipe = Purr.Pipe.Pipe(self.msname);
+      self.purrpipe = Purr.Pipe.Pipe(self.msname) if has_purr else None;
     elif self.readwrite != readwrite:
       self.ms = TABLE(self.msname,readonly=not readwrite);
       self.readwrite = readwrite;
@@ -147,7 +152,7 @@ class Flagger (Timba.dmi.verbosity):
       if os.spawnvp(os.P_WAIT,_addbitflagcol,['addbitflagcol',self.msname]):
         raise RuntimeError,"addbitflagcol failed";
       # report to purr
-      if purr:
+      if purr and self.purrpipe:
         self.purrpipe.title("Flagging").comment("Adding bitflag columns.");
       # reopen and close to pick up new BITFLAG column
       self._reopen();
@@ -157,13 +162,13 @@ class Flagger (Timba.dmi.verbosity):
     self._reopen(True);
     mask = self.flagsets.remove_flagset(*fsnames);
     # report to purr
-    if kw.get('purr',True):
+    if kw.get('purr',True) and self.purrpipe:
       self.purrpipe.title("Flagging").comment("Removing flagset(s) %s."%(','.join(fsnames)));
     self.unflag(mask,purr=False);
 
   def flag (self,flag=1,**kw):
     kw = kw.copy();
-    if kw.setdefault('purr',True):
+    if kw.setdefault('purr',True) and self.purrpipe:
       if isinstance(flag,int):
         fset = "bitflag %x"%flag;
       else:
@@ -175,7 +180,7 @@ class Flagger (Timba.dmi.verbosity):
 
   def unflag (self,unflag=-1,**kw):
     kw = kw.copy();
-    if kw.setdefault('purr',True):
+    if kw.setdefault('purr',True) and self.purrpipe:
       if isinstance(unflag,int):
         fset = "bitflag %x"%unflag;
       else:
@@ -188,7 +193,7 @@ class Flagger (Timba.dmi.verbosity):
   def transfer (self,flag=1,replace=False,*args,**kw):
     unflag = (replace and flag) or 0;
     kw.setdefault('purr',True);
-    if kw['purr']:
+    if kw['purr'] and self.purrpipe:
       if isinstance(flag,int):
         fset = "bitflag %x"%flag;
       else:
@@ -198,7 +203,7 @@ class Flagger (Timba.dmi.verbosity):
 
   def get_stats(self,flag=0,legacy=False,**kw):
     kw.setdefault('purr',True);
-    if kw['purr']:
+    if kw['purr'] and self.purrpipe:
       if isinstance(flag,int) and flag:
         fset = "bitflag %x"%flag;
       else:
@@ -271,6 +276,8 @@ class Flagger (Timba.dmi.verbosity):
           purr=False                      # if True, writes comments to purrpipe
           ):
     """Internal _flag method does the actual work.""";
+    if not self.purrpipe:
+      purr = False;
     ms = self._reopen(True);
     if not self.has_bitflags:
       if transfer:
@@ -639,6 +646,8 @@ class Flagger (Timba.dmi.verbosity):
           purr=False                      # if True, writes comments to purrpipe
           ):
     """Alternative flag interface, works on the in/out principle.""";
+    if not self.purrpipe:
+      purr = False;
     ms = self._reopen(flag or unflag or fill_legacy is not None);
     # lookup flagset names
     for var in 'flag','unflag','flagmask','flagmask_all','flagmask_none','data_flagmask','fill_legacy':
@@ -887,6 +896,8 @@ class Flagger (Timba.dmi.verbosity):
     * if flags is a str, it is treated as the name of a flagset
     * if flags is a list or tuple, it is treated as a list of flagsets
     """;
+    if not self.purrpipe:
+      purr = False;
     ms = self._reopen();
     if not self.has_bitflags:
       raise TypeError,"MS does not contain a BITFLAG column, cannot use bitflags""";
@@ -931,6 +942,8 @@ class Flagger (Timba.dmi.verbosity):
   def clear_legacy_flags (self,progress_callback=None,purr=True):
     """Clears the legacy FLAG/FLAG_ROW columns.
     """;
+    if not self.purrpipe:
+      purr = False;
     ms = self._reopen();
     self.dprintf(1,"clearing legacy FLAG/FLAG_ROW column\n");
     purr and self.purrpipe.title("Flagging").comment("Clearing FLAG/FLAG_ROW columns");
@@ -1056,6 +1069,8 @@ class Flagger (Timba.dmi.verbosity):
       self._cmd(self._setmethod('setdata',kw));
 
     def run (self,wait=True,cmdfile=None,purr=True,**kw):
+      if not self.purrpipe:
+        purr = False;
       runcmd = self._setmethod('run',kw);
       # init list of command strings
       cmds = [ "include 'autoflag.g'","af:=autoflag('%s');"%self.flagger.msname ];
