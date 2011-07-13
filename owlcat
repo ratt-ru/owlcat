@@ -3,19 +3,40 @@
 # will take the name of the script as the wrapper name
 dir=`dirname $(readlink -f $0)`
 
+listCmds() {
+    local allowed=`ls ${dir}/*.py`
+    local cmds="";
+    for cmd in ${allowed} ; do
+        cmds="$cmds"`basename ${cmd} | cut -f1 -d.`" "
+    done
+    echo $cmds;
+}
+
 usage() {
     echo "usage: `basename $0` <cmd> [args]"
-    allowed=`ls ${dir}/*.py`
-    echo "       where cmd is one of:"
-    for cmd in ${allowed} ; do
-        echo -n "          "
-        echo `basename ${cmd} | cut -f1 -d.`
+    echo "   where cmd is one of:"
+    for cmd in `listCmds` ; do
+        echo "    ${cmd}"
     done
+    echo "Options:"
+    echo "   -h : this message"
+    echo "   -l : list of available commands"
 }
+
 
 if [ $# -lt 1 ]; then
    usage
    exit 1;
+fi
+
+if [ "$1" == "-h" ]; then
+   usage
+   exit 0;
+fi
+
+if [ "$1" == "-l" ]; then
+   echo `listCmds`
+   exit 0;
 fi
 
 script=${dir}/$1.py
