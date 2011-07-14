@@ -238,7 +238,7 @@ if __name__ == "__main__":
       '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
       'C':2627.84690046, 'D': 2699.84118052
     };
-    from ParmTables import ParmTab
+    from Owlcat.ParmTables import ParmTab
 
     # spectral windows
     SPWS = range(len(args));

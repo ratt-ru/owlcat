@@ -11,7 +11,7 @@ import numpy.ma
 import Owlcat
 import Owlcat.Console
 
-from Calico.ParmTables import verbosity,dprint,dprintf
+from Owlcat.ParmTables import verbosity,dprint,dprintf
 
 progress = Owlcat.Console.Reporter(timestamp=True);
 
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
   # read table, figure out what's in it
   progress("Reading MEP table %s, please wait..."%tabname);
-  from Calico import ParmTables
+  from Owlcat import ParmTables
   from Timba import mequtils
   pt = ParmTables.open(tabname);
 
