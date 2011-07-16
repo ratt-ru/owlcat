@@ -30,9 +30,9 @@ if __name__ == "__main__":
   parser.add_option("--circle-phase-ant",metavar="ANTENNA",type="string",
                     help="makes per-timeslot plots of average dE-phases for the given antenna");
   parser.add_option("--ampl-slope",action="store_true",
-                    help="makes plots of a slope fit for dE-amplitudes");
+                    help="makes plots of an East-West slope fit for dE-amplitudes");
   parser.add_option("--phase-slope",action="store_true",
-                    help="makes plots of a slope fit for dE-phases");
+                    help="makes plots of a East-West slope fit for dE-phases");
   parser.add_option("--phase-slope-rot-offset",metavar="DEG",type="float",
                     help="...including phase slopes corresponding to rotational offset (EXPERIMENTAL)");
   parser.add_option("--phase-slope-time-offset",metavar="FRAC",type="float",
@@ -46,7 +46,7 @@ if __name__ == "__main__":
   parser.add_option("--update-lsm",action="store_true",
                     help="updates LSM file based on dE solutions (EXPERIMENTAL)");
   parser.add_option("--ms",type="string",
-                    help="Measurement Set (for UVW coordinates and such)");
+                    help="Measurement Set (for UVW coordinates, antenna positions and such)");
   parser.add_option("-s","--sources",type="string",
                     help="source subset (default is ':' meaning all, use --list to list)");
   parser.add_option("-c","--cache",metavar="FILENAME",type="string",
@@ -175,6 +175,26 @@ if __name__ == "__main__":
   DEG = math.pi/180;
   ARCMIN = math.pi/(180*60);
 
+  #=== loads MS (that has been specified in options, else picks one in current dir)
+  #=== returns tuple of ms,msant, where the first is the main table, and the second is the ANTENNA subtable
+  _ms = _msant = None;
+  def load_ms ():
+    global _ms;
+    global _msant;
+    if _ms is None:
+      import pyrap.tables
+      # if MS file not specified, use first one found
+      if not options.ms:
+        mss = [ filename for filename in os.listdir(".") if filename.lower().endswith(".ms") ];
+        if not mss:
+          parser.error("No MSs found. Use --ms to specify one explicitly.");
+        msname = mss[0];
+      else:
+        msname = options.ms;
+      print "Using MS %s for coordinates information"%msname;
+      _ms = pyrap.tables.table(msname);
+      _msant = pyrap.tables.table(_ms.getkeyword('ANTENNA'));
+    return _ms,_msant;
 
   #
   #========================== LOAD LSM FILE AND MS
@@ -203,17 +223,8 @@ if __name__ == "__main__":
     lsm_timestamp = os.path.getmtime(lsm_filename);
 
     # if MS file not specified, use first one found
-    if not options.ms:
-      mss = [ filename for filename in os.listdir(".") if filename.lower().endswith(".ms") ];
-      if not mss:
-        parser.error("No MSs found. Use --ms to specify one explicitly.");
-      ms = mss[0];
-    else:
-      ms = options.ms;
-    print "Using MS %s"%ms;
-    import pyrap.tables
-    ms = pyrap.tables.table(ms);
-    nant = pyrap.tables.table(ms.getkeyword('ANTENNA')).nrows();
+    ms,msant = load_ms();
+    nant = msant.nrows();
     # read UVWs
     uvw0 = ms.query('ANTENNA1==0 && ANTENNA2==%d'%(nant-1)).getcol('UVW');
     uvw = uvw0[30::60];
@@ -223,22 +234,40 @@ if __name__ == "__main__":
   else:
     model = None;
 
-
   #
   # ========================== read parmtables
   #
   mep_timestamp = os.path.getmtime(args[0]);
 
   if len(args) > 1 or not args[0].endswith('.cache'):
-    ## dict of WSRT antenna positions, relative to RT0.
-    ##
-    ANTX_dict = {
-      '0':   0.0,        '1':  143.98881006, '2':  287.98154006, '3':   431.97187006,
-      '4': 575.96470004, '5':  719.95646011, '6':  863.94757006, '7':  1007.93746007,
-      '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
-      'C':2627.84690046, 'D': 2699.84118052
-    };
     from Owlcat.ParmTables import ParmTab
+
+    # get antenna positions
+    if options.ampl_slope or options.phase_slope or \
+      options.phase_slope_rot_offset or options.phase_slope_time_offset or options.phase_slope_dlm:
+      ms,msant = load_ms();
+      names = list(msant.getcol('NAME'));
+      pos = msant.getcol('POSITION');
+      # get reference position
+      x,y,z = pos0 = pos[0,:];
+      # convert to unit vector pointing east
+      dir_east = numpy.array([-y,x,0]);
+      dir_east /= math.sqrt((dir_east**2).sum());
+      # get coordinate of each antenna along dir_east: this is just the scalar product of
+      # (pos[i,:]-pos[0,:]) by dir_east.
+      antx = ((pos-pos0[numpy.newaxis,:])*dir_east[numpy.newaxis,:]).sum(1);
+      # now convert to dict of antenna coordinates
+      ANTX_dict = dict(zip(names,antx));
+      # update with abbreviated antenna names, if they share a common prefix
+      prefix = 1;
+      while prefix < len(names[0]) and all([n[:prefix] == names[0][:prefix] for n in names[1:]]):
+        prefix += 1;
+      if prefix > 1:
+        ANTX_dict.update([(n[prefix-1:],ax) for n,ax in zip(names,antx)]);
+      # print "Antenna positions: "," ".join([ "%s:%f"%(n,ANTX_dict[n]) for n in sorted(ANTX_dict.keys()) ]);
+    # else antenna positions not needed
+    else:
+      ANTX_dict = ANTX = None;
 
     # spectral windows
     SPWS = range(len(args));
@@ -273,15 +302,17 @@ if __name__ == "__main__":
       sys.exit(0);
 
     # check that antenna positions are known
-    unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
-    if unknown_antennas:
-      print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
-      sys.exit(0);
+    if ANTX_dict:
+      unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
+      if unknown_antennas:
+        print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
+        print "Perhaps you should specify a proper MS with --ms?";
+        sys.exit(1);
 
-    # make vector of antenna positions
-    ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
-    # recenter at middle of the array
-    ANTX -= ANTX[-1]/2;
+      # make vector of antenna positions
+      ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
+      # recenter at middle of the array
+      ANTX -= ANTX[-1]/2;
 
     # source subset selection
     if options.sources:
@@ -381,15 +412,15 @@ if __name__ == "__main__":
   if options.pe:
     pe_dlm,pe_bsz,pe_beam_sizes = cPickle.load(file(options.pe));
 
-  # pe_dlm is 2 x NSPW x NANT x NTIME
-  # pe_bsz is 2 x 2 x NSPW x NANT x NTIME
-  if pe_dlm.shape != (2,len(SPWS),len(ANTS),NTIMES) or \
-     pe_bsz.shape != (2,2,len(SPWS),len(ANTS),NTIMES):
-    print "Shape of cached arrays in file %s does not match: %s, %s"%(options.pe,pe_dlm.shape,pe_bsz_shape);
-    sys.exit(1);
-  print "Read pointing errors and %d beam extent(s) from %s"%(pe_beam_sizes,options.pe);
-  if pe_beam_sizes > 1:
-    print "WARNING: more than 1 beam extent is not currently supported";
+    # pe_dlm is 2 x NSPW x NANT x NTIME
+    # pe_bsz is 2 x 2 x NSPW x NANT x NTIME
+    if pe_dlm.shape != (2,len(SPWS),len(ANTS),NTIMES) or \
+      pe_bsz.shape != (2,2,len(SPWS),len(ANTS),NTIMES):
+      print "Shape of cached arrays in file %s does not match: %s, %s"%(options.pe,pe_dlm.shape,pe_bsz_shape);
+      sys.exit(1);
+    print "Read pointing errors and %d beam extent(s) from %s"%(pe_beam_sizes,options.pe);
+    if pe_beam_sizes > 1:
+      print "WARNING: more than 1 beam extent is not currently supported";
 
   # de is an NSPW x NSRC x NANT x NCORR x NTIME array of complex dEs
   # (NANT+1 actually, the last one is the mean-across-antennas value)
@@ -431,46 +462,47 @@ if __name__ == "__main__":
   # cut out the last ("mean") antenna
   dep0 = dep0[:,:,0:-1,:];
 
-  # now fit phase offset and slope over array
-  # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
-  sx = ANTX.sum()
-  sx2 = (ANTX**2).sum();
-  sy = dep0.sum(2)
-  sxy = (dep0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis]).sum(2);
-  n = len(ANTX);
-  ## slope of linear fit
-  dep0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
-  ## offset of linear fit
-  dep0_b0 = sy/n - dep0_b1*(sx/n);
-  ## stddev w.r.t. linear fit
-  #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
+  if ANTX is not None:
+    # now fit phase offset and slope over array
+    # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
+    sx = ANTX.sum()
+    sx2 = (ANTX**2).sum();
+    sy = dep0.sum(2)
+    sxy = (dep0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis]).sum(2);
+    n = len(ANTX);
+    ## slope of linear fit
+    dep0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
+    ## offset of linear fit
+    dep0_b0 = sy/n - dep0_b1*(sx/n);
+    ## stddev w.r.t. linear fit
+    #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
 
-  # now also compute residuals w.r.t. the slope fits, NSPW x NSRC x NANT x NTIME
-  dep0_fitted = dep0_b0[:,:,numpy.newaxis,:] + \
-    dep0_b1[:,:,numpy.newaxis,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis];
-  dep0_res = dep0 - dep0_fitted;
+    # now also compute residuals w.r.t. the slope fits, NSPW x NSRC x NANT x NTIME
+    dep0_fitted = dep0_b0[:,:,numpy.newaxis,:] + \
+      dep0_b1[:,:,numpy.newaxis,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis];
+    dep0_res = dep0 - dep0_fitted;
 
-  # same analysis for amplitudes
-  dea0 = de_ampl - (de_ampl.mean(4).mean(2))[:,:,numpy.newaxis,:,numpy.newaxis];
-  # cut out the last ("mean") antenna
-  dea0 = dea0[:,:,0:-1,:,:];
+    # same analysis for amplitudes
+    dea0 = de_ampl - (de_ampl.mean(4).mean(2))[:,:,numpy.newaxis,:,numpy.newaxis];
+    # cut out the last ("mean") antenna
+    dea0 = dea0[:,:,0:-1,:,:];
 
-  # now fit phase offset and slope over array
-  # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
-  sy = dea0.sum(2)
-  sxy = (dea0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis]).sum(2);
-  n = len(ANTX);
-  ## slope of linear fit
-  dea0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
-  ## offset of linear fit
-  dea0_b0 = sy/n - dea0_b1*(sx/n);
-  ## stddev w.r.t. linear fit
-  #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
+    # now fit phase offset and slope over array
+    # dep0_b0/1 will be NSPWxNSRCxNCORRxNTIME
+    sy = dea0.sum(2)
+    sxy = (dea0*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis]).sum(2);
+    n = len(ANTX);
+    ## slope of linear fit
+    dea0_b1 = (n*sxy - sy*sx)/(n*sx2-sx**2);
+    ## offset of linear fit
+    dea0_b0 = sy/n - dea0_b1*(sx/n);
+    ## stddev w.r.t. linear fit
+    #deph_fit_std = (deph - deph_b1*fq[:,numpy.newaxis,numpy.newaxis,numpy.newaxis] - deph_b0).std(0);
 
-  # now also compute residuals w.r.t. the slope fits
-  dea0_fitted = dea0_b0[:,:,numpy.newaxis,:,:] + \
-    dea0_b1[:,:,numpy.newaxis,:,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis];
-  dea0_res = dea0 - dea0_fitted;
+    # now also compute residuals w.r.t. the slope fits
+    dea0_fitted = dea0_b0[:,:,numpy.newaxis,:,:] + \
+      dea0_b1[:,:,numpy.newaxis,:,:]*ANTX[numpy.newaxis,numpy.newaxis,:,numpy.newaxis,numpy.newaxis];
+    dea0_res = dea0 - dea0_fitted;
 
   # unnormalized average dE (for pointing error plots), NSPWxNSRCxNANTxNTIME
   de_unnorm = numpy.sqrt((abs(de[:,:,:,XX,:])**2+abs(de[:,:,:,YY,:])**2)/2);
