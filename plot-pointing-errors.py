@@ -178,7 +178,7 @@ if __name__ == "__main__":
   make_figure(enumerate(("dl","","dm","","dl, freq","dm, freq")),enumerate(ANTS),
         lambda i,iant:funcs[i](iant),
       hline=0,ylock=(-options.pt_max,options.pt_max) if options.pt_max else True,figsize=(290,150),mode=PLOT_ERRORBARS,
-      suptitle="Pointing offset mean & stddev across all bands (top two plots) and times (bottom two plots), millideg.",
+      suptitle="Pointing offset mean & stddev across all bands (top two plots) and times (bottom two plots), mdeg",
       save="Epnt_mean");
 
   for iant,ant in enumerate(ANTS):
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     make_figure(enumerate(labels),enumerate(ANTS),
           lambda i,iant:funcs[i](iant),
         hline=0,ylock=(0,dlm_fft.max()),figsize=(290,25*len(labels)),mode=PLOT_BARPLOT,
-        suptitle="Pointing offset Fourier components.",
+        suptitle="Pointing offset Fourier components",
         save="Epnt_ft");
 
 
