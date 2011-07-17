@@ -339,7 +339,7 @@ class ScatterPlot (object):
 PLOT_SINGLE = 'single';
 PLOT_MULTI  = 'multi';
 PLOT_ERRORBARS = 'errorbars';
-
+PLOT_BARPLOT = 'barplot';
 
 class AbstractBasePlot (object):
   """Abstract base class for the various plotting objects""";
@@ -392,8 +392,12 @@ class MultigridPlot (AbstractBasePlot):
                     help="Set plot subtitle font size, 0 for none. Default is %default.");
     self.add_plot_option("--label-fontsize",metavar="POINTS",type="int",default=8,
                     help="Set plot label font size, 0 for no labels. Default is %default.");
+    self.add_plot_option("--text-fontsize",metavar="POINTS",type="int",default=6,
+                    help="Set plot text font size, 0 for no labels. Default is %default.");
     self.add_plot_option("--axis-fontsize",metavar="POINTS",type="int",default=5,
                     help="Set axis label font size, 0 for no axis labels. Default is %default.");
+    self.add_plot_option("--text-spacing",metavar="VALUE",type="float",default=0.15,
+                    help="Set spacing between lines of text in text comments. Default is %default.");
     self.add_plot_option("--y-ticks",metavar="N",type="int",default=4,
                     help="Maximum number of major ticks along the Y axis. Default is %default.");
     self.add_plot_option("--y-minor-ticks",metavar="INTERVAL",type="float",default=0,
@@ -459,7 +463,7 @@ class MultigridPlot (AbstractBasePlot):
                   datafunc,   # datafunc(irow,icol) returns plot data for plot i,j
                   mode=PLOT_SINGLE,xaxis=None,
                   hline=None, # plot horizontal line at Y position, None for none
-                  ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot
+                  ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot, (ymin,ymax) sets an explicit scale
                   mean_format="%.2f",
                   suptitle=None,      # title of plot
                   save=None,          # filename to save to
@@ -485,16 +489,21 @@ class MultigridPlot (AbstractBasePlot):
     rows = list(rows);
     cols = list(cols);
     if ylock:
+      dummy = numpy.array([0.]);
       # form up ymin, ymax: NROWxNCOL arrays of min/max values per each plot
-      if mode is PLOT_SINGLE:
-        ymin = numpy.array([[datafunc(row[0],col[0]).min() for col in cols ] for row in rows ]);
-        ymax = numpy.array([[datafunc(row[0],col[0]).max() for col in cols ] for row in rows]);
+      if mode is PLOT_SINGLE or mode is PLOT_BARPLOT:
+        datafilter = lambda x:x if isinstance(x,numpy.ndarray) else dummy;
+        ymin = numpy.array([[datafilter(datafunc(row[0],col[0])).min() for col in cols ] for row in rows]);
+        ymax = numpy.array([[datafilter(datafunc(row[0],col[0])).max() for col in cols ] for row in rows]);
       elif mode is PLOT_MULTI:
         ymin = numpy.array([[ min([self.get_plot_data(dd,xaxis)[1].min() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
         ymax = numpy.array([[ max([self.get_plot_data(dd,xaxis)[1].max() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
       elif mode is PLOT_ERRORBARS:
-        ymin = numpy.array([[ (datafunc(row[0],col[0])[0]-datafunc(row[0],col[0])[1]).min() for col in cols ] for row in rows]);
-        ymax = numpy.array([[ (datafunc(row[0],col[0])[0]+datafunc(row[0],col[0])[1]).max() for col in cols ] for row in rows]);
+        dummy = numpy.array([0.]);
+        datafilter1 = lambda x:x[0]-x[1] if isinstance(x[0],numpy.ndarray) else dummy;
+        datafilter2 = lambda x:x[0]+x[1] if isinstance(x[0],numpy.ndarray) else dummy;
+        ymin = numpy.array([[ datafilter1(datafunc(row[0],col[0])).min() for col in cols ] for row in rows]);
+        ymax = numpy.array([[ datafilter2(datafunc(row[0],col[0])).max() for col in cols ] for row in rows]);
       # now collapse them according to ylock mode
       if isinstance(ylock,(list,tuple)) and len(ylock) == 2:
         ymin[...],ymax[...] = ylock;
@@ -515,6 +524,14 @@ class MultigridPlot (AbstractBasePlot):
       plt.text(.5,0,col,fontsize=self.options.subtitle_fontsize*self.options.scale,
         horizontalalignment='center',verticalalignment='bottom');
     iplot += 1;
+    # helper function to put lines of text instead of real plot
+    def plot_text (plt,lines):
+      y0 = 0.95;
+      for i,text in enumerate(lines):
+        plt.text(0,y0-self.options.text_spacing*i,text,
+           fontsize=self.options.text_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='top');
+      plt.axis("off");
+      plt.set_ylim(0,1);
     # now make plots
     for irow,row in rows:
       for icol,col in cols:
@@ -529,8 +546,16 @@ class MultigridPlot (AbstractBasePlot):
         plt.set_xticks([]);
         data = datafunc(irow,icol);
         realplot = True;
-        if mode is PLOT_SINGLE:
+        # if data is a sequence of strings, plot them
+        if isinstance(data,(list,tuple)) and isinstance(data[0],str):
+          plot_text(plt,data);
+          realplot = False;
+        elif mode is PLOT_SINGLE:
           plt.plot(range(len(data)) if xaxis is None else xaxis,data);
+          if xaxis is None:
+            plt.set_xlim(-1,len(data));
+        elif mode is PLOT_BARPLOT:
+          plt.bar(range(len(data)) if xaxis is None else xaxis,data,linewidth=0);
           if xaxis is None:
             plt.set_xlim(-1,len(data));
         elif mode is PLOT_MULTI:
@@ -545,12 +570,7 @@ class MultigridPlot (AbstractBasePlot):
         elif mode is PLOT_ERRORBARS:
           y,yerr = data;
           if len(y) == 1:
-            plt.text(0,0.6,mean_format%y[0],
-                fontsize=self.options.label_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='bottom');
-            plt.text(0,0.5,"+/-"+(mean_format%yerr[0]),
-                fontsize=self.options.label_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='top');
-            plt.axis("off");
-            plt.set_ylim(0,1);
+            plot_text(plt,(mean_format%y[0],"+/-"+(mean_format%yerr[0])));
             realplot = False;
           else:
             plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);

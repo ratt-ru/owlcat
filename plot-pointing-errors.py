@@ -25,6 +25,8 @@ if __name__ == "__main__":
                     help="extract solutions until the given timeslot");
   parser.add_option("--pt-max",metavar="VALUE",type="float",default=0,
                     help="set fixed plot limits on pointing error vs. time plot");
+  parser.add_option("--ft",action="store_true",
+                    help="generate plots of pointing offset Fourier components");
 
   plotgroup = OptionGroup(parser,"Plotting options");
   outputgroup = OptionGroup(parser,"Output options");
@@ -54,15 +56,6 @@ if __name__ == "__main__":
   # set of all sources, antennas and correlations
   ANTS = set();
 
-  ## dict of WSRT antenna positions, relative to RT0.
-  ##
-  ANTX_dict = {
-    '0':   0.0,        '1':  143.98881006, '2':  287.98154006, '3':   431.97187006,
-    '4': 575.96470004, '5':  719.95646011, '6':  863.94757006, '7':  1007.93746007,
-    '8':1151.92894011, '9': 1295.9213701 , 'A': 1331.92456019, 'B':  1403.91958018,
-    'C':2627.84690046, 'D': 2699.84118052
-  };
-
   # complex array of dEs per each src,antenna,corr tuple
   des = {};
 
@@ -85,29 +78,12 @@ if __name__ == "__main__":
     print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
     sys.exit(0);
 
-  # check that antenna positions are known
-  unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
-  if unknown_antennas:
-    print "Don't have positions for antenna(s) %s"%",".join(unknown_antennas);
-    sys.exit(0);
-
-  # make vector of antenna positions
-  ANTX = numpy.array([ ANTX_dict[p] for p in ANTS ]);
-  # recenter at middle of the array
-  ANTX -= ANTX[-1]/2;
-
-  # check options that specify antennas by name
-  for ant in 'circle_ampl_ant','circle_phase_ant':
-    antname = getattr(options,ant,None);
-    if antname:
-      try:
-        globals()[ant] = ANTS.index(antname);
-      except IndexError:
-        parser.error("Antenna name '%s' not found."%antname);
-    else:
-      globals()[ant] = None;
+  interval = None;
 
   def c00 (funklet):
+    global interval;
+    if interval is None:
+      interval = funklet.domain.time[1] - funklet.domain.time[0];
     if numpy.isscalar(funklet.coeff):
       return funklet.coeff;
     else:
@@ -120,7 +96,7 @@ if __name__ == "__main__":
   # first index is x/y, second is l/m
   bsz = numpy.zeros((2,2,len(SPWS),len(ANTS),NTIMES),dtype=float);
   beam_sizes = 0;
-
+  
   for spw,tabname in enumerate(args):
     print "Reading",tabname;
     pt = ParmTab(tabname);
@@ -148,6 +124,9 @@ if __name__ == "__main__":
           for ilm,lm in enumerate("lm"):
             fs = pt.funkset('E::beamshape:%s:%s:%s'%(ant,xy,lm)).get_slice()[ts_slice];
             bsz[ixy,ilm,spw,i,:] = map(c00,fs);
+  
+  interval = round((interval or 60)/60);
+  print "Solution interval is",interval,"minutes; total time",(interval*NTIMES)/60,"hours";
 
   # write cache
   if options.cache:
@@ -175,7 +154,7 @@ if __name__ == "__main__":
 
   print "Read %d parmtables"%len(args);
 
-  from Owlcat.Plotting import MultigridPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
+  from Owlcat.Plotting import MultigridPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS,PLOT_BARPLOT
 
   # initialize plot object
   figplot = MultigridPlot(options);
@@ -187,11 +166,11 @@ if __name__ == "__main__":
 
   funcs = [
     lambda iant:(dlm_mean[0,iant,:],dlm_std[0,iant,:]),
-    lambda iant:( numpy.array([dlm_mean[0,iant,:].mean()]),
-                  numpy.array([dlm_mean[0,iant,:].std()])),
+    lambda iant:("mean %.2f"%numpy.array([dlm_mean[0,iant,:].mean()]),
+                 "+/- %.2f"%numpy.array([dlm_mean[0,iant,:].std()])),
     lambda iant:(dlm_mean[1,iant,:],dlm_std[1,iant,:]),
-    lambda iant:( numpy.array([dlm_mean[1,iant,:].mean()]),
-                  numpy.array([dlm_mean[1,iant,:].std()])),
+    lambda iant:( "mean %.2f"%numpy.array([dlm_mean[1,iant,:].mean()]),
+                  "+/- %.2f"%numpy.array([dlm_mean[1,iant,:].std()])),
     lambda iant:(dlm_fmean[0,:,iant],dlm_fstd[0,:,iant]),
     lambda iant:(dlm_fmean[1,:,iant],dlm_fstd[1,:,iant])
   ];
@@ -205,6 +184,31 @@ if __name__ == "__main__":
   for iant,ant in enumerate(ANTS):
     print "mean offset %s: %6.2f %6.2f"%(ant,dlm_mean[0,iant,:].mean(),dlm_mean[1,iant,:].mean());
 
+  if options.ft:
+    import numpy.fft
+    ft_slice = slice(1,NTIMES/2+1);
+    # fft scaling is 1/NTIMES, then we multiply by 2 since each fourier components
+    # is present as its own conjugate
+    dlm_fft = abs(numpy.fft.fft(dlm_mean))[:,:,ft_slice]/(NTIMES/2.);
+    periods = 1/abs(numpy.fft.fftfreq(NTIMES,interval)[ft_slice]);
+    dlm_fftmax = dlm_fft.max(2);
+    dlm_fftper = numpy.zeros((2,len(ANTS)));
+    for i in 0,1:
+      for iant in range(len(ANTS)):
+        dlm_fftper[i,iant] = periods[numpy.where(dlm_fft[i,iant,:] == dlm_fftmax[i,iant])]
+    funcs = [
+      lambda iant:dlm_fft[0,iant,:],
+      lambda iant:("max %.1f"%dlm_fftmax[0,iant],"@%d min"%dlm_fftper[0,iant]),
+      lambda iant:dlm_fft[1,iant,:],
+      lambda iant:("max %.1f"%dlm_fftmax[1,iant],"@%d min"%dlm_fftper[1,iant]),
+    ];
+    labels = [ "FT(dl)","","FT(dm)","" ];
+    make_figure(enumerate(labels),enumerate(ANTS),
+          lambda i,iant:funcs[i](iant),
+        hline=0,ylock=(0,dlm_fft.max()),figsize=(290,25*len(labels)),mode=PLOT_BARPLOT,
+        suptitle="Pointing offset Fourier components.",
+        save="Epnt_ft");
+
 
   if beam_sizes == 4:
     funcs = [];
@@ -212,8 +216,8 @@ if __name__ == "__main__":
       for j0 in range(2):
         funcs += [
           lambda iant,i=i0,j=j0:(bsz_mean[i,j,iant,:],bsz_std[i,j,iant,:]),
-          lambda iant,i=i0,j=j0:( numpy.array([bsz_mean[i,j,iant,:].mean()]),
-                        numpy.array([bsz_mean[i,j,iant,:].std()]))
+          lambda iant,i=i0,j=j0:("mean %.2f"%numpy.array([bsz_mean[i,j,iant,:].mean()]),
+                        "+/- %.2f"%numpy.array([bsz_mean[i,j,iant,:].std()]))
         ];
 
     make_figure(enumerate(("Lx","","Mx","","Ly","","My","")),enumerate(ANTS),
@@ -228,8 +232,8 @@ if __name__ == "__main__":
       for j0 in range(2):
         funcs += [
           lambda iant,i=i0,j=j0:(bsz_fmean[i,j,:,iant],bsz_fstd[i,j,:,iant]),
-          lambda iant,i=i0,j=j0:( numpy.array([bsz_fmean[i,j,:,iant].mean()]),
-                        numpy.array([bsz_fmean[i,j,:,iant].std()]))
+          lambda iant,i=i0,j=j0:("mean %.2f"%numpy.array([bsz_fmean[i,j,:,iant].mean()]),
+                        "+/- %.2f"%numpy.array([bsz_fmean[i,j,:,iant].std()]))
         ];
     make_figure(enumerate(("Lx","","Mx","","Ly","","My","")),enumerate(ANTS),
           lambda i,iant:funcs[i](iant),
@@ -240,8 +244,8 @@ if __name__ == "__main__":
   elif beam_sizes == 1:
     funcs = [
       lambda iant:(bsz_mean[0,0,iant,:],bsz_std[0,0,iant,:]),
-      lambda iant:( numpy.array([bsz_mean[0,0,iant,:].mean()]),
-                    numpy.array([bsz_mean[0,0,iant,:].std()])),
+      lambda iant:( "mean %.2f"%numpy.array([bsz_mean[0,0,iant,:].mean()]),
+                    "+/- %.2f"%numpy.array([bsz_mean[0,0,iant,:].std()])),
       lambda iant:(bsz_fmean[0,0,:,iant],bsz_fstd[0,0,:,iant]),
     ];
     make_figure(enumerate(("size","","size fq")),enumerate(ANTS),
