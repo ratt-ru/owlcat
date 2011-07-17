@@ -343,13 +343,14 @@ PLOT_ERRORBARS = 'errorbars';
 
 class AbstractBasePlot (object):
   """Abstract base class for the various plotting objects""";
-  
+
   def __init__ (self,options,figsize=(290,210)):
     init_pyplot(options.output_type);
     self.options = options;
     if options.width and options.height:
-      self._default_figsize = (options.width,options.height);
+      self._default_figsize = self._user_figsize = (options.width,options.height);
     else:
+      self._user_figsize = None;
       self._default_figsize = figsize;
 
   @classmethod
@@ -357,14 +358,14 @@ class AbstractBasePlot (object):
     """Initializes options relevant to this plotting class""";
     self._plotgroup = plotgroup;
     self._outputgroup = outputgroup;
-      
+
   @classmethod
   def add_plot_option (self,opt,*args,**kw):
     """Helper method: adds a plot option, if it's not already defined""";
     if not self._plotgroup.has_option(opt):
       self._plotgroup.add_option(opt,*args,**kw);
-        
-  @classmethod 
+
+  @classmethod
   def add_output_option (self,opt,*args,**kw):
     """Helper method: adds an output option, if it's not already defined""";
     if not self._outputgroup.has_option(opt):
@@ -381,7 +382,7 @@ class MultigridPlot (AbstractBasePlot):
         self._borders = [ float(x) for x in options.borders.split(",") ];
       except:
         pass;
-        
+
   @classmethod
   def init_options (self,plotgroup,outputgroup):
     AbstractBasePlot.init_options(plotgroup,outputgroup);
@@ -393,6 +394,10 @@ class MultigridPlot (AbstractBasePlot):
                     help="Set plot label font size, 0 for no labels. Default is %default.");
     self.add_plot_option("--axis-fontsize",metavar="POINTS",type="int",default=5,
                     help="Set axis label font size, 0 for no axis labels. Default is %default.");
+    self.add_plot_option("--y-ticks",metavar="N",type="int",default=4,
+                    help="Maximum number of major ticks along the Y axis. Default is %default.");
+    self.add_plot_option("--y-minor-ticks",metavar="INTERVAL",type="float",default=0,
+                    help="Add minor ticks along the Y axis at the given intervals.");
     self.add_plot_option("--borders",metavar="L,R,B,T",type="str",
                     help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
     self.add_plot_option("--subplot-wspace",metavar="W",type="float",default=0,
@@ -411,11 +416,15 @@ class MultigridPlot (AbstractBasePlot):
                       help="set explicit plot width, in mm. (Useful for .eps output)");
     self.add_output_option("-H","--height",type="int",default=0,
                       help="set explicit plot height, in mm. (Useful for .eps output)");
+    self.add_output_option("--dpi",type="int",default=100,
+                      help="figure resolution. Default is %default.");
+    self.add_output_option("--scale",type="float",default=1,
+                      help="scale plot sizes up by the given factor.");
     self.add_output_option("--portrait",action="store_true",
                     help="Force portrait orientation. Default is to select orientation based on plot size");
     self.add_output_option("--landscape",action="store_true",
                     help="Force landscape orientation.");
-  
+
   @staticmethod
   def get_plot_data (data,xaxis=None):
     """Helper function, interprets the plot data returned by a datafunc.
@@ -457,7 +466,7 @@ class MultigridPlot (AbstractBasePlot):
                   format=None,        # format: use options.output_type by default
                   figsize=None        # figure width,height in mm
                   ):
-    from matplotlib.ticker import MaxNLocator
+    from matplotlib import ticker
     if save and (format or self.options.output_type.upper()) != 'X11':
       save = "%s.%s"%(save,format or self.options.output_type);
       if self.options.output_prefix:
@@ -469,8 +478,9 @@ class MultigridPlot (AbstractBasePlot):
     else:
       save = None;
 
-    figsize = numpy.array(figsize or self._default_figsize)/25.4;
-    fig = pyplot.figure(figsize=figsize,dpi=600);
+    figsize = numpy.array(self._user_figsize or figsize or self._default_figsize)/25.4;
+    figsize *= self.options.scale;
+    fig = pyplot.figure(figsize=figsize,dpi=10);
     iplot = 0;
     rows = list(rows);
     cols = list(cols);
@@ -486,7 +496,9 @@ class MultigridPlot (AbstractBasePlot):
         ymin = numpy.array([[ (datafunc(row[0],col[0])[0]-datafunc(row[0],col[0])[1]).min() for col in cols ] for row in rows]);
         ymax = numpy.array([[ (datafunc(row[0],col[0])[0]+datafunc(row[0],col[0])[1]).max() for col in cols ] for row in rows]);
       # now collapse them according to ylock mode
-      if ylock == "row":
+      if isinstance(ylock,(list,tuple)) and len(ylock) == 2:
+        ymin[...],ymax[...] = ylock;
+      elif ylock == "row":
         ymin[...] = ymin.min(1)[:,numpy.newaxis];
         ymax[...] = ymax.max(1)[:,numpy.newaxis];
       elif ylock == "col":
@@ -500,7 +512,7 @@ class MultigridPlot (AbstractBasePlot):
       iplot += 1;
       plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
       plt.axis("off");
-      plt.text(.5,0,col,fontsize=self.options.subtitle_fontsize or 'x-small',
+      plt.text(.5,0,col,fontsize=self.options.subtitle_fontsize*self.options.scale,
         horizontalalignment='center',verticalalignment='bottom');
     iplot += 1;
     # now make plots
@@ -509,10 +521,11 @@ class MultigridPlot (AbstractBasePlot):
         iplot += 1;
         plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
         # plt.axis("off");
+        plt.yaxis.set_major_locator(ticker.MaxNLocator(self.options.y_ticks));
+        if self.options.y_minor_ticks:
+          plt.yaxis.set_minor_locator(ticker.MultipleLocator(self.options.y_minor_ticks));
         if ylock and ylock != "col" and icol:
           plt.set_yticklabels([]);
-        else:
-          plt.yaxis.set_major_locator(MaxNLocator(4));
         plt.set_xticks([]);
         data = datafunc(irow,icol);
         realplot = True;
@@ -533,9 +546,9 @@ class MultigridPlot (AbstractBasePlot):
           y,yerr = data;
           if len(y) == 1:
             plt.text(0,0.6,mean_format%y[0],
-                fontsize='x-small',horizontalalignment='left',verticalalignment='bottom');
+                fontsize=self.options.label_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='bottom');
             plt.text(0,0.5,"+/-"+(mean_format%yerr[0]),
-                fontsize='x-small',horizontalalignment='left',verticalalignment='top');
+                fontsize=self.options.label_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='top');
             plt.axis("off");
             plt.set_ylim(0,1);
             realplot = False;
@@ -551,11 +564,11 @@ class MultigridPlot (AbstractBasePlot):
           if hline is not None:
             plt.axhline(y=hline,color='black');
         for lab in plt.get_yticklabels():
-          lab.set_fontsize(self.options.axis_fontsize or 5);
+          lab.set_fontsize(self.options.axis_fontsize*self.options.scale);
       # add row label
       iplot += 1;
       plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-      plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
+      plt.text(0,.5,row,fontsize=self.options.label_fontsize*self.options.scale,horizontalalignment='left',verticalalignment='center');
       plt.axis("off");
     # adjust layout
     fig.subplots_adjust(left=self._borders[0],right=self._borders[1],
@@ -563,7 +576,9 @@ class MultigridPlot (AbstractBasePlot):
       wspace=self.options.subplot_wspace or None);
     # plot title if asked to
     if suptitle and self.options.title_fontsize:
-      fig.suptitle(suptitle,fontsize=self.options.title_fontsize);
+      if self.options.subtitle:
+        suptitle = "%s (%s)"%(suptitle,self.options.subtitle);
+      fig.suptitle(suptitle,fontsize=self.options.title_fontsize*self.options.scale);
     if save:
       if self.options.portrait:
         orientation = 'portrait';
@@ -571,7 +586,7 @@ class MultigridPlot (AbstractBasePlot):
         orientation = 'landscape';
       else:
         orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
-      fig.savefig(save,papertype=self.options.papertype,
+      fig.savefig(save,papertype=self.options.papertype,dpi=self.options.dpi,
                   orientation=orientation);
       print "Wrote",save,"in",orientation,"orientation";
       fig = None;
@@ -589,7 +604,7 @@ class SkyPlot (AbstractBasePlot):
         self._borders = [ float(x) for x in options.circle_borders.split(",") ];
       except:
         pass;
-        
+
   @classmethod
   def init_options (self,plotgroup,outputgroup):
     AbstractBasePlot.init_options(plotgroup,outputgroup);
@@ -611,7 +626,7 @@ class SkyPlot (AbstractBasePlot):
                     help="Set left/right/bottom/top circle-plot borders, in normalized page coordinates. Default is %default.");
     self.add_plot_option("-S","--subtitle",type="str",default="",
                       help="Subtitle for plot, added (in parentheses) after plot title");
-                      
+
     self.add_output_option("-o","--output-type",metavar="TYPE",type="string",default="png",
                     help="File format, see matplotlib documentation "
                     "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
