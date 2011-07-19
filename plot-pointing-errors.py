@@ -27,6 +27,8 @@ if __name__ == "__main__":
                     help="set fixed plot limits on pointing error vs. time plot");
   parser.add_option("--ft",action="store_true",
                     help="generate plots of pointing offset Fourier components");
+  parser.add_option("--ft-max",metavar="VALUE",type="float",default=0,
+                    help="set fixed plot limits on Fourier component plot");
 
   plotgroup = OptionGroup(parser,"Plotting options");
   outputgroup = OptionGroup(parser,"Output options");
@@ -186,26 +188,27 @@ if __name__ == "__main__":
 
   if options.ft:
     import numpy.fft
-    ft_slice = slice(1,NTIMES/2+1);
-    # fft scaling is 1/NTIMES, then we multiply by 2 since each fourier components
-    # is present as its own conjugate
-    dlm_fft = abs(numpy.fft.fft(dlm_mean))[:,:,ft_slice]/(NTIMES/2.);
-    periods = 1/abs(numpy.fft.fftfreq(NTIMES,interval)[ft_slice]);
-    dlm_fftmax = dlm_fft.max(2);
+    # fft scaling is 1/NTIMES, then later we multiply the non-0th-order terms by 2 since each fourier component's
+    # power is split between itself and the conjugate 
+    ft_slice = slice(0,NTIMES/2+1);
+    dlm_fft = abs(numpy.fft.fft(dlm_mean))[:,:,ft_slice]/NTIMES;
+    dlm_fft[:,:,1:] *= 2;
+    periods = 1/abs(numpy.fft.fftfreq(NTIMES,interval)[1:]);
+    dlm_fftmax = dlm_fft[:,:,1:].max(2);
     dlm_fftper = numpy.zeros((2,len(ANTS)));
     for i in 0,1:
       for iant in range(len(ANTS)):
-        dlm_fftper[i,iant] = periods[numpy.where(dlm_fft[i,iant,:] == dlm_fftmax[i,iant])]
+        dlm_fftper[i,iant] = periods[numpy.where(dlm_fft[i,iant,1:] == dlm_fftmax[i,iant])]
     funcs = [
       lambda iant:dlm_fft[0,iant,:],
-      lambda iant:("max %.1f"%dlm_fftmax[0,iant],"@%d min"%dlm_fftper[0,iant]),
+      lambda iant:("offset %.1f"%dlm_fft[0,iant,0],"~max %.1f"%dlm_fftmax[0,iant],"@%d min"%dlm_fftper[0,iant]),
       lambda iant:dlm_fft[1,iant,:],
-      lambda iant:("max %.1f"%dlm_fftmax[1,iant],"@%d min"%dlm_fftper[1,iant]),
+      lambda iant:("offset %.1f"%dlm_fft[1,iant,0],"~max %.1f"%dlm_fftmax[1,iant],"@%d min"%dlm_fftper[1,iant]),
     ];
     labels = [ "FT(dl)","","FT(dm)","" ];
     make_figure(enumerate(labels),enumerate(ANTS),
           lambda i,iant:funcs[i](iant),
-        hline=0,ylock=(0,dlm_fft.max()),figsize=(290,25*len(labels)),mode=PLOT_BARPLOT,
+        hline=0,ylock=(0,options.ft_max or dlm_fft.max()),figsize=(290,25*len(labels)),mode=PLOT_BARPLOT,
         suptitle="Pointing offset Fourier components",
         save="Epnt_ft");
 

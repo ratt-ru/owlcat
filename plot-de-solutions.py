@@ -428,8 +428,16 @@ if __name__ == "__main__":
 
   # some more constants
   MEAN = len(ANTS);         # index of "mean" antenna
-  XX = CORRS.index('xx');
-  YY = CORRS.index('yy');
+  if 'xx' in CORRS and 'yy' in CORRS:
+    XX = CORRS.index('xx');
+    YY = CORRS.index('yy');
+  elif 'rr' in CORRS and 'll' in CORRS:
+    XX = CORRS.index('rr');
+    YY = CORRS.index('ll');
+  else:
+    print "Can't find xx/yy or rr/ll correlations in MEP table";
+    sys.exit(1);
+    
   # set of all source,antenna,corr combinations
   ALL = [ (src,ant,corr) for src in SRCS for ant in ANTS for corr in CORRS ];
 
