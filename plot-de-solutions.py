@@ -429,11 +429,16 @@ if __name__ == "__main__":
   # some more constants
   MEAN = len(ANTS);         # index of "mean" antenna
   if 'xx' in CORRS and 'yy' in CORRS:
+    print "Using xx/yy Jones elements";
     XX = CORRS.index('xx');
     YY = CORRS.index('yy');
   elif 'rr' in CORRS and 'll' in CORRS:
+    print "Using rr/ll Jones elements";
     XX = CORRS.index('rr');
     YY = CORRS.index('ll');
+  elif len(CORRS) == 1:
+    XX = YY = 0;
+    print "Single-polarization data, using %s Jones element"%CORRS[0];
   else:
     print "Can't find xx/yy or rr/ll correlations in MEP table";
     sys.exit(1);
