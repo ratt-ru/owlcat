@@ -9,8 +9,8 @@ if __name__ == "__main__":
   parser = OptionParser(usage="""%prog: [plots & options] <parmtable(s) or cache file>""",
       description="""Makes various plots of dE solutions.""");
 
-  parser.add_option("-l","--list",action="store_true",
-                    help="lists stuff found in MEP tables, then exits");
+  parser.add_option("-l","--list",action="count",
+                    help="lists stuff found in MEP tables, then exits. Use multiple times for more detail.");
   parser.add_option("--ampl",action="store_true",
                     help="makes amplitude plots");
   parser.add_option("--phase",action="store_true",
@@ -130,10 +130,10 @@ if __name__ == "__main__":
       not options.ampl_slope and not options.phase_slope and not options.phase_slope_res and \
       not options.ampl and not options.phase and not options.pol and \
       not options.list:
-    parser.error("No plots specified.");
+    parser.error("No plots specified. Use -h for help.");
 
   if not args:
-    parser.error("No parmtables or cachefile specified.");
+    parser.error("No parmtables or cachefile specified. Use -h foe help.");
 
   if (options.width or options.height) and not (options.width and options.height):
     parser.error("Either both -W/--width and -H/--height must be specified, or neither.");
@@ -238,6 +238,10 @@ if __name__ == "__main__":
   # ========================== read parmtables
   #
   mep_timestamp = os.path.getmtime(args[0]);
+  
+  PREFIX = 'dE';
+  def make_funklet_name (*elements):
+    return ':'.join([PREFIX]+list(elements));
 
   if len(args) > 1 or not args[0].endswith('.cache'):
     from Owlcat.ParmTables import ParmTab
@@ -289,16 +293,36 @@ if __name__ == "__main__":
       SRCS.add(src);
       ANTS.add(ant);
       CORRS.add(corr);
-    NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice());
 
+    # see how many timeslots we have per each combination of source, antenna, correlation
+    funklet_counts = {};
+    
     SRCS = sorted(SRCS);
     ANTS = sorted(ANTS);
     CORRS = sorted(CORRS);
+    for i,src in enumerate(SRCS):
+      for j,ant in enumerate(ANTS):
+        for k,corr in enumerate(CORRS):
+          funklet_counts[src,ant,corr] = len(pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice());
+
+    NTIMES = max(*funklet_counts.itervalues());
+    
     if options.list:
       print "MEP table %s contains dE's for:"%args[0];
       print "%d correlations: %s"%(len(CORRS)," ".join(CORRS));
       print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
       print "%d sources: %s"%(len(SRCS)," ".join(["%d:%s"%(i,src) for i,src in enumerate(SRCS)]));
+      print "%d timeslots"%NTIMES;
+      
+      if options.list > 1:
+        print "Per-source, per-antenna dE solution counts:"
+        for i,src in enumerate(SRCS):
+          for j,ant in enumerate(ANTS):
+            for k,corr in enumerate(CORRS):
+              rr = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice();
+              ii = pt.funkset(make_funklet_name(src,ant,corr,"i")).get_slice();
+              print "  %s: %d real, %d imaginary"%(make_funklet_name(src,ant,corr),len(rr),len(ii));
+              
       sys.exit(0);
 
     # check that antenna positions are known
@@ -353,19 +377,15 @@ if __name__ == "__main__":
       for i,src in enumerate(SRCS):
         for j,ant in enumerate(ANTS):
           for k,corr in enumerate(CORRS):
-            fs_real = pt.funkset(':'.join([prefix,src,ant,corr,"r"])).get_slice();
-            fs_imag = pt.funkset(':'.join([prefix,src,ant,corr,"i"])).get_slice();
-            # table is allowed to contain either NO funklets for this src/ant/corr combination,
-            # or the same number as all other tables.
+            fs_real = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice();
+            fs_imag = pt.funkset(make_funklet_name(src,ant,corr,"i")).get_slice();
+            # init array with ones (if we have a shorter number, fill only the beginning)
+            arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
             if len(fs_real) or len(fs_imag):
-              if len(fs_real) != len(fs_imag) or len(fs_real) != NTIMES:
-                print "Error: table contains %d real and %d imaginary funklets; %d expected"%(len(fs_real),len(fs_imag),NTIMES);
+              if len(fs_real) != len(fs_imag):
+                print "Error: table contains %d real and %d imaginary funklets for %s"%(len(fs_real),len(fs_imag),make_funklet_name(src,ant,corr));
                 sys.exit(1);
-              arr[i,j,k,:] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
-            # no funklets -- use 1, and mask the array
-            else:
-              arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
-  #            arr.mask[i,j,k,:] = True;
+              arr[i,j,k,:len(fs_real)] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
       return arr;
 
     # stuff down the line does not handle masked arrays properly, so we don't use them
