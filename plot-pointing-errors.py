@@ -19,16 +19,22 @@ if __name__ == "__main__":
                     help="includes nominal offsets on plot (supply filename)");
   parser.add_option("--nominal-circle",metavar="mDEG",type="float",default=10,
                     help="size of circle around nominal offsets");
+  parser.add_option("--circle-radius",metavar="mDEG",type="float",default=0,
+                    help="set a fixed size for the circle pointing plot");
   parser.add_option("--from",metavar="TIMESLOT",type="int",default=0,
                     help="extract solutions starting from given timeslot");
   parser.add_option("--to",metavar="TIMESLOT",type="int",default=-1,
                     help="extract solutions until the given timeslot");
+  parser.add_option("--antennas",type="string",
+                    help="antenna subset, use comma separated list, simple wildcards allowed");
   parser.add_option("--pt-max",metavar="VALUE",type="float",default=0,
                     help="set fixed plot limits on pointing error vs. time plot");
   parser.add_option("--ft",action="store_true",
                     help="generate plots of pointing offset Fourier components");
   parser.add_option("--ft-max",metavar="VALUE",type="float",default=0,
                     help="set fixed plot limits on Fourier component plot");
+  parser.add_option("--wind",metavar="FILE",type="string",
+                    help="loads wind data from pickle file, adds wind plots");
 
   plotgroup = OptionGroup(parser,"Plotting options");
   outputgroup = OptionGroup(parser,"Output options");
@@ -79,6 +85,16 @@ if __name__ == "__main__":
     print "MEP table %s contains pointing offsets for"%args[0];
     print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
     sys.exit(0);
+    
+  # source subset selection
+  import fnmatch
+  if options.antennas:
+    ants = set();
+    for a in options.antennas.split(","):
+      ants.update(fnmatch.filter(ANTS,a));
+    ANTS = sorted(ants);
+  print "Selected %d antennas: %s"%(len(ANTS)," ".join(ANTS));
+    
 
   interval = None;
 
@@ -103,6 +119,7 @@ if __name__ == "__main__":
     print "Reading",tabname;
     pt = ParmTab(tabname);
     for i,ant in enumerate(ANTS):
+      # fill times
       # fill dlm
       if oldtable:
         fsl = pt.funkset('E::dlm::dl:%s'%ant).get_slice()[ts_slice];
@@ -113,6 +130,9 @@ if __name__ == "__main__":
       if len(fsl) != len(fsm) or len(fsl) != NTIMES:
         print "Error: table contains %d funklets for dl and %d for dm; %d expected"%(len(fsl),len(fsm),NTIMES);
         sys.exit(1);
+      if not i:
+        t0 = numpy.array([ funklet.domain.time[0] for funklet in fsl ])
+        t1 = numpy.array([ funklet.domain.time[1] for funklet in fsl ]);
       dlm[0,spw,i,:] = map(c00,fsl);
       dlm[1,spw,i,:] = map(c00,fsm);
       # fill beam sizes
@@ -136,6 +156,23 @@ if __name__ == "__main__":
     cachefile = options.cache+'.cache';
     cPickle.dump((dlm,bsz,beam_sizes),file(cachefile,'w'));
     print "Cached all structures to file",cachefile;
+    
+  if options.wind:
+    import cPickle
+    wind_time,wind_dir,wind_speed = cPickle.load(file(options.wind));
+    print "Loaded %d wind samples from %s"%(len(wind_time),options.wind);
+    # get wind data for each interval
+    wsp_mean = numpy.zeros(NTIMES,float);
+    wsp_std = numpy.zeros(NTIMES,float);
+    for itime in range(NTIMES):
+      i0 = wind_time.searchsorted(t0[itime]);
+      i1 = wind_time.searchsorted(t1[itime]);
+      if i1 - i0 <= 0:
+        print "No wind data for interval %d, cannot plot wind"%itime;
+        sys.exit(1);
+      wsp_mean[itime] = wind_speed[i0:i1].mean();
+      wsp_std[itime] = wind_speed[i0:i1].std();
+    
 
   # convert dlm to millidegrees
   dlm0 = dlm.copy();
@@ -176,12 +213,30 @@ if __name__ == "__main__":
     lambda iant:(dlm_fmean[0,:,iant],dlm_fstd[0,:,iant]),
     lambda iant:(dlm_fmean[1,:,iant],dlm_fstd[1,:,iant])
   ];
-
-  make_figure(enumerate(("dl","","dm","","dl, freq","dm, freq")),enumerate(ANTS),
+  
+  labels = [ "dl","","dm","","dl, freq","dm, freq" ];
+  make_figure(enumerate(labels),enumerate(ANTS),
         lambda i,iant:funcs[i](iant),
       hline=0,ylock=(-options.pt_max,options.pt_max) if options.pt_max else True,figsize=(290,150),mode=PLOT_ERRORBARS,
       suptitle="Pointing offset mean & stddev across all bands (top two plots) and times (bottom two plots), mdeg",
       save="Epnt_mean");
+  
+  if options.wind:
+    # work out wind data for each solve interval
+    funcs = [
+      lambda iant:(dlm_mean[0,iant,:],dlm_std[0,iant,:]),
+      lambda iant:(dlm_mean[1,iant,:],dlm_std[1,iant,:]),
+      lambda iant:(wsp_mean,wsp_std),
+    ];
+    
+    labels = [ "dl","dm","wind, m/s" ];
+    make_figure(enumerate(labels),enumerate(ANTS),
+          lambda i,iant:funcs[i](iant),
+        hline=0,ylock="row",figsize=(290,75),mode=PLOT_ERRORBARS,
+        suptitle="Pointing offset mean & stddev, versus wind speed",
+        save="Epnt_wind");
+    
+
 
   for iant,ant in enumerate(ANTS):
     print "mean offset %s: %6.2f %6.2f"%(ant,dlm_mean[0,iant,:].mean(),dlm_mean[1,iant,:].mean());
@@ -269,6 +324,8 @@ if __name__ == "__main__":
   else:
     nominals = {};
 
+
+  circle_radius = options.circle_radius/(1000/60.);
   nominal_radius = options.nominal_circle/(1000/60.);
 
   circlex1 = numpy.cos(numpy.arange(0,1.05,.05)*math.pi*2);
@@ -332,7 +389,7 @@ if __name__ == "__main__":
       mm += [ dm_mean,dm_mean ];
 
   make_skymap(numpy.array(ll),numpy.array(mm),markers,
-    zero_lines=False,
+    zero_lines=False,radius=circle_radius or None,
     suptitle="Fitted pointing offsets",save="Eplot");
 
 

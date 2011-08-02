@@ -382,6 +382,15 @@ class MultigridPlot (AbstractBasePlot):
         self._borders = [ float(x) for x in options.borders.split(",") ];
       except:
         pass;
+    if options.y_lock:
+      try:
+        y0,y1 = map(float,options.y_lock.split(","));
+      except:
+        print "Error parsing --y-lock option, --y-lock MIN,MAX expected."
+        sys.exit(1);
+      self.ylock = y0,y1;
+    else:
+      self.ylock = None;
 
   @classmethod
   def init_options (self,plotgroup,outputgroup):
@@ -402,10 +411,15 @@ class MultigridPlot (AbstractBasePlot):
                     help="Maximum number of major ticks along the Y axis. Default is %default.");
     self.add_plot_option("--y-minor-ticks",metavar="INTERVAL",type="float",default=0,
                     help="Add minor ticks along the Y axis at the given intervals.");
+    self.add_plot_option("--y-lock",metavar="MIN,MAX",type="str",default="",
+                    help="Locks the Y scale of the plot to the given min/max values.");
     self.add_plot_option("--borders",metavar="L,R,B,T",type="str",
                     help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
     self.add_plot_option("--subplot-wspace",metavar="W",type="float",default=0,
                     help="Set spacing between subplots, as fraction of subplot width. Default is automatic.");
+    self.add_plot_option("-S","--subtitle",type="str",default="",
+                      help="Subtitle for plot, added (in parentheses) after plot title");
+                    
     self.add_output_option("-o","--output-type",metavar="TYPE",type="string",default="png",
                       help="File format, see matplotlib documentation "
                       "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
@@ -488,7 +502,7 @@ class MultigridPlot (AbstractBasePlot):
     iplot = 0;
     rows = list(rows);
     cols = list(cols);
-    if ylock:
+    if ylock and not self.ylock:
       dummy = numpy.array([0.]);
       # form up ymin, ymax: NROWxNCOL arrays of min/max values per each plot
       if mode is PLOT_SINGLE or mode is PLOT_BARPLOT:
@@ -577,7 +591,11 @@ class MultigridPlot (AbstractBasePlot):
             if xaxis is None:
               plt.set_xlim(-1,len(y));
         if realplot:
-          if ylock:
+          if self.ylock:
+            plt.set_ylim(*self.ylock);
+            if icol:
+              plt.set_yticklabels([]);
+          elif ylock:
             plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
             if ylock is not "col" and icol:
               plt.set_yticklabels([]);

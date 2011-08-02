@@ -6,6 +6,9 @@ if __name__ == "__main__":
   # setup some standard command-line option parsing
   #
   from optparse import OptionParser,OptionGroup
+  from Owlcat.Plotting import MultigridPlot,SkyPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
+
+  
   parser = OptionParser(usage="""%prog: [plots & options] <parmtable(s) or cache file>""",
       description="""Makes various plots of dE solutions.""");
 
@@ -47,74 +50,24 @@ if __name__ == "__main__":
                     help="updates LSM file based on dE solutions (EXPERIMENTAL)");
   parser.add_option("--ms",type="string",
                     help="Measurement Set (for UVW coordinates, antenna positions and such)");
-  parser.add_option("-s","--sources",type="string",
-                    help="source subset (default is ':' meaning all, use --list to list)");
+  parser.add_option("--antennas",type="string",
+                    help="antenna subset, use comma separated list, simple wildcards allowed");
+  parser.add_option("--sources",type="string",
+                    help="source subset, use comma separated list, simple wildcards allowed (use --list to list all antennas and sources defined in given table(s)");
   parser.add_option("-c","--cache",metavar="FILENAME",type="string",
                     help="cache parms to file, which can be given instead of parmtables next time, for quicker startup");
   parser.add_option("--pe",metavar="FILENAME",type="string",
                     help="cache file from plot-pointing-errors.py script. If given, |dE| given by the pointing model will be plotted");
 
-  group = OptionGroup(parser,"Plotting options");
-  group.add_option("--radius",type="int",
-                    help="radius of circle plots, in arcmin. Default is auto-sizing.");
-  group.add_option("-G","--grid-circle",metavar="ARCMIN",type="int",action="append",
-                    help="sets radius of grid circle(s) in circle plots. May be given multiple times. Default is 30 and 60.");
-  group.add_option("--title-fontsize",metavar="POINTS",type="int",
-                  help="Set plot title font size, 0 for no title. Default is %default.");
-  group.add_option("--subtitle-fontsize",metavar="POINTS",type="int",
-                  help="Set plot subtitle font size, 0 for none. Default is %default.");
-  group.add_option("--label-fontsize",metavar="POINTS",type="int",
-                  help="Set plot label font size, 0 for no labels. Default is %default.");
-  group.add_option("--axis-fontsize",metavar="POINTS",type="int",
-                  help="Set axis label font size, 0 for no axis labels. Default is %default.");
-  group.add_option("--circle-title-fontsize",metavar="POINTS",type="int",
-                  help="Set plot title font size in circle plots, 0 for no title. Default is %default.");
-  group.add_option("--circle-label-fontsize",metavar="POINTS",type="int",
-                  help="Set plot label font size in circle plots, 0 for no labels. Default is %default.");
-  group.add_option("--circle-axis-fontsize",metavar="POINTS",type="int",
-                  help="Set axis label font size in circle_plots, 0 for no axis labels. Default is %default.");
-  group.add_option("--names-only",action="store_true",
-                  help="Use only source names for labels in circle plots. Default is name, mean and std values.");
-  group.add_option("--circle-minsize",metavar="POINTS",type="int",
-                  help="Set minimum size of marker in circle plots. Default is %default.");
-  group.add_option("--circle-maxsize",metavar="POINTS",type="int",
-                  help="Set maximum size of marker in circle plots. Default is %default.");
-  group.add_option("--circle-linewidth",metavar="SCALE",type="int",
-                  help="Max linewidth used to draw open circles in circle plots. The width corresponds to 3 sigmas. Default is %default.");
-  group.add_option("--circle-label-offset",metavar="FRAC",type="float",
-                  help="Vertical offset of circle labels. Use 0 to center labels on source position. Default is %default.");
-  group.add_option("--dlm-scale",metavar="N",type="float",
-                  help="Scale for arrows indicating dl/dm offset, as N:1. Default is to auto-scale based on max length.");
-  group.add_option("--borders",metavar="L,R,B,T",type="str",
-                  help="Set left/right/bottom/top plot borders, in normalized page coordinates. Default is %default.");
-  group.add_option("--circle-borders",metavar="L,R,B,T",type="str",
-                  help="Set left/right/bottom/top circle-plot borders, in normalized page coordinates. Default is %default.");
-  group.add_option("--subplot-wspace",metavar="W",type="float",
-                  help="Set spacing between subplots, as fraction of subplot width. Default is automatic.");
-  parser.add_option_group(group);
+  plotgroup = OptionGroup(parser,"Plotting options");
+  outputgroup = OptionGroup(parser,"Output options");
+  MultigridPlot.init_options(plotgroup,outputgroup);
+  SkyPlot.init_options(plotgroup,outputgroup);
 
-  group = OptionGroup(parser,"Output options");
-  group.add_option("-o","--output-type",metavar="TYPE",type="string",
-                  help="File format, see matplotlib documentation "
-                  "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
-                  "plots interactively. Default is '%default.'");
-  group.add_option("-r","--refresh",action="store_true",
-                  help="Refresh plots even if they already exist (default is to keep existing plots.)");
-  group.add_option("--output-prefix",metavar="PREFIX",type="string",
-                    help="Prefix output filenames with PREFIX_");
-  group.add_option("--papertype",dest="papertype",type="string",
-                    help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.");
-  group.add_option("-W","--width",type="int",
-                    help="set explicit plot width, in mm. (Useful for .eps output)");
-  group.add_option("-H","--height",type="int",
-                    help="set explicit plot height, in mm. (Useful for .eps output)");
-  group.add_option("--portrait",action="store_true",
-                  help="Force portrait orientation. Default is to select orientation based on plot size");
-  group.add_option("--landscape",action="store_true",
-                  help="Force landscape orientation.");
-  parser.add_option_group(group);
+  parser.add_option_group(plotgroup);
+  parser.add_option_group(outputgroup);
 
-  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",sources="",cache=None,
+  parser.set_defaults(circle_ampl_ant="",circle_phase_ant="",antennas="",sources="",cache=None,
     borders="0.05,0.99,0.05,0.95",circle_borders=".05,.9,.05,.9",subplot_wspace=0,
     title_fontsize=12,subtitle_fontsize=10,label_fontsize=8,axis_fontsize=5,
     circle_title_fontsize=12,circle_label_fontsize=8,circle_axis_fontsize=5,
@@ -163,14 +116,7 @@ if __name__ == "__main__":
   from scipy import linalg
   from Owlcat import Coordinates
 
-  import matplotlib
   import math
-  if options.output_type.upper() != "X11":
-    matplotlib.use('agg');
-  else:
-    matplotlib.use('qt4agg');
-  import matplotlib.pyplot as pyplot
-  from matplotlib.ticker import MaxNLocator
 
   DEG = math.pi/180;
   ARCMIN = math.pi/(180*60);
@@ -229,6 +175,7 @@ if __name__ == "__main__":
     uvw0 = ms.query('ANTENNA1==0 && ANTENNA2==%d'%(nant-1)).getcol('UVW');
     uvw = uvw0[30::60];
     # read phase center
+    import pyrap.tables
     radec0 = pyrap.tables.table(ms.getkeyword('FIELD')).getcol('PHASE_DIR')[0][0];
     print "Phase center is at",radec0;
   else:
@@ -304,6 +251,10 @@ if __name__ == "__main__":
       for j,ant in enumerate(ANTS):
         for k,corr in enumerate(CORRS):
           funklet_counts[src,ant,corr] = len(pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice());
+          
+    if not funklet_counts:
+      print "No dE soltuions found in MEP table %s"%args[0];
+      sys.exit(1);
 
     NTIMES = max(*funklet_counts.itervalues());
     
@@ -325,6 +276,23 @@ if __name__ == "__main__":
               
       sys.exit(0);
 
+    # source subset selection
+    import fnmatch
+    if options.sources:
+      srcs = set();
+      for ss in options.sources.split(","):
+        srcs.update(fnmatch.filter(SRCS,ss));
+      SRCS = sorted(srcs);
+    print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
+
+    # antenna subset selection
+    if options.antennas:
+      ants = set();
+      for a in options.antennas.split(","):
+        ants.update(fnmatch.filter(ANTS,a));
+      ANTS = sorted(ants);
+    print "Selected %d antennas: %s"%(len(ANTS)," ".join(ANTS));
+
     # check that antenna positions are known
     if ANTX_dict:
       unknown_antennas = [ p for p in ANTS if p not in ANTX_dict ];
@@ -338,25 +306,6 @@ if __name__ == "__main__":
       # recenter at middle of the array
       ANTX -= ANTX[-1]/2;
 
-    # source subset selection
-    if options.sources:
-      srcs = set();
-      for ss in options.sources.split(","):
-        if ss in SRCS:
-          srcs.add(ss);
-        else:
-          try:
-            ss = eval("SRCS[%s]"%ss);
-          except:
-            print "Error parsing source specification '%s'"%options.sources;
-            sys.exit(1);
-          if isinstance(ss,str):
-            srcs.add(ss);
-          else:
-            srcs.update(ss);
-      SRCS = sorted(srcs);
-
-    print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
 
     def c00 (funklet):
       if numpy.isscalar(funklet.coeff):
@@ -594,251 +543,14 @@ if __name__ == "__main__":
       sz_as = ( 290,min(210,30*len(ANTS)));
       sz_sa = ( 210,min(290,30*len(SRCS)));
 
-  PLOT_SINGLE = 'single';
-  PLOT_MULTI  = 'multi';
-  PLOT_ERRORBARS = 'errorbars';
 
-  def get_plot_data (data,xaxis=None):
-    """Helper function, interprets the plot data returned by a datafunc.
-    'data' is input data as returned by the datafunc argument to make_figure() below.
-    'xaxis' is default X axis, Note to use ordinal numbering.
-    Return value is tuple of X,Y,Yerr. Yerr is None if no error bars are provided.
-    """;
-    # a 2- or 3-tuple is interpreted as x,y[,yerr]
-    if isinstance(data,tuple):
-      if len(data) == 2:
-        x,y = data;
-        yerr = None;
-      elif len(data) == 3:
-        x,y,yerr = data;
-      else:
-        raise TypeError,"incorrect datum returned: 2- or 3-tuple expected, got %d-tuple"""%len(data);
-    # else interpret data as Y
-    else:
-      y = data;
-      x = yerr = None;
-    # set X axis
-    if x is None:
-      x = range(len(y)) if xaxis is None else xaxis;
-    # check lengths
-    if len(x) != len(y):
-      raise TypeError,"misshaped datum returned: %d X elements, %d Y elements"""%(len(x),len(y));
-    if yerr is not None and len(yerr) != len(y):
-      raise TypeError,"misshaped datum returned: %d Y elements, %d Yerr elements"""%(len(y),len(yerr));
-    return x,y,yerr;
+  # initialize plot objects
+  figplot = MultigridPlot(options);
+  make_figure = figplot.make_figure;
 
-  #
-  #============================ MAKE_FIGURE() plotting function
-  #
-  def make_figure (rows,cols,  # (irow,row) and (icol,col) list
-                  datafunc,   # datafunc(irow,icol) returns plot data for plot i,j
-                  mode=PLOT_SINGLE,xaxis=None,
-                  hline=None, # plot horizontal line at Y position, None for none
-                  ylock="row", # lock Y scale. "row" locks across rows, "col" locks across columns, True locks across whole plot
-                  suptitle=None,      # title of plot
-                  save=None,          # filename to save to
-                  format=None,        # format: use options.output_type by default
-                  figsize=sz_as       # figure width,height in mm
-                  ):
-    if save and (format or options.output_type.upper()) != 'X11':
-      save = "%s.%s"%(save,format or options.output_type);
-      if options.output_prefix:
-        save = "%s_%s"%(options.output_prefix,save);
-      # exit if figure already exists, and we're not refreshing
-      if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-        print save,"exists, not redoing";
-        return save;
-    else:
-      save = None;
-
-    figsize = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize,dpi=600);
-    iplot = 0;
-    rows = list(rows);
-    cols = list(cols);
-    if ylock:
-      # form up ymin, ymax: NROWxNCOL arrays of min/max values per each plot
-      if mode is PLOT_SINGLE:
-        ymin = numpy.array([[datafunc(row[0],col[0]).min() for col in cols ] for row in rows ]);
-        ymax = numpy.array([[datafunc(row[0],col[0]).max() for col in cols ] for row in rows]);
-      elif mode is PLOT_MULTI:
-        ymin = numpy.array([[ min([get_plot_data(dd,xaxis)[1].min() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
-        ymax = numpy.array([[ max([get_plot_data(dd,xaxis)[1].max() for dd in datafunc(row[0],col[0])]) for col in cols ] for row in rows ]);
-      elif mode is PLOT_ERRORBARS:
-        ymin = numpy.array([[ (datafunc(row[0],col[0])[0]-datafunc(row[0],col[0])[1]).min() for col in cols ] for row in rows]);
-        ymax = numpy.array([[ (datafunc(row[0],col[0])[0]+datafunc(row[0],col[0])[1]).max() for col in cols ] for row in rows]);
-      # now collapse them according to ylock mode
-      if ylock == "row":
-        ymin[...] = ymin.min(1)[:,numpy.newaxis];
-        ymax[...] = ymax.max(1)[:,numpy.newaxis];
-      elif ylock == "col":
-        ymin[...] = ymin.min(0)[numpy.newaxis,:];
-        ymax[...] = ymax.max(0)[numpy.newaxis,:];
-      else:
-        ymin[...] = ymin.min();
-        ymax[...] = ymax.max();
-    # make legend across the top
-    for icol,col in cols:
-      iplot += 1;
-      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-      plt.axis("off");
-      plt.text(.5,0,col,fontsize=options.subtitle_fontsize,
-        horizontalalignment='center',verticalalignment='bottom');
-    iplot += 1;
-    # now make plots
-    for irow,row in rows:
-      for icol,col in cols:
-        iplot += 1;
-        plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-        # plt.axis("off");
-        if ylock and ylock != "col" and icol:
-          plt.set_yticklabels([]);
-        else:
-          plt.yaxis.set_major_locator(MaxNLocator(4));
-        plt.set_xticks([]);
-        data = datafunc(irow,icol);
-        if mode is PLOT_SINGLE:
-          plt.plot(range(len(data)) if xaxis is None else xaxis,data);
-          if xaxis is None:
-            plt.set_xlim(-1,len(data));
-        elif mode is PLOT_MULTI:
-          for dd in data:
-            x,y,yerr = get_plot_data(dd,xaxis);
-            if yerr is None:
-              plt.plot(x,y);
-            else:
-              plt.errorbar(x,y,yerr,fmt=None,capsize=1);
-            if x == range(len(y)):
-              plt.set_xlim(-1,len(y));
-        elif mode is PLOT_ERRORBARS:
-          y,yerr = data;
-          plt.errorbar(range(len(y)) if xaxis is None else xaxis,y,yerr,fmt=None,capsize=1);
-          if xaxis is None:
-            plt.set_xlim(-1,len(y));
-        if ylock:
-          plt.set_ylim(ymin[irow,icol],ymax[irow,icol]);
-        if hline is not None:
-          plt.axhline(y=hline,color='black');
-        for lab in plt.get_yticklabels():
-          lab.set_fontsize(options.axis_fontsize);
-      # add row label
-      iplot += 1;
-      plt = fig.add_subplot(len(rows)+1,len(cols)+1,iplot);
-      plt.text(0,.5,row,fontsize='x-small',horizontalalignment='left',verticalalignment='center');
-      plt.axis("off");
-    # adjust layout
-    fig.subplots_adjust(left=borders[0],right=borders[1],top=borders[3],bottom=borders[2],
-      wspace=options.subplot_wspace or None);
-    # plot if asked to
-    if suptitle and options.title_fontsize:
-      fig.suptitle(suptitle,fontsize=options.title_fontsize);
-    if save:
-      if options.portrait:
-        orientation = 'portrait';
-      elif options.landscape:
-        orientation = 'landscape';
-      else:
-        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
-      fig.savefig(save,papertype=options.papertype,
-                  orientation=orientation);
-      print "Wrote",save,"in",orientation,"orientation";
-      fig = None;
-      pyplot.close("all");
-    return save;
-
-  #
-  #============================ MAKE_SKYMAP() plotting function
-  #
-  def make_skymap (ll,mm,
-    markers,  # marker is a list of strings or dicts or tuples.
-              # For each marker, if str: axes.plot(x,y,str) is called
-              # if dict: axes.plot(x,y,**dict)
-              # else tuple is func,arg,kwargs
-              # and axes.func(*args,**kwargs) is called
-    labels=None,
-    radius=None,        # plot radius. If None, then it's set automatically
-    suptitle=None,      # title of plot
-    save=None,          # filename to save to
-    format=None,        # format: use options.output_type by default
-    figsize=(210,210),       # figure width,height in mm
-    ):
-    if save and (format or options.output_type.upper()) != 'X11':
-      save = "%s.%s"%(save,format or options.output_type);
-      if options.output_prefix:
-        save = "%s_%s"%(options.output_prefix,save);
-      # exit if figure already exists, and we're not refreshing
-      if os.path.exists(save) and not options.refresh: # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-        print save,"exists, not redoing";
-        return save;
-    else:
-      save = None;
-
-    figsize = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize,dpi=600);
-    plt = fig.add_axes([circle_borders[0],circle_borders[2],circle_borders[1]-circle_borders[0],
-                        circle_borders[3]-circle_borders[2]]);
-    plt.axhline(y=0,color='black',linestyle=':');
-    plt.axvline(x=0,color='black',linestyle=':');
-
-    # if ll is None, use length of markers for everything
-    if ll is None:
-      ll = mm = numpy.zeros(len(markers),float);
-
-    if not isinstance(markers,(list,tuple)):
-      markers = [markers]*len(ll);
-
-    if not labels:
-      labels = [None]*len(ll);
-
-    # set limits
-    if options.radius:
-      lim = options.radius;
-    elif radius:
-      lim = radius;
-    else:
-      lim = max(max(abs(ll)),max(abs(mm)))*1.05/ARCMIN;
-
-    # plot markers
-    for l,m,mark,label in zip(ll/ARCMIN,mm/ARCMIN,markers,labels):
-      if isinstance(mark,str):
-        plt.plot(l,m,mark);
-      elif isinstance(mark,dict):
-        plt.plot(l,m,**mark);
-      elif isinstance(mark,tuple):
-        func,args,kwargs = mark;
-        getattr(plt,func)(*args,**kwargs);
-      if label and options.circle_label_fontsize:
-        plt.text(l,m-lim*options.circle_label_offset,
-          label,fontsize=options.circle_label_fontsize,
-          horizontalalignment='center',
-          verticalalignment='top' if options.circle_label_offset else 'center');
-
-    x = numpy.cos(numpy.arange(0,361)*math.pi/180);
-    y = numpy.sin(numpy.arange(0,361)*math.pi/180);
-
-    for R in options.grid_circle:
-      plt.plot(x*R,y*R,linestyle=':',color='black');
-
-    plt.set_xlim(lim,-lim);
-    plt.set_ylim(-lim,lim);
-    for lab in list(plt.get_xticklabels())+list(plt.get_yticklabels()):
-      lab.set_fontsize(options.circle_axis_fontsize);
-
-    if suptitle and options.title_fontsize:
-      fig.suptitle(suptitle,fontsize=options.circle_title_fontsize);
-    if save:
-      if options.portrait:
-        orientation = 'portrait';
-      elif options.landscape:
-        orientation = 'landscape';
-      else:
-        orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
-      fig.savefig(save,papertype=options.papertype,
-                  orientation=orientation);
-      print "Wrote",save,"in",orientation,"orientation";
-      fig = None;
-      pyplot.close("all");
-    return save;
+  skyplot = SkyPlot(options);
+  make_skymap = skyplot.make_figure;
+  
 
   #
   #============================ VARIOUS PER-CORRELATION PLOTS
