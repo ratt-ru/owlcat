@@ -81,7 +81,12 @@ if __name__ == "__main__":
     tab0.addrows(tab.nrows());
     for col in tab.colnames():
       if col not in SKIP_COLUMNS:
-        data = tab.getcol(col);
+        try:
+          data = tab.getcol(col);
+        except:
+          print "WARNING: MS %s does not appear to contain a valid %s column"%(msname,col);
+          print "   This is not necessarily fatal, proceeding with the merge anyway."
+          continue;
         # if renumbering DDIDs, increment the DDID column by the # of rows in the DDID table --
         # this ensures uniqueness of DDIDs
         if options.renumber and col == "DATA_DESC_ID":
