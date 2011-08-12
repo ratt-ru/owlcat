@@ -40,8 +40,9 @@ listCmds() {
 }
 
 usage() {
-    if [ -x $dir/version.sh ]; then
-      echo "This is Owlcat" `$dir/version.sh`
+    if [ -f $dir/version.sh ]; then
+      source $dir/version.sh
+      echo "This is Owlcat version" $OWLCAT_VERSION
     fi
     echo "Usage: `basename $0` <command> [args]"
     echo "    Available commands are:"

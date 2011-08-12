@@ -1,3 +1,1 @@
-#!/bin/bash
-# prints Owlcat version number, then exits
-echo "developer/svn version"
+OWLCAT_VERSION="developer/svn"
