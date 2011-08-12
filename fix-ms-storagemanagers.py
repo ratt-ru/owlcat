@@ -1,6 +1,31 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+#
+#% $Id$ 
+#
+#
+# Copyright (C) 2002-2011
+# The MeqTree Foundation & 
+# ASTRON (Netherlands Foundation for Research in Astronomy)
+# P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <http://www.gnu.org/licenses/>,
+# or write to the Free Software Foundation, Inc., 
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
 import sys
 import os.path
 import re
@@ -44,9 +69,9 @@ if __name__ == "__main__":
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] MS""",
       description=\
-      """Sets up tiled storage managers for the DATA, FLAG and BITFLAG columns of an MS,
-      and sets a fixed shape on the columns. This can speed up access to some MSs, e.g.
-      such as those produced by the uvfits2ms converter."""
+      "Sets up tiled storage managers for the DATA, FLAG and BITFLAG columns of an MS, "+
+      "and sets a fixed shape on the columns. This can speed up access to some MSs, e.g. "+
+      "such as those produced by the uvfits2ms converter. "
   );
   parser.add_option("-f","--force",action="store_true",
                     help="proceed non-interactively");

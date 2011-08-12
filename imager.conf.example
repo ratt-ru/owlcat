@@ -1,0 +1,25 @@
+img_lwimager=/usr/bin/lwimager
+img_ms=full.MS
+img_data=CORRECTED_DATA
+img_ifrs=""
+img_spwid=0,1,2,3,4,5,6,7
+img_channels=64,0,1
+img_size=2048/120
+img_mode=mfs
+img_stokes=IQUV
+img_weight=natural
+img_taper=12
+img_flux_scale=1
+img_cachesize=2048
+img_remove_img=1
+img_niter=2000
+img_gain=.3
+
+# construct filenames
+name_base='${img_name_prefix}${img_ms%.MS}_${img_npix}_${img_arcmin}${img_name_suffix}'
+
+img_name_dirty=${name_base}'_dirty'
+img_name_restored=${name_base}'_${img_oper}_i${img_niter}_restored'
+img_name_model=${name_base}'_${img_oper}_i${img_niter}_model'
+img_name_residual=${name_base}'_${img_oper}_i${img_niter}_residual'
+

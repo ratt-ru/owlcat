@@ -1,3 +1,4 @@
+#!/bin/bash
 # -*- coding: utf-8 -*-
 # if config doesn't exist, strange things happen!
 
@@ -5,6 +6,31 @@
 # Same message as when ddid_index is not set properly:
 #               Maximum of approximate PSF for field 1 = 0 : renormalizing to unity
 # But not sure what state persists between making a dirty image and a clean one
+
+#
+#% $Id$ 
+#
+#
+# Copyright (C) 2002-2011
+# The MeqTree Foundation & 
+# ASTRON (Netherlands Foundation for Research in Astronomy)
+# P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <http://www.gnu.org/licenses/>,
+# or write to the Free Software Foundation, Inc., 
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
 
 CONFFILE=imager.conf
 
@@ -57,6 +83,14 @@ confirm=true
 while [ "$1" != "" ]; do
   if [ "${1%=*}" != "$1" ]; then
     eval "img_$1"
+  elif [ "$1" == "-h" -o "$1" == "--help" ]; then
+    echo "`basename $0`: wrapper script for lwimager"
+    echo "Imager parameters are read from $CONFFILE, and can also be overridden"
+    echo "on the command line as parm=value."
+    echo "See `dirname $0`/imager.conf.example for an example imager.conf"
+    echo "Recognized parameters (and their current settings) are: "
+    set | egrep \^img_ | cut -c 5-
+    exit 0
   elif [ "$1" == "-nr" ]; then
     img_remove_img=0
   elif [ "$1" == "-trial" ]; then
@@ -75,7 +109,8 @@ img_name_residual=`eval echo $img_name_residual`
 
 # MS must be set
 if [ -z "$img_ms" ]; then
-  echo "MS must be set with MS=name, or in $CONFFILE";
+  echo "MS must be set with ms=name, or in $CONFFILE";
+  exit 1
 fi
 
 # print final var settings
@@ -91,7 +126,18 @@ fi
 if [ "$img_ifrs" == "" ]; then
   echo "Using all interferometers"
 else
-  ifr_select="`ifr-subset-to-taql.sh $img_ms ${img_ifrs// /,}`"
+  # find the ifr-subset-to-taql.sh utility
+  dir=`dirname $(readlink -f $0)`
+  subset2taql="$dir/ifr-subset-to-taql.sh"
+  if [ ! -x $subset2taql ]; then
+    subset2taql=`which ifr-subset-to-taql.sh`
+    if [ ! -x $subset2taql ]; then
+      echo "Can't find ifr-subset-to-taql.sh script"
+      exit 1
+    fi
+  fi
+  # run it to get the IFR selection
+  ifr_select="`$subset2taql $img_ms ${img_ifrs// /,}`"
   echo "NB: IFR selection '$img_ifrs' applied, resulting in ${ifr_select%//*} ifrs"
   ifr_select="${ifr_select#*//}"
   if [ "$img_select" != "" ]; then
