@@ -5,7 +5,7 @@ plot-pointing-errors              makes various plots of pointing errors
 fitstool                          simple FITS image manipulation
 merge-ms                          merges MSs
 split-ms-spw                      splits an MS by spectral window
-flag-ms                          manages flags in an MS, including bitflags
+flag-ms                           manages flags in an MS, including bitflags
 fix-ms-storagemanagers            sets up tiled storage managers for MS columns
 downweigh-redundant-baselines     downweights redundant baselines (e.g. in a WSRT MS)
 run-imager                        wrapper script around lwimager
