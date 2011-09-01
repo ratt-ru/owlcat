@@ -76,9 +76,9 @@ if __name__ == "__main__":
   parser.add_option("--ms",type="string",
                     help="Measurement Set (for UVW coordinates, antenna positions and such)");
   parser.add_option("--antennas",type="string",
-                    help="antenna subset, use comma separated list, simple wildcards allowed");
+                    help="antenna subset, as a comma-separated list of names. Simple wildcards are allowed.");
   parser.add_option("--sources",type="string",
-                    help="source subset, use comma separated list, simple wildcards allowed (use --list to list all antennas and sources defined in given table(s)");
+                    help="source subset, as a comma-separated list of names. Simple wildcards are allowed. Use -l/--list to list all antennas and sources defined in the given table(s).");
   parser.add_option("-c","--cache",metavar="FILENAME",type="string",
                     help="cache parms to file, which can be given instead of parmtables next time, for quicker startup");
   parser.add_option("--pe",metavar="FILENAME",type="string",
@@ -278,7 +278,7 @@ if __name__ == "__main__":
           funklet_counts[src,ant,corr] = len(pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice());
           
     if not funklet_counts:
-      print "No dE soltuions found in MEP table %s"%args[0];
+      print "No dE solutions found in MEP table %s"%args[0];
       sys.exit(1);
 
     NTIMES = max(*funklet_counts.itervalues());
@@ -306,17 +306,32 @@ if __name__ == "__main__":
     if options.sources:
       srcs = set();
       for ss in options.sources.split(","):
+        subset = fnmatch.filter(SRCS,ss);
+        if subset:
+          srcs.update(subset);
+        else:
+          print "WARNING: \"%s\" does not match any source names in MEP table %s."%(ss,args[0]);
         srcs.update(fnmatch.filter(SRCS,ss));
       SRCS = sorted(srcs);
-    print "Selected %d sources: %s"%(len(SRCS)," ".join(SRCS));
+      if not SRCS:
+        print "No sources were selected, check your --sources option.";
+        sys.exit(1);
+    print "Using %d sources: %s"%(len(SRCS)," ".join(SRCS));
 
     # antenna subset selection
     if options.antennas:
       ants = set();
       for a in options.antennas.split(","):
-        ants.update(fnmatch.filter(ANTS,a));
+        subset = fnmatch.filter(ANTS,a);
+        if subset:
+          ants.update(subset);
+        else:
+          print "WARNING: \"%s\" does not match any antenna names in MEP table %s."%(a,args[0]);
       ANTS = sorted(ants);
-    print "Selected %d antennas: %s"%(len(ANTS)," ".join(ANTS));
+      if not ANTS:
+        print "No antennas were selected, check your --antennas option.";
+        sys.exit(1);
+    print "Using %d antennas: %s"%(len(ANTS)," ".join(ANTS));
 
     # check that antenna positions are known
     if ANTX_dict:

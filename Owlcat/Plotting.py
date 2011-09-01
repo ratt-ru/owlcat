@@ -129,7 +129,10 @@ class PlotCollection (object):
           maxdata = self.mean[key] + y0 + offset/2;
           # plot data
           try:
+            if len(dd) == 1:
+              dd = numpy.array([dd[0],dd[0]]);
             plt.plot(dd);
+            #print dd;
           except:
             traceback.print_exc();
             print "Error plotting data for",key;

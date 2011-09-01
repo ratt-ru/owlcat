@@ -34,7 +34,7 @@ if __name__ == "__main__":
   from Owlcat.Plotting import MultigridPlot,SkyPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
 
   parser = OptionParser(usage="""%prog: [plots & options] parmtables""",
-      description="""Makes various plots of dE solutions.""");
+      description="""Makes various plots of poitning error solutions.""");
 
   parser.add_option("-l","--list",action="store_true",
                     help="lists stuff found in MEP tables, then exits");
@@ -51,7 +51,7 @@ if __name__ == "__main__":
   parser.add_option("--to",metavar="TIMESLOT",type="int",default=-1,
                     help="extract solutions until the given timeslot");
   parser.add_option("--antennas",type="string",
-                    help="antenna subset, use comma separated list, simple wildcards allowed");
+                    help="antenna subset, as a comma-separated list of names. Simple wildcards are allowed.");
   parser.add_option("--pt-max",metavar="VALUE",type="float",default=0,
                     help="set fixed plot limits on pointing error vs. time plot");
   parser.add_option("--ft",action="store_true",
@@ -106,20 +106,30 @@ if __name__ == "__main__":
   print "%d timeslots found in table %s"%(NTIMES,args[0]);
 
   ANTS = sorted(ANTS);
+  if not ANTS:
+    print "No pointing offset solutions found in MEP table %s."%args[0];
+    sys.exit(1);
+    
   if options.list:
     print "MEP table %s contains pointing offsets for"%args[0];
-    print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
-    sys.exit(0);
+    print "  %d antennas: %s"%(len(ANTS)," ".join(ANTS));
     
   # source subset selection
   import fnmatch
   if options.antennas:
     ants = set();
     for a in options.antennas.split(","):
-      ants.update(fnmatch.filter(ANTS,a));
+      subset = fnmatch.filter(ANTS,a);
+      if subset:
+        ants.update(subset);
+      else:
+        print "WARNING: \"%s\" does not match any antenna names in MEP table %s."%(a,args[0]);
     ANTS = sorted(ants);
-  print "Selected %d antennas: %s"%(len(ANTS)," ".join(ANTS));
-    
+    if not ANTS:
+      print "No antennas were selected, check your --antennas option.";
+      sys.exit(1);
+      
+  print "Using %d antennas: %s"%(len(ANTS)," ".join(ANTS));
 
   interval = None;
 
