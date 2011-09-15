@@ -6,11 +6,17 @@ import curses
 
 # Get width of terminal
 # I couldn't be bothered to get newline mode working properly when curses is active,
-# so I uses curses.wrapper() do init curses, get the width, then close curses.
+# so I used curses.wrapper() do init curses, get the width, then close curses.
 def get_width (scr):
   global _width;
   _width = scr.getmaxyx()[1] - 1;
-curses.wrapper(get_width);
+
+# Since curses can fall over when invoked via ssh non-interactively (curse you curses!),
+# protect this with an exception
+try:
+  curses.wrapper(get_width);
+except:
+  _width = 80;
 
 def timestamp (time_start,format="%H:%M:%S:"):
   return time.strftime(format,time.gmtime(time.time()-time_start));
