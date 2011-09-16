@@ -1,22 +1,28 @@
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import time
 import curses
 
-# Get width of terminal
-# I couldn't be bothered to get newline mode working properly when curses is active,
-# so I used curses.wrapper() do init curses, get the width, then close curses.
-def get_width (scr):
-  global _width;
-  _width = scr.getmaxyx()[1] - 1;
+# This stuff doesn't work when running the script in the background!
+# Dunno why, so disabling this for 1.2
 
-# Since curses can fall over when invoked via ssh non-interactively (curse you curses!),
-# protect this with an exception
-try:
-  curses.wrapper(get_width);
-except:
-  _width = 80;
+## Get width of terminal
+## I couldn't be bothered to get newline mode working properly when curses is active,
+## so I used curses.wrapper() do init curses, get the width, then close curses.
+#def get_width (scr):
+  #global _width;
+  #_width = scr.getmaxyx()[1] - 1;
+
+## Since curses can fall over when invoked via ssh non-interactively (curse you curses!),
+## protect this with an exception
+#try:
+  #curses.wrapper(get_width);
+#except:
+  #_width = 80;
+  
+_width = 72;
 
 def timestamp (time_start,format="%H:%M:%S:"):
   return time.strftime(format,time.gmtime(time.time()-time_start));
