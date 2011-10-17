@@ -831,14 +831,20 @@ class Flagger (Timba.dmi.verbosity):
           if data_flagmask is not None:
             datamask |= ( (visflags()&data_flagmask)!=0 );
           datacol = numpy.ma.masked_array(datacol,datamask);
+          self.dprintf(4,"datamask contains %d masked visibilities\n",datamask.sum());
+          self.dprintf(3,"At start of clipping we have %d visibilities\n",vismask.sum());
+          self.dprintf(3,"of which %d are finite\n",numpy.isfinite(datacol).sum());
           # clip on NANs
-          if data_nan is not None:
+          if data_nan:
             vismask &= ~numpy.isfinite(datacol);
+            self.dprintf(3,"NAN filtering leaves %d visibilities\n",vismask.sum());
           # clip on amplitudes
           if data_above is not None:
             vismask &= abs(datacol)>data_above;
+            self.dprintf(3,"data_above filtering leaves %d visibilities\n",vismask.sum());
           if data_below is not None:
             vismask &= abs(datacol)<data_below;
+            self.dprintf(3,"data_below filtering leaves %d visibilities\n",vismask.sum());
           # clip on freq-mean amplitudes
           if data_fm_above is not None or data_fm_below is not None:
             datacol = datacol.mean(1);
@@ -846,6 +852,7 @@ class Flagger (Timba.dmi.verbosity):
               vismask &= (datacol>data_fm_above)[:,numpy.newaxis,...];
             if data_fm_below is not None:
               vismask &= (datacol<data_fm_below)[:,numpy.newaxis,...];
+            self.dprintf(3,"data_fm_above/below filtering leaves %d visibilities\n",vismask.sum());
         # finally, subset E is ready
         nv = vismask.sum();
         nvis_C += nv;
