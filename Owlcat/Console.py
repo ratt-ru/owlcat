@@ -21,8 +21,11 @@ import curses
   #curses.wrapper(get_width);
 #except:
   #_width = 80;
-  
-_width = 72;
+
+try:
+  _height,_width = map(int,os.popen('stty size', 'r').read().split())
+except:
+  _width = 132;
 
 def timestamp (time_start,format="%H:%M:%S:"):
   return time.strftime(format,time.gmtime(time.time()-time_start));

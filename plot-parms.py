@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -44,7 +44,7 @@ class PlottableEntityProps (object):
   """A PlottableEntityProps objects describes the properties of a plottable entity.
   Instances of this will be e.g. RealValue, ComplexValue, JonesMatrix, etc."""
   def __init__ (self,name,plottables):
-    """Creates a plottable entity description. 'name' is a short name, e.g. "real values". 
+    """Creates a plottable entity description. 'name' is a short name, e.g. "real values".
     'plottables' is a list of rules for entities into real numbers than can be plotted, i.e.
     a list of ('rulename',func) tuples, where func transforms entities into float arrays."""
     self.name = name;
@@ -62,7 +62,7 @@ ComplexValue = PlottableEntityProps("complex values",[
 ]);
 
 JonesMatrix = PlottableEntityProps("Jones matrices",[
-  ('norm',   lambda matrix:numpy.sqrt(sum(map(lambda x:x*numpy.ma.conjugate(x),matrix)))) 
+  ('norm',   lambda matrix:numpy.sqrt(sum(map(lambda x:x*numpy.ma.conjugate(x),matrix))))
 ]);
 
 def _matrix22 (a11,*args):
@@ -77,13 +77,13 @@ def _matrix22 (a11,*args):
   raise TypeError,"incorrect number of arguments in call to _matrix22";
 
 # 'Aggregators' is a list of rules for aggregating individual real parm coefficients into compound
-# entities. E.g. ':r' and ':i' parms can be aggregated to form a complex number, then xx,xy,yx,yy 
-# complex values can be aggregated into a 2x2 matrix, etc. 
+# entities. E.g. ':r' and ':i' parms can be aggregated to form a complex number, then xx,xy,yx,yy
+# complex values can be aggregated into a 2x2 matrix, etc.
 # Each entry in the list has the form:
 #   suffix_list,func,prop
-# where 'suffix_list' gives the suffixes of the elements ('r','i'), 'func' is a callable for transforming 
+# where 'suffix_list' gives the suffixes of the elements ('r','i'), 'func' is a callable for transforming
 # the elements into an aggregate value, and 'prop' is a PlottableEntityProps object describing the aggregate.
-#  
+#
 Aggregators = [
   (('r','i'),(lambda r,i:r+1j*i),ComplexValue),
   (('r',),(lambda r:r),RealValue),
@@ -114,10 +114,10 @@ def makeParmEntityList (parmnames):
     (entity_dict,ncomp,func,props), where:
   'desc' is a short description of this group of entities
   'entity_dict' is a dict of {name:components},
-    'name' is an entity name (original parmname, or shortened aggregated name) 
+    'name' is an entity name (original parmname, or shortened aggregated name)
     'components' is a flat list of parmnames making up that aggregate
   'ncomp' is the number of components (each component list in the dict must have that many elements)
-  'func' is a callable for transforming components into an aggregate value (None for individual parms) 
+  'func' is a callable for transforming components into an aggregate value (None for individual parms)
   'props' is a PlottableEntityProps object.
 
   Each entry in the list corresponds to a group of entities that matched a particular aggregation rule.
@@ -126,7 +126,7 @@ def makeParmEntityList (parmnames):
   entity_list = [];
   new_entity_list = [ ( dict([ (name,[name]) for name in parmnames ]),1,lambda x:x,RealValue ) ];
   aggregated = set();
-  # entities are moved from new_entity_list to entity_list as they're processed. 
+  # entities are moved from new_entity_list to entity_list as they're processed.
   while new_entity_list:
     entity_dict,ncomp,func,props = new_entity_list[0];
     # see if we have recipe for making compound objects based on last parmname qualifier
@@ -135,7 +135,7 @@ def makeParmEntityList (parmnames):
     basenames = set([nq[0] for nq in nqlist]);
     quals = set([nq[1] for nq in nqlist]);
     for quallist,agg_func,agg_props in Aggregators:
-      # look for an aggregator whose qualifiers are a subset of what we have 
+      # look for an aggregator whose qualifiers are a subset of what we have
       if set(quallist) <= quals:
         new_entity_dict = {};
         # for each basename, attempt to find entities for every qualifier in the list
@@ -166,7 +166,7 @@ def namesToSetNotation (namelist):
     for i,f in enumerate(name.split(':')):
       fsets.setdefault(i,set()).add(f);
   # return compound string
-  return ":".join([(fsets[i].pop() if len(fsets[i]) == 1 else "{%s}"%",".join(sorted(fsets[i]))) 
+  return ":".join([(fsets[i].pop() if len(fsets[i]) == 1 else "{%s}"%",".join(sorted(fsets[i])))
           for i in range(len(fsets))]);
 
 if __name__ == "__main__":
@@ -207,17 +207,17 @@ if __name__ == "__main__":
                     help="apply averaging to parameters BEFORE conversion to plottable values.");
   parser.add_option("--average-after",dest="average_after",action="store_true",
                     help="apply averaging to plottable values, AFTER conversion from parameters (default).");
-  
-  #group = OptionGroup(parser,"Plot label options");
-  #group.add_option("--label-mean",dest="label_mean",action="store_true",
-                    #help="include mean value in plot labels");
-  #group.add_option("--no-label-mean",dest="label_mean",action="store_false",
-                    #help="do not include mean value in plot labels");
-  #group.add_option("--label-stddev",dest="label_stddev",action="store_true",
-                    #help="include standard deviation in plot labels");
-  #group.add_option("--no-label-stddev",dest="label_stddev",action="store_false",
-                    #help="do not include standard deviation in plot labels");
-  #parser.add_option_group(group);
+
+  group = OptionGroup(parser,"Plot label options");
+  group.add_option("--label-mean",dest="label_mean",action="store_true",
+                    help="include mean value in plot labels");
+  group.add_option("--no-label-mean",dest="label_mean",action="store_false",
+                    help="do not include mean value in plot labels");
+  group.add_option("--label-stddev",dest="label_stddev",action="store_true",
+                    help="include standard deviation in plot labels");
+  group.add_option("--no-label-stddev",dest="label_stddev",action="store_false",
+                    help="do not include standard deviation in plot labels");
+  parser.add_option_group(group);
 
   group = OptionGroup(parser,"Output options");
   group.add_option("-o","--output",dest="output",type="string",
@@ -232,7 +232,9 @@ if __name__ == "__main__":
                     help="set verbosity level for debugging messages");
   parser.add_option_group(group);
 
-  parser.set_defaults(output="",xaxis="time",resolution=100,ppp=120,flagmask=-1);
+  parser.set_defaults(output="",xaxis="time",resolution=100,ppp=120,
+    label_mean=True,label_stddev=True
+  );
 
   (options,args) = parser.parse_args();
   if not args:
@@ -277,7 +279,7 @@ if __name__ == "__main__":
   # This will contain a definitive list of all plots. Each plot is specified as a
   # [description,entity_list,entity_list2,scatterplot]. entity_list2 is valid for dual plots,
   # and is None for a single plot.
-  # Scatterplot is None for normal plots, and a 2-tuple of axis labels, for scatter plots. 
+  # Scatterplot is None for normal plots, and a 2-tuple of axis labels, for scatter plots.
   Plots = [];
 
   # go through plotlist and find matching entities. regexes must match field-by-field
@@ -307,9 +309,9 @@ if __name__ == "__main__":
       if options.regex:
         regexes = map(re.compile,names.split(':'));
       else:
-        # glob mode: translate the {a,b,c} case to a regex, and use 
+        # glob mode: translate the {a,b,c} case to a regex, and use
         # fnmatch.translate() for the rest      else
-        regexes = [ re.compile( "(%s)"%('|'.join(ss[1:-1].split(","))) if (ss and ss[0]=='{' and ss[-1]=="}") 
+        regexes = [ re.compile( "(%s)"%('|'.join(ss[1:-1].split(","))) if (ss and ss[0]=='{' and ss[-1]=="}")
                                 else fnmatch.translate(ss) ) for ss in names.split(":") ];
       # build list of what to plot, as (name,components,func,plotfunc,plotfunc2) tuples
       # plotfunc2 is None for nroaml plots, or a plotfunc for scatterplots
@@ -328,7 +330,7 @@ if __name__ == "__main__":
                 plotfuncs = [ props.plottables_dict.get(what) ];
                 plotfunc,plotfunc2 = plotfuncs[0],None;
               if not all(plotfuncs):
-                print "%s/%s cannot be plotted. Use the -q option to see what can."%(name,what);
+                print "%s/%s cannot be plotted. Use the -l option to see what can."%(name,what);
                 sys.exit(2);
             # if 'what' not given, use first item in list
             else:
@@ -401,7 +403,7 @@ if __name__ == "__main__":
       savefile = options.output;
       if ipage is not None:
         if savefile:
-          basename,ext = os.path.splitext(savefile);  
+          basename,ext = os.path.splitext(savefile);
           savefile = "%s.%d%s"%(basename,ipage,ext);
           progress("Plot will be written to file %s\n"%savefile);
         ipage += 1;
@@ -410,6 +412,13 @@ if __name__ == "__main__":
 
     # normal "collections" plot
     else:
+      # figure out label format
+      labels = ["%(name)s"];
+      if options.label_mean:
+        labels.append("mean=%(mean).3g");
+      if options.label_stddev:
+        labels.append("std=%(stddev).3g");
+      label_format = " ".join(labels);
       # make collection object
       coll = PlotCollection(options);
       coll.desc = desc;
@@ -426,8 +435,10 @@ if __name__ == "__main__":
         # apply after-averaging, if needed
         if not options.average_before:
           dd = dd.mean(1);
+        # put together label
+        labelattrs = dict(name=name,mean=dd.mean(),stddev=dd.std());
         # add track
-        coll.add_track(name,dd);
+        coll.add_track(name,dd,label=label_format%labelattrs);
 
       for np0 in range(0,len(entlist),options.ppp):
         np1 = min(np0+options.ppp,len(entlist));
@@ -436,7 +447,7 @@ if __name__ == "__main__":
         savefile = options.output;
         if ipage is not None:
           if savefile:
-            basename,ext = os.path.splitext(savefile);  
+            basename,ext = os.path.splitext(savefile);
             savefile = "%s.%d%s"%(basename,ipage,ext);
             progress("Plot will be written to file %s\n"%savefile);
           ipage += 1;
@@ -448,5 +459,5 @@ if __name__ == "__main__":
   if not options.output:
     from pylab import plt
     plt.show();
-    
+
 
