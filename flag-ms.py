@@ -171,11 +171,11 @@ if __name__ == "__main__":
                     help="select on mean(abs(data))>X, where mean is over frequencies");
   group.add_option("--fm-below",metavar="X",type="float",
                     help="select on mean(abs(data))<X, where mean is over frequencies");
-  group.add_option("--data-column",metavar="COLUMN",type="string",
+  group.add_option("-C","--data-column",metavar="COLUMN",type="string",
                     help="data column for --above/--below/--nan options. Default is %default.");
   group.add_option("--data-flagmask",metavar="FLAGS",type="string",
-                    help="flags to apply to data column (when e.g. computing mean). Default is %default. See below for an "
-                    "poverview of what FLAGS can be set to.");
+                    help="flags to apply to data column (when e.g. computing mean). Default is %default. See below for "
+                    "details on specifying flags.");
   parser.add_option_group(group);
 
   group = OptionGroup(parser,"Selection by current flags");
