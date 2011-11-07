@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -33,12 +33,14 @@ if __name__ == "__main__":
   from optparse import OptionParser,OptionGroup
   from Owlcat.Plotting import MultigridPlot,SkyPlot,PLOT_SINGLE,PLOT_MULTI,PLOT_ERRORBARS
 
-  
+
   parser = OptionParser(usage="""%prog: [plots & options] <parmtable(s) or cache file>""",
       description="""Makes various plots of dE solutions.""");
 
   parser.add_option("-l","--list",action="count",
                     help="lists stuff found in MEP tables, then exits. Use multiple times for more detail.");
+  parser.add_option("--unnormalized",action="store_true",
+                    help="dE amplitude is usually normalized across all antennas, to take out LSM effects. Use this option to disable this.");
   parser.add_option("--ampl",action="store_true",
                     help="makes amplitude plots");
   parser.add_option("--phase",action="store_true",
@@ -210,7 +212,7 @@ if __name__ == "__main__":
   # ========================== read parmtables
   #
   mep_timestamp = os.path.getmtime(args[0]);
-  
+
   PREFIX = 'dE';
   def make_funklet_name (*elements):
     return ':'.join([PREFIX]+list(elements));
@@ -247,6 +249,7 @@ if __name__ == "__main__":
 
     # spectral windows
     SPWS = range(len(args));
+    NCHANS = [0]*len(SPWS);
     # set of all sources, antennas and correlations
     SRCS = set();
     ANTS = set();
@@ -268,37 +271,40 @@ if __name__ == "__main__":
 
     # see how many timeslots we have per each combination of source, antenna, correlation
     funklet_counts = {};
-    
+
     SRCS = sorted(SRCS);
     ANTS = sorted(ANTS);
     CORRS = sorted(CORRS);
     for i,src in enumerate(SRCS):
       for j,ant in enumerate(ANTS):
         for k,corr in enumerate(CORRS):
-          funklet_counts[src,ant,corr] = len(pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice());
-          
+          arr = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice().array();
+          ntime,nfreq = arr.shape if arr.ndim == 2 else (len(arr),1);
+          funklet_counts[src,ant,corr] = ntime,nfreq;
+
     if not funklet_counts:
       print "No dE solutions found in MEP table %s"%args[0];
       sys.exit(1);
 
-    NTIMES = max(*funklet_counts.itervalues());
-    
+    NTIMES = max([fc[0] for fc in funklet_counts.itervalues()]);
+    NFREQS = max([fc[1] for fc in funklet_counts.itervalues()]);
+
     if options.list:
       print "MEP table %s contains dE's for:"%args[0];
       print "%d correlations: %s"%(len(CORRS)," ".join(CORRS));
       print "%d antennas: %s"%(len(ANTS)," ".join(ANTS));
       print "%d sources: %s"%(len(SRCS)," ".join(["%d:%s"%(i,src) for i,src in enumerate(SRCS)]));
-      print "%d timeslots"%NTIMES;
-      
+      print "%d timeslots, %d frequencies"%(NTIMES,NFREQS);
+
       if options.list > 1:
         print "Per-source, per-antenna dE solution counts:"
         for i,src in enumerate(SRCS):
           for j,ant in enumerate(ANTS):
             for k,corr in enumerate(CORRS):
-              rr = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice();
-              ii = pt.funkset(make_funklet_name(src,ant,corr,"i")).get_slice();
-              print "  %s: %d real, %d imaginary"%(make_funklet_name(src,ant,corr),len(rr),len(ii));
-              
+              rr = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice().array();
+              ii = pt.funkset(make_funklet_name(src,ant,corr,"i")).get_slice().array();
+              print "  %s: %s real, %s imaginary"%(make_funklet_name(src,ant,corr),rr.shape,ii.shape);
+
       sys.exit(0);
 
     # source subset selection
@@ -353,7 +359,7 @@ if __name__ == "__main__":
       else:
         return funklet.coeff.ravel()[0];
 
-    def read_complex_parms (pt,prefix="dE"):
+    def read_complex_parms (pt,freq0,prefix="dE"):
       """Reads complex c00 funklets from the given parmtable (given as filename).
       For each key in the 'keys' list, forms up keystring (by joining the elements
       of key weith ":"), then reads <prefix>:<keystring>:r and reads <prefix>:<keystring>:i,
@@ -361,35 +367,48 @@ if __name__ == "__main__":
       This assumes that the parm only changes in time.
       """
       #mask = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=bool);
-      arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES),dtype=complex);
+      arr = numpy.zeros((len(SRCS),len(ANTS),len(CORRS),NTIMES,NFREQS),dtype=complex);
       #arr = numpy.ma.masked_array(mask,arr,fill_value=1.0);
+      freq_filled = False;
       for i,src in enumerate(SRCS):
         for j,ant in enumerate(ANTS):
           for k,corr in enumerate(CORRS):
-            fs_real = pt.funkset(make_funklet_name(src,ant,corr,"r")).get_slice();
-            fs_imag = pt.funkset(make_funklet_name(src,ant,corr,"i")).get_slice();
-            # init array with ones (if we have a shorter number, fill only the beginning)
-            arr[i,j,k,:] = numpy.ones((NTIMES,),dtype=complex);
-            if len(fs_real) or len(fs_imag):
-              if len(fs_real) != len(fs_imag):
-                print "Error: table contains %d real and %d imaginary funklets for %s"%(len(fs_real),len(fs_imag),make_funklet_name(src,ant,corr));
-                sys.exit(1);
-              arr[i,j,k,:len(fs_real)] = numpy.array([complex(c00(fr),c00(fi)) for fr,fi in zip(fs_real,fs_imag)]);
+            fsr = pt.funkset(make_funklet_name(src,ant,corr,"r"));
+            fsi = pt.funkset(make_funklet_name(src,ant,corr,"i"));
+            fs_real = fsr.get_slice().array();
+            fs_imag = fsi.get_slice().array();
+            if not freq_filled:
+              for ifreq,funk in enumerate(fsr.get_slice(time=0)):
+                freq0[ifreq] = sum(funk.domain.freq)/2;
+              freq_filled = True;
+            # init array with ones (if we have a shorter number of solutions, then we fill only the beginning)
+            arr[i,j,k,:,:] = 1;
+            shape = [ min(i1,i2) for i1,i2 in zip(fs_real.shape,fs_imag.shape) ];
+            shape[1] = min(shape[1],NFREQS);
+            if shape[0] and shape[1]:
+              arr[i,j,k,:shape[0],:shape[1]].real = fs_real[:shape[0],:shape[1]];
+              arr[i,j,k,:shape[0],:shape[1]].imag = fs_imag[:shape[0],:shape[1]];
       return arr;
 
     # stuff down the line does not handle masked arrays properly, so we don't use them
     #mask = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=bool);
-    de = numpy.zeros((len(SPWS),len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
+    de = numpy.zeros((len(SPWS)*NFREQS,len(SRCS),len(ANTS)+1,len(CORRS),NTIMES),dtype=complex);
+    freq0 = numpy.zeros(len(SPWS)*NFREQS,float);
     #de = numpy.ma.masked_array(de,mask,fill_value=1.0);
 
     for spw,tabname in enumerate(args):
       print "Reading",tabname;
       pt = ParmTab(tabname);
       mep_timestamp = max(mep_timestamp,os.path.getmtime(tabname));
-      freq0[spw] = sum(pt.envelope_domain().freq)/2;
-      de[spw,:,0:len(ANTS),:,:] = read_complex_parms(pt);
+      fq0 = numpy.zeros(NFREQS,float);
+      de1 = read_complex_parms(pt,fq0);
+      de[spw*NFREQS:(spw+1)*NFREQS,:,0:len(ANTS),:,:] = read_complex_parms(pt,fq0).transpose((4,0,1,2,3));
+      freq0[spw*NFREQS:(spw+1)*NFREQS] = fq0;
 
-    print "Read %d parmtables"%len(args);
+#    print de[0,0,0,0,:];
+    SPWS = range(len(SPWS)*NFREQS);
+    print "Read %d parmtables, %d timeslots, %d frequencies"%(len(args),NTIMES,len(SPWS));
+    print "Frequencies are %s MHz"%",".join(["%d"%round(f*1e-6) for f in freq0]);
 
     # write cache
     if options.cache:
@@ -450,7 +469,7 @@ if __name__ == "__main__":
     else:
       print "Can't find xx/yy or rr/ll correlations in MEP table";
       sys.exit(1);
-    
+
   # set of all source,antenna,corr combinations
   ALL = [ (src,ant,corr) for src in SRCS for ant in ANTS for corr in CORRS ];
 
@@ -530,8 +549,9 @@ if __name__ == "__main__":
   de_unnorm[:,:,MEAN,:] = numpy.mean(de_unnorm[:,:,0:len(ANTS),:],2);
 
   # now normalize each dE by mean dE across all times and antennas (this takes out
-  # corrections for due to imperfect LSMs)
-  de /= numpy.mean(de1,3)[:,:,numpy.newaxis,:,numpy.newaxis];
+  # corrections due to imperfect LSMs)
+  if not options.unnormalized:
+    de /= numpy.mean(de1,3)[:,:,numpy.newaxis,:,numpy.newaxis];
 
   # add "mean" to antenna labels
   ANTS += [ "mean" ];
@@ -551,7 +571,10 @@ if __name__ == "__main__":
   de_fpol = de_pol/(de_norm**2);
   # de_renorm[spw,src,ant,time] is de_norm divided by the mean de_norm[spw,src,:,time],
   # i.e. mean gain across all antennas
-  de_renorm = de_norm/((de_norm[:,:,MEAN,:])[:,:,numpy.newaxis,:]);
+  if options.unnormalized:
+    de_renorm = de_norm;
+  else:
+    de_renorm = de_norm/((de_norm[:,:,MEAN,:])[:,:,numpy.newaxis,:]);
 
   # read in source positions, if plotting mode requires it
   if model:
@@ -590,7 +613,7 @@ if __name__ == "__main__":
 
   skyplot = SkyPlot(options);
   make_skymap = skyplot.make_figure;
-  
+
 
   #
   #============================ VARIOUS PER-CORRELATION PLOTS

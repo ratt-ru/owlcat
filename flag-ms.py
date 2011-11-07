@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -146,6 +146,9 @@ if __name__ == "__main__":
   group.add_option("-L","--channels",type="string",
                     help="channel selection: single number or start:end[:step] to select channels start through end-1, "
                     "or start~end[:step] to select channels start through end, with an optional stepping.");
+  group.add_option("-T","--timeslots",type="string",
+                    help="timeslot selection: single number or start:end to select timeslots start through end-1, "
+                    "or start~end to select timeslots start through end.");
   group.add_option("-X","--corrs",type="string",
                     help="correlation selection. Use comma-separated list of correlation indices.");
   group.add_option("-S","--stations",type="string",
@@ -337,6 +340,18 @@ if __name__ == "__main__":
   # parse subset options
   subset = parse_subset_options(options);
 
+  # convert timeslots to reltime option, if specified
+  if options.timeslots:
+    from Owlcat import Parsing
+    tslice = Parsing.parse_slice(options.timeslots);
+    times = sorted(set(get_ms().getcol('TIME')));
+    time0 = times[0] if tslice.start is None else times[tslice.start];
+    time1 = times[-1] if tslice.stop is None else times[tslice.stop-1];
+    time0 -= times[0];
+    time1 -= times[1];
+    subset['reltime'] = time0,time1;
+    print "  ===> select timeslots %s (reltime %g~%g s)"%(tslice,time0,time1);
+
   # at this stage all remaining options are handled the same way
   flagstr = unflagstr = legacystr = None;
   if options.flag is not None:
@@ -360,7 +375,7 @@ if __name__ == "__main__":
     print "===> Flagging stats:";
   rpc = 100.0/totrows;
   print "===>   MS size:               %8d rows"%totrows;
-  print "===>   Data selection:        %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
+  print "===>   Data/time selection:   %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
   if legacystr:
     print "===>     (over which legacy flags were filled using flagmask %s)"%legacystr;
 
