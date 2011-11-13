@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -75,6 +75,8 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
                          "given by the --ifrs and --select options.");
   parser.add_option("-l","--list",action="store_true",
                     help="list all baselines and exit.");
+  parser.add_option("-r","--reset",action="store_true",
+                    help="reset WEIGHT column to unity. All other options are then ignored.");
   parser.set_defaults(tolerance=.1,select="",ifrs="");
 
   (options,msnames) = parser.parse_args();
@@ -84,88 +86,97 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
 
   msname = msnames[0];
   ms = table(msname,readonly=False);
-
-  taqls = [];
-  # get IFR set
-  import Meow.IfrSet
-  ifrset = Meow.IfrSet.from_ms(ms);
-  if options.ifrs:
-    ifrset = ifrset.subset(options.ifrs);
-    taqls.append(ifrset.taql_string());
-
-  if options.select:
-    taqls.append(options.select);
-
-  if taqls:
-    select = "( " + " ) &&( ".join(taqls) + " )";
-    progress("Applying TaQL selection %s"%select,newline=True);
-    ms = ms.query(select);
-  progress("Looking for redundant baselines",newline=True);
-  ant1 = ms.getcol('ANTENNA1');
-  ant2 = ms.getcol('ANTENNA2');
-
-  IFRS = sorted(set([ (p,q) for p,q in zip(ant1,ant2) ]));
-  print "%d baselines"%len(IFRS);
-  groups = [];
-
-  for i,(p,q) in enumerate(IFRS):
-    bl = ifrset.baseline_vector(p,q);
-    # see if this baseline is within the tolerance of a previous group's baseline
-    for ig,(bl0,members) in enumerate(groups):
-      if abs(bl-bl0).max() < options.tolerance:
-        members.append((p,q));
-        break;
-    # if none, start a new group
-    else:
-      members = [(p,q)];
-      ig = len(groups);
-      groups.append([]);
-    # update baseline (as mean baseline of group)
-    length = reduce(lambda x,y:x+y,[ifrset.baseline_vector(*ifr) for ifr in members])/len(members);
-    groups[ig] = (length,members);
-
-  # convert to list of length,members, and sort by length
-  groups = [ (math.sqrt((baseline**2).sum()),members) for baseline,members in groups ];
-  groups.sort();
-
-  if options.list:
-    baselist = [ "%dm (%s)"%(round(length)," ".join(["%s-%s"%(p,q) for p,q in mem]))
-        for length,mem in groups ];
-    print "Found %d non-redundant baselines:"%len(baselist),", ".join(baselist);
-    sys.exit(0);
-
-  # make a dictionary of per-IFR weights
-  have_redundancy = False;
-  weight = dict([((p,q),1.) for p,q in IFRS]);
-  for baseline,members in groups:
-    if len(members) > 1:
-      print "Baseline %dm, %d ifrs: %s"%(round(baseline),len(members),
-        " ".join(["%d-%d"%(p,q) for p,q in members]));
-      have_redundancy = True;
-      for p,q in members:
-        weight[p,q] = 1.0/len(members);
-
-  if not have_redundancy:
-    print "No redundant baselines found, nothing to do."
-    sys.exit(0);
-
   ncorr = ms.getcol('DATA',0,1).shape[2];
 
-  # apply weights
-  nrows = ms.nrows();
-  for row0 in range(0,nrows,ROWCHUNK):
-    progress("Applying weights, row %d of %d"%(row0,nrows),newline=False);
-    row1 = min(nrows,row0+ROWCHUNK);
-    if not options.weight:
-      w = numpy.zeros((row1-row0,ncorr),float);
-      for i in range(row0,row1):
-        w[i-row0,:] = weight[ant1[i],ant2[i]];
+  if options.reset:
+    # apply weights
+    nrows = ms.nrows();
+    for row0 in range(0,nrows,ROWCHUNK):
+      progress("Resetting weights, row %d of %d"%(row0,nrows),newline=False);
+      row1 = min(nrows,row0+ROWCHUNK);
+      w = numpy.ones((row1-row0,ncorr),float);
       ms.putcol('WEIGHT',w,row0,row1-row0);
-    else:
-      w = ms.getcol('IMAGING_WEIGHT',row0,row1-row0);
-      for i in range(row0,row1):
-        w[i-row0,:] *= weight[ant1[i],ant2[i]];
-      ms.putcol('IMAGING_WEIGHT',w,row0,row1-row0);
+    progress("Weights reset to unity.");
+  else:
+    taqls = [];
+    # get IFR set
+    import Meow.IfrSet
+    ifrset = Meow.IfrSet.from_ms(ms);
+    if options.ifrs:
+      ifrset = ifrset.subset(options.ifrs);
+      taqls.append(ifrset.taql_string());
+
+    if options.select:
+      taqls.append(options.select);
+
+    if taqls:
+      select = "( " + " ) &&( ".join(taqls) + " )";
+      progress("Applying TaQL selection %s"%select,newline=True);
+      ms = ms.query(select);
+    progress("Looking for redundant baselines",newline=True);
+    ant1 = ms.getcol('ANTENNA1');
+    ant2 = ms.getcol('ANTENNA2');
+
+    IFRS = sorted(set([ (p,q) for p,q in zip(ant1,ant2) ]));
+    print "%d baselines"%len(IFRS);
+    groups = [];
+
+    for i,(p,q) in enumerate(IFRS):
+      bl = ifrset.baseline_vector(p,q);
+      # see if this baseline is within the tolerance of a previous group's baseline
+      for ig,(bl0,members) in enumerate(groups):
+        if abs(bl-bl0).max() < options.tolerance:
+          members.append((p,q));
+          break;
+      # if none, start a new group
+      else:
+        members = [(p,q)];
+        ig = len(groups);
+        groups.append([]);
+      # update baseline (as mean baseline of group)
+      length = reduce(lambda x,y:x+y,[ifrset.baseline_vector(*ifr) for ifr in members])/len(members);
+      groups[ig] = (length,members);
+
+    # convert to list of length,members, and sort by length
+    groups = [ (math.sqrt((baseline**2).sum()),members) for baseline,members in groups ];
+    groups.sort();
+
+    if options.list:
+      baselist = [ "%dm (%s)"%(round(length)," ".join(["%s-%s"%(p,q) for p,q in mem]))
+          for length,mem in groups ];
+      print "Found %d non-redundant baselines:"%len(baselist),", ".join(baselist);
+      sys.exit(0);
+
+    # make a dictionary of per-IFR weights
+    have_redundancy = False;
+    weight = dict([((p,q),1.) for p,q in IFRS]);
+    for baseline,members in groups:
+      if len(members) > 1:
+        print "Baseline %dm, %d ifrs: %s"%(round(baseline),len(members),
+          " ".join(["%d-%d"%(p,q) for p,q in members]));
+        have_redundancy = True;
+        for p,q in members:
+          weight[p,q] = 1.0/len(members);
+
+    if not have_redundancy:
+      print "No redundant baselines found, nothing to do."
+      sys.exit(0);
+
+    # apply weights
+    nrows = ms.nrows();
+    for row0 in range(0,nrows,ROWCHUNK):
+      progress("Applying weights, row %d of %d"%(row0,nrows),newline=False);
+      row1 = min(nrows,row0+ROWCHUNK);
+      if not options.weight:
+        w = numpy.zeros((row1-row0,ncorr),float);
+        for i in range(row0,row1):
+          w[i-row0,:] = weight[ant1[i],ant2[i]];
+        ms.putcol('WEIGHT',w,row0,row1-row0);
+      else:
+        w = ms.getcol('IMAGING_WEIGHT',row0,row1-row0);
+        for i in range(row0,row1):
+          w[i-row0,:] *= weight[ant1[i],ant2[i]];
+        ms.putcol('IMAGING_WEIGHT',w,row0,row1-row0);
 
   progress("Closing MS.");
   ms.close();

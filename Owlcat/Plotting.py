@@ -86,12 +86,12 @@ class PlotCollection (object):
       keysets = [ keylist ];
     # create Figure object of given size and resolution
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
+    fig = pyplot.figure(figsize=figsize_in,dpi=100);
     # margin sizes. We want to keep them fixed in absolute terms,
     # regardless of plot size. The relative numbers here are good for a 210x290 plot, so
     # we rescale them accordingly.
     mleft   = 0.05 * 210./figsize[0];
-    mbottom = 0.01 * 290./figsize[1];
+    mbottom = 0.03 * 290./figsize[1];
     mright  = 0.01 * 210./figsize[0];
     mtop    = 0.03 * 290./figsize[1];
     ytitle  = 1 - 0.01 * 290./figsize[1];
@@ -107,7 +107,7 @@ class PlotCollection (object):
       # first and last key
       key0 = keys[0];
       key1 = keys[-1];
-      mindata,maxdata = 0,1;
+      mindata,maxdata = 1e+99,-1e+99;
       # make plots for all ifrs
       firstkey = None;
       for key in keys:
@@ -120,13 +120,17 @@ class PlotCollection (object):
           if firstkey is None:
             firstkey = key;
             y0 = 0;
-            mindata = y0text = self.mean[key] - offset/2;
+            y0text = self.mean[key] - offset/2;
+            mindata = data.min() - offset/2;
+#            mindata = y0text = self.mean[key] - offset/2;
             dd = data;
           # subsequent plots offset accordingly
           else:
             y0 += offset;
             dd = data + y0;
-          maxdata = self.mean[key] + y0 + offset/2;
+#          maxdata = self.mean[key] + y0 + offset/2;
+          mindata = min(mindata,data.min() + y0 - offset/10);
+          maxdata = max(maxdata,self.mean[key] + y0 + offset);
           # plot data
           try:
             if len(dd) == 1:
@@ -163,16 +167,18 @@ class PlotCollection (object):
         for lab in plt.get_yticklabels():
           lab.set_fontsize(5);
       else:
-        plt.set_yticklabels([]);
+        for lab in plt.get_yticklabels():
+          lab.set_fontsize(0);
+        # plt.set_yticklabels([]);
         plt.set_ybound(*ylim);
-      # other plot frills
-      plt.set_xticklabels([]);
+      for lab in plt.get_xticklabels():
+        lab.set_fontsize(5);
     fig.subplots_adjust(left=mleft,right=1-mright,top=1-mtop,bottom=mbottom,wspace=0.01);
     # plot title if asked to
     if suptitle:
       fig.suptitle(suptitle,y=ytitle,size=8);
     if save:
-      fig.savefig(save,papertype=papertype,
+      fig.savefig(save,papertype=papertype,dpi=dpi,
                   orientation='portrait' if not landscape else 'landscape');
       print "===> Wrote",save;
     return fig;
@@ -190,7 +196,7 @@ class ComplexCirclePlot (PlotCollection):
                    figsize=(210,290),dpi=100,papertype='a4',landscape=False):
     import matplotlib.pyplot as pyplot
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
+    fig = pyplot.figure(figsize=figsize_in,dpi=100);
     if keylist:
       datalist = [ (key,self.data.get(key)) for key in keylist ];
     else:
@@ -248,7 +254,7 @@ class ComplexCirclePlot (PlotCollection):
     if suptitle:
       fig.suptitle(suptitle,y=ytitle,size=10);
     if save:
-      fig.savefig(save,papertype=papertype,
+      fig.savefig(save,papertype=papertype,dpi=dpi,
                   orientation='portrait' if not landscape else 'landscape');
       print "===> Wrote",save;
     return fig;
@@ -283,7 +289,7 @@ class ScatterPlot (object):
     import matplotlib.pyplot as pyplot
     # create Figure object of given size and resolution
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
-    fig = pyplot.figure(figsize=figsize_in,dpi=dpi);
+    fig = pyplot.figure(figsize=figsize_in,dpi=100);
     # margin sizes. We want to keep them fixed in absolute terms,
     # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
     # we rescale them accordingly.
@@ -333,7 +339,7 @@ class ScatterPlot (object):
     if suptitle:
       fig.suptitle(suptitle,y=ytitle,size=10);
     if save:
-      fig.savefig(save,papertype=papertype,
+      fig.savefig(save,papertype=papertype,dpi=dpi,
                   orientation='portrait' if not landscape else 'landscape');
       print "===> Wrote",save;
     return fig;
@@ -422,7 +428,7 @@ class MultigridPlot (AbstractBasePlot):
                     help="Set spacing between subplots, as fraction of subplot width. Default is automatic.");
     self.add_plot_option("-S","--subtitle",type="str",default="",
                       help="Subtitle for plot, added (in parentheses) after plot title");
-                    
+
     self.add_output_option("-o","--output-type",metavar="TYPE",type="string",default="png",
                       help="File format, see matplotlib documentation "
                       "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
@@ -437,7 +443,7 @@ class MultigridPlot (AbstractBasePlot):
                       help="set explicit plot width, in mm. (Useful for .eps output)");
     self.add_output_option("-H","--height",type="int",default=0,
                       help="set explicit plot height, in mm. (Useful for .eps output)");
-    self.add_output_option("--dpi",type="int",default=100,
+    self.add_output_option("--dpi",type="int",default=300,
                       help="figure resolution. Default is %default.");
     self.add_output_option("--scale",type="float",default=1,
                       help="scale plot sizes up by the given factor.");
@@ -682,6 +688,8 @@ class SkyPlot (AbstractBasePlot):
                       help="set explicit plot width, in mm. (Useful for .eps output)");
     self.add_output_option("-H","--height",type="int",
                       help="set explicit plot height, in mm. (Useful for .eps output)");
+    self.add_output_option("--dpi",type="int",default=300,
+                      help="figure resolution. Default is %default.");
     self.add_output_option("--portrait",action="store_true",
                     help="Force portrait orientation. Default is to select orientation based on plot size");
     self.add_output_option("--landscape",action="store_true",
@@ -777,7 +785,7 @@ class SkyPlot (AbstractBasePlot):
         orientation = 'landscape';
       else:
         orientation='portrait' if figsize[0]<figsize[1] else 'landscape';
-      fig.savefig(save,papertype=self.options.papertype,
+      fig.savefig(save,papertype=self.options.papertype,dpi=self.options.dpi,
                   orientation=orientation);
       print "Wrote",save,"in",orientation,"orientation";
       fig = None;

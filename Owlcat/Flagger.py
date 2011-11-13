@@ -839,15 +839,17 @@ class Flagger (Timba.dmi.verbosity):
             vismask &= ~numpy.isfinite(datacol);
             self.dprintf(3,"NAN filtering leaves %d visibilities\n",vismask.sum());
           # clip on amplitudes
+          abscol = abs(datacol);
           if data_above is not None:
-            vismask &= abs(datacol)>data_above;
+            vismask &= abscol>data_above;
             self.dprintf(3,"data_above filtering leaves %d visibilities\n",vismask.sum());
           if data_below is not None:
-            vismask &= abs(datacol)<data_below;
+            vismask &= abscol<data_below;
             self.dprintf(3,"data_below filtering leaves %d visibilities\n",vismask.sum());
           # clip on freq-mean amplitudes
           if data_fm_above is not None or data_fm_below is not None:
-            datacol = datacol.mean(1);
+            datacol = abscol.mean(1);
+#            print datacol.max(),data_fm_above;
             if data_fm_above is not None:
               vismask &= (datacol>data_fm_above)[:,numpy.newaxis,...];
             if data_fm_below is not None:

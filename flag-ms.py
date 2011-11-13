@@ -101,6 +101,8 @@ def parse_subset_options (options):
     try:
       ifrset = ifrset.subset(options.ifrs);
       print "  ===> ifrs:"," ".join([ifrset.ifr_label(ip,iq) for (ip,p),(iq,q) in ifrset.ifr_index()]);
+      if not ifrset.ifrs():
+        return None;
     except:
       parser.error("Invalid -I/--ifrs option");
     taqls.append(ifrset.taql_string());
@@ -339,6 +341,9 @@ if __name__ == "__main__":
 
   # parse subset options
   subset = parse_subset_options(options);
+  if not subset:
+    print "===> ended up with empty subset, exiting";
+    sys.exit(0);
 
   # convert timeslots to reltime option, if specified
   if options.timeslots:

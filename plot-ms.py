@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -148,10 +148,12 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                    "to average both.");
   group.add_option("--ppp",dest="ppp",metavar="N",type="int",
                     help="maximum number of plots to stack per page. Default is 120.");
-  group.add_option("--offset",dest="offset",metavar="X",type="float",
+  group.add_option("--offset-std",dest="offset_std",metavar="X",type="float",
                     help="vertical offset between stacked plots, in units of the median stddev. "
                     "Default is 10. NB: for flag-density plots, unit is 0.11*maxdensity, so the "
                     "standard offset of 10 produces plots spaced at 110% of the max value.");
+  parser.add_option("--offset",type="float",
+                    help="vertical offset between stacked plots, in absolute units. This overrides --offset-std.");
   parser.add_option_group(group);
 
   group = OptionGroup(parser,"Plot labels");
@@ -177,8 +179,8 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                     help="plot output to FILE. If not specified, plot will be "
                     "shown in a window. File format is determined by extension, see matplotlib documentation "
                     "for supported formats. At least .png, .pdf, .ps, .eps and .svg are supported.");
-  group.add_option("-r","--resolution",dest="resolution",type="int",metavar="DPI",
-                    help="plot resolution for output to FILE (default is 100)");
+  group.add_option("--dpi",dest="resolution",type="int",metavar="DPI",
+                    help="plot resolution for output to FILE (default is %default)");
   group.add_option("--size",metavar="WxH",dest="figsize",type="string",
                     help="set figure size, in cm. Default is '%default'.");
   group.add_option("--papertype",dest="papertype",type="string",
@@ -188,7 +190,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
 
 
   parser.set_defaults(output="",xaxis=0,ddid='first',field=None,
-    resolution=100,ppp=120,papertype='a4',figsize="21x29",offset=10,
+    resolution=300,ppp=120,papertype='a4',figsize="21x29",offset_std=10,offset=None,
     flag_mask=None,
     label_plot=True,
     label_ddid=True,
@@ -547,9 +549,12 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         active_ifrs.add((p,q));
         # get a plot collection object, or make a new one
         plotcoll = get_plot_collection(track,plot_type);
+        if options.offset:
+          plotcoll.offset = options.offset;
         # for flag-density plots, set the plot offset
         if plot_type is PT_FLAGTRACK:
-          plotcoll.offset = max(plotcoll.offset,d1.max()*0.11*options.offset);
+          if not options.offset:
+            plotcoll.offset = max(plotcoll.offset,d1.max()*0.11*options.offset_std);
         # add or update track
         count = plotcoll.get_track_count(track);
         # count !=0 indicates track is being updated (because we're averaging DDIDs or IFRs)
@@ -666,7 +671,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
           savefile = "%s.%d%s"%(basename,ipage,ext);
         ipage += 1;
       dual = (len(keys) > options.ppp/2);
-      plotcoll.make_figure(keys,save=savefile,suptitle=title0,figsize=figsize,offset_std=options.offset,
+      plotcoll.make_figure(keys,save=savefile,suptitle=title0,figsize=figsize,offset_std=options.offset_std,
           papertype=papertype,dpi=options.resolution,dual=dual,landscape=landscape);
 
   if not options.output:

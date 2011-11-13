@@ -178,7 +178,7 @@ if __name__ == "__main__":
     "E.g. 'G:*:xx/phase G:*:xx/ampl' plots all G XX phases in one plot, and amplitudes "
     "in a second plot (assuming your MEP table actually contains G XX solutions.) By contrast, "
     "'G:*:xx/phase +G:*:xx/ampl' will put phases and amplitudes into one plot, with amplitudes "
-    "using the right Y-axis. "
+    "using the right Y-axis (NB: the \"+\" feature currently doen't work). "
     "A second form produces scatterplots: 'name/whatX-whatY'. For example, G:*:xx/real-imag "
     "will produce a complex scatterplot. "
     "Names may contain shell-style wildcards and {a,b,c} constructs; for more flexibility, "
@@ -207,6 +207,8 @@ if __name__ == "__main__":
                     help="apply averaging to parameters BEFORE conversion to plottable values.");
   parser.add_option("--average-after",dest="average_after",action="store_true",
                     help="apply averaging to plottable values, AFTER conversion from parameters (default).");
+  parser.add_option("--offset",type="float",
+                    help="use a fixed offset between plot tracks. Default is automatically chosen.");
 
   group = OptionGroup(parser,"Plot label options");
   group.add_option("--label-mean",dest="label_mean",action="store_true",
@@ -222,8 +224,8 @@ if __name__ == "__main__":
   group = OptionGroup(parser,"Output options");
   group.add_option("-o","--output",dest="output",type="string",
                     help="name of output file (e.g. 'foo.ps' or 'bar.png'). If not specified, plot will be displayed in a window.");
-  group.add_option("-r","--resolution",dest="resolution",type="int",metavar="DPI",
-                    help="plot resolution for .ps/.png output (default is 100)");
+  group.add_option("--dpi",dest="resolution",type="int",metavar="DPI",
+                    help="plot resolution for .ps/.png output (default is %default)");
   group.add_option("--plots-per-page",dest="ppp",metavar="N",type="int",
                     help="max plots per page. Default is 120.");
   group.add_option("--title",dest="title",type="string",
@@ -232,8 +234,8 @@ if __name__ == "__main__":
                     help="set verbosity level for debugging messages");
   parser.add_option_group(group);
 
-  parser.set_defaults(output="",xaxis="time",resolution=100,ppp=120,
-    label_mean=True,label_stddev=True
+  parser.set_defaults(output="",xaxis="time",resolution=300,ppp=120,
+    label_mean=True,label_stddev=True,offset=None,
   );
 
   (options,args) = parser.parse_args();
@@ -421,6 +423,8 @@ if __name__ == "__main__":
       label_format = " ".join(labels);
       # make collection object
       coll = PlotCollection(options);
+      if options.offset:
+        coll.offset = options.offset;
       coll.desc = desc;
       progress("Starting plot %d of %d, %d data tracks"%(iplot+1,len(Plots),len(entlist)));
       # loop over all plottables and compute data for each

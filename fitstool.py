@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -22,7 +22,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -50,6 +50,8 @@ if __name__ == "__main__":
                     help="overwrite output file even if it exists");
   parser.add_option("-S","--sanitize",type="float",metavar="VALUE",
                     help="sanitize FITS files by replacing NANs and INFs with VALUE");
+  parser.add_option("-N","--nonneg",action="store_true",
+                    help="replace negative values by 0");
   parser.add_option("-m","--mean",dest="mean",action="store_true",
                     help="take mean of input images");
   parser.add_option("-d","--diff",dest="diff",action="store_true",
@@ -88,9 +90,18 @@ if __name__ == "__main__":
       d[numpy.isnan(d)+numpy.isinf(d)] = options.sanitize;
     updated = True;
 
+  if options.nonneg:
+    print "Replacing negative value by 0";
+    for img,name in zip(images,imagenames)[:1]:
+      d = img[0].data;
+      wh = d<0;
+      d[wh] = 0;
+      print "Image %s: replaced %d points"%(name,wh.sum());
+    updated = True;
+
   if options.diff and options.mean:
     parser.error("Cannot do both --mean and --diff at once.");
-  
+
   if options.diff:
     if len(images) != 2:
       parser.error("The --diff option requires exactly two input images.");
@@ -126,7 +137,7 @@ if __name__ == "__main__":
     print "Making zoomed image of shape","x".join(map(str,zdata.shape));
     images = [ pyfits.PrimaryHDU(zdata) ];
     updated = True;
-  
+
   if options.scale != 1:
     if autoname and not updated:
       outname = "rescale_" + outname;
