@@ -71,6 +71,15 @@ img_niter=1000
 img_gain=.1
 img_threshold=0Jy
 
+# do we have a config file on the command line?
+for arg in $*; do
+  if [ "${arg%.conf}" != "$arg" -a -f $arg ]; then
+    CONFFILE=$arg
+    echo "Using imager config file $CONFFILE"
+    break
+  fi
+done
+
 # load conf file
 if [ -f $CONFFILE ]; then
   source $CONFFILE
