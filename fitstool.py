@@ -33,6 +33,8 @@ import numpy
 ## ugly hack to get around UGLY FSCKING ARROGNAT (misspelling fully intentional) pyfits-2.3 bug
 import Kittens.utils
 pyfits = Kittens.utils.import_pyfits();
+import scipy.ndimage.measurements
+import math
 
 SANITIZE_DEFAULT = 12345e-7689
 
@@ -56,27 +58,39 @@ if __name__ == "__main__":
                     help="take mean of input images");
   parser.add_option("-d","--diff",dest="diff",action="store_true",
                     help="take difference of 2 input images");
-  parser.add_option("-z","--zoom",dest="zoom",type="int",metavar="NPIX",
+  parser.add_option("-t","--transfer",action="store_true",
+                    help="transfer data from image 2 into image 1, preserving the FITS header of image 1");
+  parser.add_option("-z","--zoom",dest="zoom",type="int",metavar="NPIX",                    
                     help="zoom into central region of NPIX x NPIX size");
-  parser.add_option("-s","--scale",dest="scale",type="float",
+  parser.add_option("-R","--rescale",dest="rescale",type="float",
                     help="rescale image values");
+  parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
+  parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
 
-  parser.set_defaults(output="",mean=False,zoom=0,scale=1);
+  parser.set_defaults(output="",mean=False,zoom=0,rescale=1);
 
   (options,imagenames) = parser.parse_args();
 
   if not imagenames:
     parser.error("No images specified. Use '-h' for help.");
 
-  print "%d input image(s): %s"%(len(imagenames),", ".join(imagenames));
+  # print "%d input image(s): %s"%(len(imagenames),", ".join(imagenames));
   images = [ pyfits.open(img) for img in imagenames ];
   updated = False;
-
+  
+  if options.header:
+    for filename,img in zip(imagenames,images):
+      if len(imagenames)>1:
+        print "======== FITS header for",filename;
+      for hdrline in img[0].header.ascard:
+        print hdrline; 
+  
   if options.replace:
     if options.output:
       parser.error("Cannot combine -r/--replace with -o/--output");
     outname = imagenames[0];
     options.force = True;
+    autoname = False;
   else:
     outname = options.output;
     autoname = not outname;
@@ -88,7 +102,9 @@ if __name__ == "__main__":
     for img in images:
       d = img[0].data;
       d[numpy.isnan(d)+numpy.isinf(d)] = options.sanitize;
-    updated = True;
+    # if using stats, do not generate output
+    if not options.stats:
+      updated = True;
 
   if options.nonneg:
     print "Replacing negative value by 0";
@@ -99,10 +115,15 @@ if __name__ == "__main__":
       print "Image %s: replaced %d points"%(name,wh.sum());
     updated = True;
 
-  if options.diff and options.mean:
-    parser.error("Cannot do both --mean and --diff at once.");
-
-  if options.diff:
+  if options.transfer:
+    if len(images) != 2:
+      parser.error("The --transfer option requires exactly two input images.");
+    if autoname:
+      outname = "xfer_" + outname;
+    print "Transferring %s into coordinate system of %s"%(imagenames[1],imagenames[0]);
+    images[0][0].data[...] = images[1][0].data;
+    updated = True;
+  elif options.diff:
     if len(images) != 2:
       parser.error("The --diff option requires exactly two input images.");
     if autoname:
@@ -111,8 +132,7 @@ if __name__ == "__main__":
     data = images[0][0].data;
     data -= images[1][0].data;
     updated = True;
-
-  if options.mean:
+  elif options.mean:
     if autoname:
       outname = "mean%d_"%len(images) + outname;
     print "Computing mean";
@@ -138,7 +158,7 @@ if __name__ == "__main__":
     images = [ pyfits.PrimaryHDU(zdata) ];
     updated = True;
 
-  if options.scale != 1:
+  if options.rescale != 1:
     if autoname and not updated:
       outname = "rescale_" + outname;
     if len(images) > 1:
@@ -149,10 +169,23 @@ if __name__ == "__main__":
     updated = True;
 
   if updated:
+    imagenames[0] = outname;
+
+  if options.stats:
+    for ff,filename in zip(images,imagenames):
+      data = ff[0].data;
+      min,max,dum1,dum2 = scipy.ndimage.measurements.extrema(data);
+      sum = data.sum();
+      mean = sum/data.size;
+      std = math.sqrt(((data-mean)**2).mean());
+      print "%s: min %g, max %g, sum %g, np %d, mean %g, std %g"%(filename,min,max,sum,data.size,mean,std); 
+    sys.exit(0);
+      
+  if updated:
     print "Writing output image",outname;
     if os.path.exists(outname) and not options.force:
       print "Output image exists, rerun with the -f switch to overwrite.";
       sys.exit(1);
     images[0].writeto(outname,clobber=True);
-  else:
+  elif not options.header:
     print "No operations specified. Use --help for help."
