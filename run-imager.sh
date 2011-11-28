@@ -70,6 +70,7 @@ img_oper=image
 img_niter=1000
 img_gain=.1
 img_threshold=0Jy
+img_fixed=0
 
 # do we have a config file on the command line?
 for arg in $*; do
@@ -216,7 +217,7 @@ make_image ()
     residual_fits="$img_name_residual.fits";
     rm -fr $restored_fits $model_fits $residual_fits $restored $model $residual &>/dev/null
     cmd="$cmd model=$model restored=$restored residual=$residual
-      niter=$img_niter gain=$img_gain threshold=$img_threshold
+      niter=$img_niter gain=$img_gain threshold=$img_threshold fixed=$img_fixed
     "
     echo "Making clean image: " $cmd
   fi
