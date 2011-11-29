@@ -64,10 +64,12 @@ if __name__ == "__main__":
                     help="zoom into central region of NPIX x NPIX size");
   parser.add_option("-R","--rescale",dest="rescale",type="float",
                     help="rescale image values");
+  parser.add_option("-E","--edit-header",metavar="KEY=VALUE",type="string",action="append",
+                    help="replace header KEY with VALUE. Use KEY=VALUE for floats and KEY='VALUE' for strings.");
   parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
   parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
 
-  parser.set_defaults(output="",mean=False,zoom=0,rescale=1);
+  parser.set_defaults(output="",mean=False,zoom=0,rescale=1,edit_header=[]);
 
   (options,imagenames) = parser.parse_args();
 
@@ -96,6 +98,15 @@ if __name__ == "__main__":
     autoname = not outname;
     if autoname:
       outname = re.split('[_]',imagenames[0],1)[-1];
+
+  for keyval in options.edit_header:
+    key,val = keyval.split("=");
+    if val[0] == "'" and val[-1] == "'":
+      images[0][0].header[key] = val[1:-1:];
+    else:
+      images[0][0].header[key] = float(val);
+    print "Setting header %s=%s"%(key,val);
+    updated = True;
 
   if options.sanitize is not None:
     print "Sanitizing: replacing INF/NAN with",options.sanitize;
