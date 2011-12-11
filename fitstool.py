@@ -175,8 +175,8 @@ if __name__ == "__main__":
     if len(images) > 1:
       "Too many input images specified for this operation, at most 1 expected";
       sys.exit(2);
-    print "Applying scaling factor of %f to image values"%options.scale;
-    images[0][0].data *= options.scale;
+    print "Applying scaling factor of %f to image values"%options.rescale;
+    images[0][0].data *= options.rescale;
     updated = True;
 
   if updated:
