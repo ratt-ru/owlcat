@@ -56,7 +56,6 @@ img_select=""
 img_channels=""
 img_img_channels=""
 
-img_prefervelocity=False
 img_remove_img=1
 
 img_name_dirty=dirty
@@ -181,7 +180,6 @@ make_image ()
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
       npix=$img_npix cellsize=${CELLSIZE}arcsec
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
-      prefervelocity=$img_prefervelocity
   "
 
   # add optional arguments
