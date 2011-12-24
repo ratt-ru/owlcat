@@ -198,6 +198,118 @@ class PlotCollection (object):
       print "===> Wrote",save;
     return fig;
 
+class PlotCollectionSep (PlotCollection):
+  """PlotCollectionSep is a PlotCollection that separates data tracks into individual plots,
+  and optionally groups them by key""";
+  def __init__ (self,options):
+    PlotCollection.__init__(self,options);
+    self.groups = {};
+
+  def num_tracks (self):
+    return len(self.data);
+
+  def add_track (self,key,data,mean=None,stddev=None,label=None,count=1,group=None):
+    self.groups.setdefault(group,set()).add(key);
+    PlotCollection.add_track(self,key,data,mean=mean,stddev=stddev,label=label,count=count);
+
+  # function to make single-page plot
+  def make_figure (self,grouplist=None,suptitle=None,save=None,
+                   dual=True,xgrid=False,ygrid=False,
+                   figsize=(210,290),dpi=100,papertype='a4',landscape=False):
+    import matplotlib.pyplot as pyplot
+    # setup sizes
+    grouplist = grouplist or sorted(self.groups.keys());
+    # partition keys into two sets, if asked to
+    if dual:
+      # split ifrs into two sets (if number is odd, make sure first subset has the extra 1)
+      n = len(grouplist);
+      nrow = len(grouplist)/2;
+      if n%2:
+        nrow += 1;
+    else:
+      nrow = len(grouplist);
+    # create Figure object of given size and resolution
+    figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
+    fig = pyplot.figure(figsize=figsize_in,dpi=100);
+    # margin sizes. We want to keep them fixed in absolute terms,
+    # regardless of plot size. The relative numbers here are good for a 210x290 plot, so
+    # we rescale them accordingly.
+    mleft   = 0.05 * 210./figsize[0];
+    mbottom = 0.03 * 290./figsize[1];
+    mright  = 0.01 * 210./figsize[0];
+    mtop    = 0.03 * 290./figsize[1];
+    ytitle  = 1 - 0.01 * 290./figsize[1];
+    width   = ( 1 - mleft - mright );
+    height  = ( 1 - mtop - mbottom );
+    colors = ( "blue","green","red","cyan","purple","magenta","black","orange","grey" );
+    # now plot all tracks
+    for iplot,groupname in enumerate(grouplist):
+      plt = fig.add_subplot(nrow,2 if dual else 1,iplot+1);
+      keys = list(self.groups[groupname]);
+      nx = max([len(self.data.get(key,[])) for key in keys]);
+      # first and last key
+      key0 = keys[0];
+      key1 = keys[-1];
+      mindata,maxdata = 1e+99,-1e+99;
+      # make plots for all ifrs
+      for ikey,key in enumerate(keys):
+        dd = self.data.get(key);
+        if dd is None or dd.mask.all():
+          continue;
+        else:
+          try:
+            if len(dd) == 1:
+              dd = numpy.array([dd[0],dd[0]]);
+            plt.plot(dd,',',color=colors[ikey%len(colors)]);
+          except:
+            traceback.print_exc();
+            print "Error plotting data for",key;
+            continue;
+      y0,y1 = plt.get_ylim();
+      x0 = 0;
+      # add text labels
+      for ikey,key in enumerate(keys):
+        txt = plt.text(x0,y0,self.label[key]+" ",color=colors[ikey%len(colors)],
+                       size=5,horizontalalignment='left',verticalalignment='bottom');
+#                       bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
+        x0 += nx/50;
+      plt.set_ylabel(groupname,size=8);
+      # set x grid
+      plt.minorticks_on();
+      for lab in plt.get_xticklabels():
+        lab.set_fontsize(5);
+      for lab in plt.get_ymajorticklabels():
+        lab.set_fontsize(5);
+      for lab in plt.get_yminorticklabels():
+        lab.set_fontsize(0);
+      if xgrid and xgrid != [0]:
+        if isinstance(xgrid,(list,tuple)):
+          if len(xgrid)>0:
+            plt.set_xticks(range(0,nx,xgrid[0]));
+          if len(xgrid)>1:
+            plt.set_xticks(range(0,nx,xgrid[1]),True);
+        for x in plt.get_xticks():
+          plt.axvline(x,color='0.7',ls='-',lw=1,zorder=-10);
+        for x in plt.get_xticks(True):
+          plt.axvline(x,color='0.9',ls='-',lw=1,zorder=-10);
+        plt.set_xlim(0,nx);
+      if ygrid:
+        for y in plt.get_yticks():
+          plt.axhline(y,color='0.7',ls='-',lw=1,zorder=-10);
+        for y in plt.get_yticks(True):
+          plt.axhline(y,color='0.9',ls='-',lw=1,zorder=-10);
+        plt.set_ylim(y0,y1);
+        
+    fig.subplots_adjust(left=mleft,right=1-mright,top=1-mtop,bottom=mbottom,wspace=0.15);
+    # plot title if asked to
+    if suptitle:
+      fig.suptitle(suptitle,y=ytitle,size=8);
+    if save:
+      fig.savefig(save,papertype=papertype,dpi=dpi,
+                  orientation='portrait' if not landscape else 'landscape');
+      print "===> Wrote",save;
+    return fig;
+
 
 class ComplexCirclePlot (PlotCollection):
   """ComplexCirclePlot plots a complex circle plot""";
@@ -397,7 +509,7 @@ class AbstractBasePlot (object):
       self._outputgroup.add_option(opt,*args,**kw);
 
 class MultigridPlot (AbstractBasePlot):
-  """MultigridPlot makes NxM plotson a single page""";
+  """MultigridPlot makes NxM plots on a single page""";
 
   def __init__ (self,options,figsize=(290,210)):
     AbstractBasePlot.__init__(self,options,figsize);

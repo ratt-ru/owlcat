@@ -150,8 +150,10 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                    type="choice",choices=choices,
                    help="average DDIDs and/or interferometers together. Use twice "
                    "to average both.");
+  group.add_option("-G","--group-redundant",action="store_true",
+                   help="group each group of redundant baselines into a single plot.");
   group.add_option("--ppp",dest="ppp",metavar="N",type="int",
-                    help="maximum number of plots to stack per page. Default is 120.");
+                    help="maximum number of plots to stack per page.");
   group.add_option("--offset-std",dest="offset_std",metavar="X",type="float",
                     help="vertical offset between stacked plots, in units of the median stddev. "
                     "Default is 10. NB: for flag-density plots, unit is 0.11*maxdensity, so the "
@@ -194,7 +196,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
 
 
   parser.set_defaults(output="",xaxis=0,ddid='first',field=None,
-    resolution=300,ppp=120,papertype='a4',figsize="21x29",offset_std=10,offset=None,
+    resolution=300,ppp=0,papertype='a4',figsize="21x29",offset_std=10,offset=None,
     x_grid=[],
     flag_mask=None,
     label_plot=True,
@@ -206,6 +208,9 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
     page=[],stack=[],average=[]);
 
   (options,args) = parser.parse_args();
+  
+  if not options.ppp:
+    options.ppp = 120 if not options.group_redundant else 20;
 
   # print help on plotters
   if options.list_plots:
@@ -452,6 +457,8 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
     # make new PlotCollection
     if plottype is PT_CC:
       pc = plotcolls[track] = Owlcat.Plotting.ComplexCirclePlot(options);
+    elif options.group_redundant:
+      pc = plotcolls[track] = Owlcat.Plotting.PlotCollectionSep(options);
     else:
       pc = plotcolls[track] = Owlcat.Plotting.PlotCollection(options);
 #    print "New pc for",track;
@@ -531,6 +538,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
             dc = datacols[colname,datareduce] = getattr(dc,datareduce)(meanaxis);
 
       # split up into per-baseline arrays, and accumulate data tracks
+      baselines = set();
       for (p,plab),(q,qlab) in ifrset.ifr_index():
         idx = ifr_rows[p,q][timeslice];
         if not len(idx):
@@ -538,8 +546,9 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         # this is the plot track ID. Things that we average over are replaced by None
         track = (iplot,None if average_ddids else ddid,None if average_ifrs else (p,q));
         # update label attributes
-        labelattrs['baseline'] = round(ifrset.baseline(p,q));
-        labelattrs['ifr'] = ifrset.ifr_label(p,q);
+        labelattrs['baseline'] = baseline = round(ifrset.baseline(p,q));
+        baselines.add(baseline);
+        labelattrs['ifr'] = ifrlabel = ifrset.ifr_label(p,q);
         #
         if plot_type is PT_FLAGTRACK:
           d1 = numpy.ma.masked_array(plotfunc(flagcol[idx,...],meanaxis));
@@ -581,7 +590,10 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
           label = labelattrs['ifr'] if options.label_ifr else "";
         else:
           label = label_format%labelattrs;
-        plotcoll.add_track(track,d1,count=count+1,mean=mean,stddev=std,label=label);
+        if options.group_redundant:
+          plotcoll.add_track(track,d1,count=count+1,mean=mean,stddev=std,label=ifrlabel,group="%dm"%baseline);
+        else:
+          plotcoll.add_track(track,d1,count=count+1,mean=mean,stddev=std,label=label);
 
   # deallocate datacubes
   datacols = flagcol = dc = None;
@@ -664,21 +676,40 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
       if PLOT in options.page:
         title0 += " "+plots[nplot][1];
     # split keylist if needed
-    ppp = options.ppp if type(plotcoll) is Owlcat.Plotting.PlotCollection else len(keylist);
-    for nkey0 in range(0,len(keylist),ppp):
-      nkey1 = min(nkey0+options.ppp,len(keylist));
-      keys = keylist[nkey0:nkey1];
-      # make filename, if saving file
-      savefile = options.output;
-      if ipage is not None:
-        if savefile:
-          basename,ext = os.path.splitext(savefile);
-          savefile = "%s.%d%s"%(basename,ipage,ext);
-        ipage += 1;
-      dual = (len(keys) > options.ppp/2);
-      plotcoll.make_figure(keys,save=savefile,suptitle=title0,figsize=figsize,offset_std=options.offset_std,
-          xgrid=options.x_grid or True,ygrid=not options.no_y_grid,
-          papertype=papertype,dpi=options.resolution,dual=dual,landscape=landscape);
+    if options.group_redundant:
+      print "===> Grouping by %d unique baselines"%len(baselines);
+      ppp = options.ppp;
+      baselines = sorted(baselines);
+      for nkey0 in range(0,len(baselines),ppp):
+        nkey1 = min(nkey0+options.ppp,len(baselines));
+        grouplist = [ "%dm"%bl for bl in baselines[nkey0:nkey1] ]
+        # make filename, if saving file
+        savefile = options.output;
+        if ipage is not None:
+          if savefile:
+            basename,ext = os.path.splitext(savefile);
+            savefile = "%s.%d%s"%(basename,ipage,ext);
+          ipage += 1;
+        dual = (len(grouplist) > options.ppp/2);
+        plotcoll.make_figure(grouplist,save=savefile,suptitle=title0,figsize=figsize,
+            xgrid=options.x_grid or True,ygrid=not options.no_y_grid,
+            papertype=papertype,dpi=options.resolution,dual=dual,landscape=landscape);
+    else:
+      ppp = options.ppp if type(plotcoll) is Owlcat.Plotting.PlotCollection else len(keylist);
+      for nkey0 in range(0,len(keylist),ppp):
+        nkey1 = min(nkey0+options.ppp,len(keylist));
+        keys = keylist[nkey0:nkey1];
+        # make filename, if saving file
+        savefile = options.output;
+        if ipage is not None:
+          if savefile:
+            basename,ext = os.path.splitext(savefile);
+            savefile = "%s.%d%s"%(basename,ipage,ext);
+          ipage += 1;
+        dual = (len(keys) > options.ppp/2);
+        plotcoll.make_figure(keys,save=savefile,suptitle=title0,figsize=figsize,offset_std=options.offset_std,
+            xgrid=options.x_grid or True,ygrid=not options.no_y_grid,
+            papertype=papertype,dpi=options.resolution,dual=dual,landscape=landscape);
 
   if not options.output:
     from pylab import plt
