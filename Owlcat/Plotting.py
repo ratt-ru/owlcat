@@ -60,7 +60,7 @@ class PlotCollection (object):
 
   # function to make single-page plot
   def make_figure (self,keylist=None,suptitle=None,save=None,
-                   dual=True,offset_std=10,
+                   dual=True,offset_std=10,xgrid=False,ygrid=False,
                    figsize=(210,290),dpi=100,papertype='a4',landscape=False):
     import matplotlib.pyplot as pyplot
     # setup sizes
@@ -136,6 +136,8 @@ class PlotCollection (object):
             if len(dd) == 1:
               dd = numpy.array([dd[0],dd[0]]);
             plt.plot(dd);
+            if ygrid:
+              plt.axhline(y0,color='0.8',zorder=-10);
             #print dd;
           except:
             traceback.print_exc();
@@ -148,7 +150,7 @@ class PlotCollection (object):
               ytext = dd.mean();
             # do not put too close to previous label
             y0text = max(y0text+offset/4,ytext);
-            # annotate() seems to have a bug in matplotlib 0.98, so use text() insrtead
+            # annotate() seems to have a bug in matplotlib 0.98, so use text() instead
             if _version_major > 0 or _version_minor > 98:
               plt.annotate(self.label[key],xy=(nx/100,ytext),xytext=(nx/100,y0text),
                     size=5,horizontalalignment='left',verticalalignment='center',
@@ -173,6 +175,19 @@ class PlotCollection (object):
         plt.set_ybound(*ylim);
       for lab in plt.get_xticklabels():
         lab.set_fontsize(5);
+      # set x grid
+      plt.minorticks_on();
+      if xgrid and xgrid != [0]:
+        if isinstance(xgrid,(list,tuple)):
+          if len(xgrid)>0:
+            plt.set_xticks(range(0,nx,xgrid[0]));
+          if len(xgrid)>1:
+            plt.set_xticks(range(0,nx,xgrid[1]),True);
+        for x in plt.get_xticks():
+          plt.axvline(x,color='0.7',ls='-',lw=1,zorder=-10);
+        for x in plt.get_xticks(True):
+          plt.axvline(x,color='0.9',ls='-',lw=1,zorder=-10);
+        plt.set_xlim(0,nx);
     fig.subplots_adjust(left=mleft,right=1-mright,top=1-mtop,bottom=mbottom,wspace=0.01);
     # plot title if asked to
     if suptitle:
@@ -190,8 +205,7 @@ class ComplexCirclePlot (PlotCollection):
   colors = ("blue","red","purple","green");
 
   # function to make single-page plot
-  # function to make single-page plot
-  def make_figure (self,keylist=None,suptitle=None,save=None,
+  def make_figure (self,keylist=None,suptitle=None,save=None,xgrid=False,ygrid=False,
                    dual=True,offset_std=10,
                    figsize=(210,290),dpi=100,papertype='a4',landscape=False):
     import matplotlib.pyplot as pyplot
@@ -248,6 +262,8 @@ class ComplexCirclePlot (PlotCollection):
     for lab in plt.get_yticklabels():
       lab.set_fontsize(10);
       lab.set_rotation('vertical');
+    if xgrid or ygrid:
+      plt.grid(color="0.4",linestyle='-');
     # plot title if asked to
     plt.set_xlim(-rad,rad);
     plt.set_ylim(-rad,rad);
@@ -284,7 +300,7 @@ class ScatterPlot (object):
 
   # function to make single-page plot
   def make_figure (self,suptitle=None,save=None,xlabel=None,ylabel=None,
-                   offset_std=10,
+                   offset_std=10,xgrid=False,ygrid=False,
                    figsize=(210,210),dpi=100,papertype='a4',landscape=False):
     import matplotlib.pyplot as pyplot
     # create Figure object of given size and resolution

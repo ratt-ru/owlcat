@@ -128,6 +128,10 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
                     help="use time for X axis and average over channels (default)");
   group.add_option("--x-freq",dest="xaxis",action="store_const",const=1,
                     help="use frequency for X axis and average over timeslots");
+  group.add_option("--x-grid",type='int',action="append",
+                    help="sets X grid interval. Use 0 to disable grid. Use twice to set major and minor intervals.");
+  group.add_option("--no-y-grid",action="store_true",
+                    help="disable Y axis grid");
 
   PLOT,DDID,IFR = group_choices = [ "plot","ddid","ifr" ];
   group.add_option("-P","--page",metavar="|".join(group_choices),action="append",
@@ -191,6 +195,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
 
   parser.set_defaults(output="",xaxis=0,ddid='first',field=None,
     resolution=300,ppp=120,papertype='a4',figsize="21x29",offset_std=10,offset=None,
+    x_grid=[],
     flag_mask=None,
     label_plot=True,
     label_ddid=True,
@@ -672,6 +677,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""";
         ipage += 1;
       dual = (len(keys) > options.ppp/2);
       plotcoll.make_figure(keys,save=savefile,suptitle=title0,figsize=figsize,offset_std=options.offset_std,
+          xgrid=options.x_grid or True,ygrid=not options.no_y_grid,
           papertype=papertype,dpi=options.resolution,dual=dual,landscape=landscape);
 
   if not options.output:
