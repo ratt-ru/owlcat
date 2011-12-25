@@ -226,8 +226,11 @@ class PlotCollectionSep (PlotCollection):
       nrow = len(grouplist)/2;
       if n%2:
         nrow += 1;
+      # swap things around, so plots start at the bottom
+      plotnums = numpy.arange(1,nrow*2+1).reshape(nrow,2)[-1::-1].transpose().ravel()
     else:
       nrow = len(grouplist);
+      plotnums = numpy.arange(nrow,0,-1);
     # create Figure object of given size and resolution
     figsize_in = (figsize[0]/25.4,figsize[1]/25.4);
     fig = pyplot.figure(figsize=figsize_in,dpi=100);
@@ -244,7 +247,7 @@ class PlotCollectionSep (PlotCollection):
     colors = ( "blue","green","red","cyan","purple","magenta","black","orange","grey" );
     # now plot all tracks
     for iplot,groupname in enumerate(grouplist):
-      plt = fig.add_subplot(nrow,2 if dual else 1,iplot+1);
+      plt = fig.add_subplot(nrow,2 if dual else 1,plotnums[iplot]);
       keys = list(self.groups[groupname]);
       nx = max([len(self.data.get(key,[])) for key in keys]);
       # first and last key
@@ -260,7 +263,7 @@ class PlotCollectionSep (PlotCollection):
           try:
             if len(dd) == 1:
               dd = numpy.array([dd[0],dd[0]]);
-            plt.plot(dd,',',color=colors[ikey%len(colors)]);
+            plt.plot(dd,',',color=colors[ikey%len(colors)],label=self.label[key]);
           except:
             traceback.print_exc();
             print "Error plotting data for",key;
@@ -268,16 +271,26 @@ class PlotCollectionSep (PlotCollection):
       y0,y1 = plt.get_ylim();
       x0 = 0;
       # add text labels
-      for ikey,key in enumerate(keys):
-        txt = plt.text(x0,y0,self.label[key]+" ",color=colors[ikey%len(colors)],
-                       size=5,horizontalalignment='left',verticalalignment='bottom');
+      legend = plt.legend(ncol=len(keys),numpoints=1,prop=dict(size=5),handletextpad=0,columnspacing=0);
+#      legend.set_frame_on(False);
+      for i,txt in enumerate(legend.get_texts()):
+        txt.set_color(colors[i%len(colors)]);
+      legend.get_frame().set_edgecolor('None');
+      legend.get_frame().set_facecolor('white');
+      legend.get_frame().set_alpha(.6);
+        
+#      for ikey,key in enumerate(keys):
+#        txt = plt.text(x0,y1,self.label[key]+" ",color=colors[ikey%len(colors)],
+#                       size=5,horizontalalignment='left',verticalalignment='top',
 #                       bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
-        x0 += nx/50;
+#        x0 += nx/20;
       plt.set_ylabel(groupname,size=8);
       # set x grid
       plt.minorticks_on();
-      for lab in plt.get_xticklabels():
+      for lab in plt.get_xmajorticklabels():
         lab.set_fontsize(5);
+      for lab in plt.get_xminorticklabels():
+        lab.set_fontsize(0);
       for lab in plt.get_ymajorticklabels():
         lab.set_fontsize(5);
       for lab in plt.get_yminorticklabels():
@@ -300,7 +313,7 @@ class PlotCollectionSep (PlotCollection):
           plt.axhline(y,color='0.9',ls='-',lw=1,zorder=-10);
         plt.set_ylim(y0,y1);
         
-    fig.subplots_adjust(left=mleft,right=1-mright,top=1-mtop,bottom=mbottom,wspace=0.15);
+    fig.subplots_adjust(left=mleft,right=1-mright,top=1-mtop,bottom=mbottom,wspace=0.12);
     # plot title if asked to
     if suptitle:
       fig.suptitle(suptitle,y=ytitle,size=8);
