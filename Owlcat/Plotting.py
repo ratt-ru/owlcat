@@ -268,22 +268,24 @@ class PlotCollectionSep (PlotCollection):
             traceback.print_exc();
             print "Error plotting data for",key;
             continue;
-      y0,y1 = plt.get_ylim();
-      x0 = 0;
       # add text labels
-      legend = plt.legend(ncol=len(keys),numpoints=1,prop=dict(size=5),handletextpad=0,columnspacing=0);
-#      legend.set_frame_on(False);
-      for i,txt in enumerate(legend.get_texts()):
-        txt.set_color(colors[i%len(colors)]);
-      legend.get_frame().set_edgecolor('None');
-      legend.get_frame().set_facecolor('white');
-      legend.get_frame().set_alpha(.6);
-        
-#      for ikey,key in enumerate(keys):
-#        txt = plt.text(x0,y1,self.label[key]+" ",color=colors[ikey%len(colors)],
-#                       size=5,horizontalalignment='left',verticalalignment='top',
-#                       bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
-#        x0 += nx/20;
+      # legend is not quite functional in matplotlib 0.98, so use text() instead
+      if _version_major > 0 or _version_minor > 98:
+        legend = plt.legend(ncol=len(keys),numpoints=1,prop=dict(size=5),handletextpad=0,columnspacing=0);
+  #      legend.set_frame_on(False);
+        for i,txt in enumerate(legend.get_texts()):
+          txt.set_color(colors[i%len(colors)]);
+        legend.get_frame().set_edgecolor('None');
+        legend.get_frame().set_facecolor('white');
+        legend.get_frame().set_alpha(.6);
+      else:
+        y0,y1 = plt.get_ylim();
+        x0 = 0;
+        for ikey,key in enumerate(keys):
+          txt = plt.text(x0,y1,self.label[key],color=colors[ikey%len(colors)],
+                          size=5,horizontalalignment='left',verticalalignment='top',
+                          bbox=dict(facecolor='white',edgecolor='none',alpha=0.6));
+          x0 += nx/20;
       plt.set_ylabel(groupname,size=8);
       # set x grid
       plt.minorticks_on();
