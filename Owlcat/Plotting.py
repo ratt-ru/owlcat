@@ -176,7 +176,8 @@ class PlotCollection (object):
       for lab in plt.get_xticklabels():
         lab.set_fontsize(5);
       # set x grid
-      plt.minorticks_on();
+      if _version_major > 0 or _version_minor > 98:
+        plt.minorticks_on();
       if xgrid and xgrid != [0]:
         if isinstance(xgrid,(list,tuple)):
           if len(xgrid)>0:
@@ -288,7 +289,8 @@ class PlotCollectionSep (PlotCollection):
           x0 += nx/20;
       plt.set_ylabel(groupname,size=8);
       # set x grid
-      plt.minorticks_on();
+      if _version_major > 0 or _version_minor > 98:
+        plt.minorticks_on();
       for lab in plt.get_xmajorticklabels():
         lab.set_fontsize(5);
       for lab in plt.get_xminorticklabels():

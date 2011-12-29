@@ -378,13 +378,13 @@ if __name__ == "__main__":
     print "===> No actions were performed. Showing the result of your selection:"
   else:
     print "===> Flagging stats:";
-  rpc = 100.0/totrows;
+  rpc = 100.0/totrows if totrows else 0;
   print "===>   MS size:               %8d rows"%totrows;
   print "===>   Data/time selection:   %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
   if legacystr:
     print "===>     (over which legacy flags were filled using flagmask %s)"%legacystr;
 
-  percent = 100.0/sel_nvis;
+  percent = 100.0/sel_nvis if sel_nvis else 0;
   if options.channels or options.corrs:
     print "===>   Chan/corr slicing reduces this to     %8d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
   if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
