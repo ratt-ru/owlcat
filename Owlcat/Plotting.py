@@ -271,6 +271,7 @@ class PlotCollectionSep (PlotCollection):
             continue;
       # add text labels
       # legend is not quite functional in matplotlib 0.98, so use text() instead
+      y0,y1 = plt.get_ylim();
       if _version_major > 0 or _version_minor > 98:
         legend = plt.legend(ncol=len(keys),numpoints=1,prop=dict(size=5),handletextpad=0,columnspacing=0);
   #      legend.set_frame_on(False);
@@ -280,7 +281,6 @@ class PlotCollectionSep (PlotCollection):
         legend.get_frame().set_facecolor('white');
         legend.get_frame().set_alpha(.6);
       else:
-        y0,y1 = plt.get_ylim();
         x0 = 0;
         for ikey,key in enumerate(keys):
           txt = plt.text(x0,y1,self.label[key],color=colors[ikey%len(colors)],
