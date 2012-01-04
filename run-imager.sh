@@ -42,6 +42,7 @@ img_lwimager=lwimager
 img_data=DATA
 img_ifrs=""
 img_weight=natural
+img_robust=0
 img_spwid=0
 img_field=0
 img_size=512/60
@@ -179,7 +180,7 @@ make_image ()
   # collect mandatory arguments
   cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
-      npix=$img_npix cellsize=${CELLSIZE}arcsec
+      npix=$img_npix cellsize=${CELLSIZE}arcsec robust=$img_robust
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
       prefervelocity=$img_prefervelocity
   "
