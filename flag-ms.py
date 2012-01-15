@@ -353,7 +353,7 @@ if __name__ == "__main__":
     time0 = times[0] if tslice.start is None else times[tslice.start];
     time1 = times[-1] if tslice.stop is None else times[tslice.stop-1];
     time0 -= times[0];
-    time1 -= times[1];
+    time1 -= times[0];
     subset['reltime'] = time0,time1;
     print "  ===> select timeslots %s (reltime %g~%g s)"%(tslice,time0,time1);
 

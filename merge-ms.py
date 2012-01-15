@@ -52,6 +52,8 @@ if __name__ == "__main__":
     "the first input MS, unless the --renumber-spws option is in effect, in which case "
     "the SPECTRAL_WINDOW and DATA_DESCRIPTION tables are also merged (and spwids and "
     "ddids renumbered.)");
+  parser.add_option("-a","--append",action="store_true",
+                    help="append input MSs to output MS");
   parser.add_option("-f","--force",dest="force",action="store_true",
                     help="proceed without confirmation, and overwrite output MS if it already exists");
   parser.add_option("-s","--renumber-spws",dest="renumber",action="store_true",
@@ -59,19 +61,21 @@ if __name__ == "__main__":
 
   (options,msnames) = parser.parse_args();
 
-  if len(msnames) < 3:
+  if len(msnames) < (2 if options.append else 3):
     parser.error("Insufficient number of arguments. Use '-h' for help.");
 
   msout = msnames[0];
   msins = msnames[1:];
 
-  if tableexists(msout):
-    if not options.force:
-      print "Output MS",msout,"already exists. Use the -f switch to overwrite.";
-      sys.exit(1);
+  if tableexists(msout) and not options.append and not options.force:
+    print "Output MS",msout,"already exists. Use the -f switch to overwrite.";
+    sys.exit(1);
 
   if not options.force:
-    print "Will create merged MS %s from %d input MSs:"%(msout,len(msins));
+    if options.append:
+      print "Will extend merged MS %s with %d input MSs:"%(msout,len(msins));
+    else:
+      print "Will create merged MS %s from %d input MSs:"%(msout,len(msins));
     for ms in msins:
       print "  ",ms;
     if options.renumber:
@@ -82,13 +86,14 @@ if __name__ == "__main__":
       print "Aborted by user.";
       sys.exit(1);
 
-  if tableexists(msout) and options.force:
-    progress("Deleting existing copy of %s"%msout);
-    tabledelete(msout);
-
-  # copy first MS to output as-is
-  progress("Copying %s to %s"%(msins[0],msout));
-  tablecopy(msins[0],msout,deep=True);
+  if not options.append:
+    if tableexists(msout) and options.force:
+      progress("Deleting existing copy of %s"%msout);
+      tabledelete(msout);
+    # copy first MS to output as-is
+    progress("Copying %s to %s"%(msins[0],msout));
+    tablecopy(msins[0],msout,deep=True);
+    msins = msins[1:];
 
   # open output for writing
   tab0 = table(msout,readonly=False);
@@ -98,7 +103,7 @@ if __name__ == "__main__":
     ddid_tab0 = table(tab0.getkeyword("DATA_DESCRIPTION"),readonly=False);
     spw_tab0 = table(tab0.getkeyword("SPECTRAL_WINDOW"),readonly=False);
 
-  for msname in msins[1:]:
+  for msname in msins:
     tab = table(msname);
     nr0 = tab0.nrows();
     progress("Current row count: %d"%nr0);
@@ -115,6 +120,7 @@ if __name__ == "__main__":
         # if renumbering DDIDs, increment the DDID column by the # of rows in the DDID table --
         # this ensures uniqueness of DDIDs
         if options.renumber and col == "DATA_DESC_ID":
+          progress("Adding %d to DATA_DESC_ID"%ddid_tab0.nrows());
           data += ddid_tab0.nrows();
         progress.overprint("Writing column %s, shape %s"%(col,data.shape));
         tab0.putcol(col,data,nr0);
