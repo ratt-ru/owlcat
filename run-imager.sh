@@ -187,7 +187,7 @@ make_image ()
   "
 
   # add optional arguments
-  if [ "$img_weight" == "briggs" -a "$img_robust" != "" ]; then
+  if [ "$img_robust" != "" ]; then
     cmd="$cmd robust=$img_robust"
   fi
   if [ "$img_taper" != "" ]; then
