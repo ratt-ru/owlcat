@@ -8,11 +8,11 @@
 # But not sure what state persists between making a dirty image and a clean one
 
 #
-#% $Id$ 
+#% $Id$
 #
 #
 # Copyright (C) 2002-2011
-# The MeqTree Foundation & 
+# The MeqTree Foundation &
 # ASTRON (Netherlands Foundation for Research in Astronomy)
 # P.O.Box 2, 7990 AA Dwingeloo, The Netherlands
 #
@@ -28,7 +28,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <http://www.gnu.org/licenses/>,
-# or write to the Free Software Foundation, Inc., 
+# or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
@@ -42,6 +42,7 @@ img_lwimager=lwimager
 img_data=DATA
 img_ifrs=""
 img_weight=natural
+img_taper=""
 img_robust=0
 img_spwid=0
 img_field=0
@@ -180,13 +181,16 @@ make_image ()
   # collect mandatory arguments
   cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
-      npix=$img_npix cellsize=${CELLSIZE}arcsec robust=$img_robust
+      npix=$img_npix cellsize=${CELLSIZE}arcsec
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
       prefervelocity=$img_prefervelocity
   "
 
   # add optional arguments
-  if [ "$img_weight" == "radial" -a "$img_taper" != "" ]; then
+  if [ "$img_weight" == "briggs" -a "$img_robust" != "" ]; then
+    cmd="$cmd robust=$img_robust"
+  fi
+  if [ "$img_taper" != "" ]; then
     cmd="$cmd filter=${img_taper}arcsec,${img_taper}arcsec,0.000000deg"
   fi
   if [ "$img_channels" != "" ]; then
@@ -234,7 +238,7 @@ make_image ()
       echo "Success"
       remove=true
     fi
-    # call sanitize() (see above) to make sure / and - in filenames is not interpreted  
+    # call sanitize() (see above) to make sure / and - in filenames is not interpreted
     # as LEL expressions
     if [ "$img_oper" == "image" ]; then
       image2fits in="`sanitize $imgname`"*$img_flux_scale out=$imgname_fits && $remove -fr $imgname

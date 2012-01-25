@@ -209,6 +209,10 @@ if __name__ == "__main__":
                     help="apply averaging to plottable values, AFTER conversion from parameters (default).");
   parser.add_option("--offset",type="float",
                     help="use a fixed offset between plot tracks. Default is automatically chosen.");
+  parser.add_option("--min",type="float",default=None,
+                    help="filter out values <MIN");
+  parser.add_option("--max",type="float",default=None,
+                    help="filter out values >MAX");
 
   group = OptionGroup(parser,"Plot label options");
   group.add_option("--label-mean",dest="label_mean",action="store_true",
@@ -439,6 +443,13 @@ if __name__ == "__main__":
         # apply after-averaging, if needed
         if not options.average_before:
           dd = dd.mean(1);
+        mask = None;
+        if options.min is not None:
+          mask = dd < options.min;
+        if options.max is not None:
+          mask = mask&(dd > options.max) if mask is not None else (dd > options.max);
+        if mask is not None:
+          dd = numpy.ma.masked_array(dd,mask);
         # put together label
         labelattrs = dict(name=name,mean=dd.mean(),stddev=dd.std());
         # add track
