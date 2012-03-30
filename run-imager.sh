@@ -207,6 +207,12 @@ make_image ()
   if [ "$img_phasecenter" != "" ]; then
     cmd="$cmd phasecenter='$img_phasecenter'"
   fi
+  if [ "$img_sigma" != "" ]; then
+    cmd="$cmd sigma='$img_sigma'"
+  fi
+  if [ "$img_sigma" != "" ]; then
+    cmd="$cmd targetflux='$img_targetflux'"
+  fi
 
   # setup output files
   if [ "$img_oper" == "image" ]; then

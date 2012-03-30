@@ -30,20 +30,25 @@ import os.path
 import math
 import sys
 import re
+import gzip
 import traceback
+import cPickle
 
 flagger = parser = ms = msname = None;
 
 def error (message):
-  print "%s: %s"%(os.path.basename(sys.argv[0]),message);
+  sys.stderr.write("%s: %s\n"%(os.path.basename(sys.argv[0]),message));
   sys.exit(1);
 
-def get_ms ():
+def get_ms (readonly=True):
   global ms;
   global msname;
   if not ms:
-    ms = Owlcat.table(msname);
+    ms = Owlcat.table(msname,readonly=readonly);
   return ms;
+
+def shape_str (label,arr):
+  return "%s: %s"%(label,"x".join(map(str,arr.shape)) if arr is not None else "None");
 
 def parse_subset_options (options):
   global parser;
@@ -217,6 +222,10 @@ if __name__ == "__main__":
                   help="lists various info about the MS, including its flagsets.");
   group.add_option("-r","--remove",metavar="FLAGSET(s)",type="string",
                   help="unflags and removes named flagset(s). You can use a comma-separated list.");
+  group.add_option("--export",type="string",metavar="FILENAME",
+                  help="exports all flags to flag file. FILENAME may end with .gz to produce a gzip-compressed file. If any flagging actions are specified, these will be done before the export." );
+  group.add_option("--import",type="string",dest="_import",metavar="FILENAME",
+                  help="imports flags from flag file. If any flagging actions are specified, these will be done after the import.");
   group.add_option("-v","--verbose",metavar="LEVEL",type="int",
                     help="verbosity level for messages. Higher is more verbose, default is 0.");
   parser.add_option_group(group);
@@ -232,169 +241,235 @@ if __name__ == "__main__":
     parser.error("Incorrect number of arguments. Use '-h' for help.");
   msname  = args[0];
 
-  # import stuff
+  import Owlcat
+
+  # import flags from file, if so specified
+  # these are the columns that are imported and exported
+  FLAGCOLS = "FLAG","FLAG_ROW","BITFLAG","BITFLAG_ROW";
+  if options._import:
+    try:
+      gzf = gzip.GzipFile(options._import,"r");
+      # read cols and write them to MS
+      ms = get_ms(readonly=False);
+      print "Importing flags from %s:"%options._import;
+      for colname in FLAGCOLS:
+        (col,kws) = cPickle.load(gzf);
+        print "  %s: %s%s"%(colname,
+          "shape %s"%"x".join(map(str,col.shape)) if col is not None else "None",
+          ", %d keywords"%len(kws) if kws else "");
+        if col is not None:
+          ms.putcol(colname,col);
+        if kws is not None:
+          ms.putcolkeywords(colname,kws);
+        col = None;
+      # close up
+      ms.close();
+      gzf.close();
+    except:
+      traceback.print_exc();
+      error("Error importing flags from %s, exiting"%options._import);
+    print "Flags imported OK.";
+
+  # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
+  if not (options.flag or options.unflag or options.fill_legacy):
+    if options._import:
+      sys.exit(0);
+    statonly = True;
+  else:
+    statonly = False;
+
   import numpy
   import numpy.ma
   import Owlcat.Flagger
   from Owlcat.Flagger import Flagger
 
-  # create flagger object
-  flagger = Flagger(msname,verbose=options.verbose);
+  # now, skip most of the actions below if we're in statonly mode and exporting
+  if not (statonly and options.export):
+    # create flagger object
+    flagger = Flagger(msname,verbose=options.verbose);
 
-  #
-  # -l/--list: list MS info
-  #
-  if options.list:
-    ms = get_ms();
-    ants = Owlcat.table(ms.getkeyword('ANTENNA')).getcol('NAME');
-    ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'));
-    spwids = ddid_tab.getcol('SPECTRAL_WINDOW_ID');
-    polids = ddid_tab.getcol('POLARIZATION_ID');
-    corrs = Owlcat.table(ms.getkeyword('POLARIZATION')).getcol('CORR_TYPE');
-    spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'));
-    ref_freq = spw_tab.getcol('REF_FREQUENCY');
-    nchan = spw_tab.getcol('NUM_CHAN');
-    fields = Owlcat.table(ms.getkeyword('FIELD')).getcol('NAME');
+    #
+    # -l/--list: list MS info
+    #
+    if options.list:
+      ms = get_ms();
+      ants = Owlcat.table(ms.getkeyword('ANTENNA')).getcol('NAME');
+      ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'));
+      spwids = ddid_tab.getcol('SPECTRAL_WINDOW_ID');
+      polids = ddid_tab.getcol('POLARIZATION_ID');
+      corrs = Owlcat.table(ms.getkeyword('POLARIZATION')).getcol('CORR_TYPE');
+      spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'));
+      ref_freq = spw_tab.getcol('REF_FREQUENCY');
+      nchan = spw_tab.getcol('NUM_CHAN');
+      fields = Owlcat.table(ms.getkeyword('FIELD')).getcol('NAME');
 
-    print "===> MS is %s"%msname;
-    print "  %d antennas: %s"%(len(ants)," ".join(ants));
-    print "  %d DATA_DESC_ID(s): "%len(spwids);
-    for i,(spw,pol) in enumerate(zip(spwids,polids)):
-      print "    %d: %.3f MHz, %d chans x %d correlations"%(i,ref_freq[spw]*1e-6,nchan[spw],len(corrs[pol,:]));
-    print "  %d field(s): %s"%(len(fields),", ".join(["%d: %s"%ff for ff in enumerate(fields)]));
-    if not flagger.has_bitflags:
-      print "No BITFLAG/BITFLAG_ROW columns in this MS. Use the 'addbitflagcol' command to add them.";
-    else:
-      names = flagger.flagsets.names();
-      if names:
-        print "  %d flagset(s): "%len(names);
-        for name in names:
-          mask = flagger.flagsets.flagmask(name);
-          print "    '%s': %d (0x%02X)"%(name,mask,mask);
+      print "===> MS is %s"%msname;
+      print "  %d antennas: %s"%(len(ants)," ".join(ants));
+      print "  %d DATA_DESC_ID(s): "%len(spwids);
+      for i,(spw,pol) in enumerate(zip(spwids,polids)):
+        print "    %d: %.3f MHz, %d chans x %d correlations"%(i,ref_freq[spw]*1e-6,nchan[spw],len(corrs[pol,:]));
+      print "  %d field(s): %s"%(len(fields),", ".join(["%d: %s"%ff for ff in enumerate(fields)]));
+      if not flagger.has_bitflags:
+        print "No BITFLAG/BITFLAG_ROW columns in this MS. Use the 'addbitflagcol' command to add them.";
       else:
-        print "  No flagsets.";
-    print "";
-    if options.flag or options.unflag or options.fill_legacy or options.remove:
-      print "-l/--list was in effect, so all other options were ignored.";
-    sys.exit(0);
+        names = flagger.flagsets.names();
+        if names:
+          print "  %d flagset(s): "%len(names);
+          for name in names:
+            mask = flagger.flagsets.flagmask(name);
+            print "    '%s': %d (0x%02X)"%(name,mask,mask);
+        else:
+          print "  No flagsets.";
+      print "";
+      if options.flag or options.unflag or options.fill_legacy or options.remove:
+        print "-l/--list was in effect, so all other options were ignored.";
+      sys.exit(0);
 
-  # --flag/--unflag/--remove implies '-g all' by default, '-g -' skips the fill-legacy step
-  if options.flag or options.unflag or options.remove:
-    if options.fill_legacy is None:
-      options.fill_legacy = 'all';
-    elif options.fill_legacy == '-':
-      options.fill_legacy = None;
+    # --flag/--unflag/--remove implies '-g all' by default, '-g -' skips the fill-legacy step
+    if options.flag or options.unflag or options.remove:
+      if options.fill_legacy is None:
+        options.fill_legacy = 'all';
+      elif options.fill_legacy == '-':
+        options.fill_legacy = None;
 
-  # if no other actions supplied, enable stats
-  if not (options.flag or options.unflag or options.fill_legacy):
-    statonly = True;
-  else:
-    statonly = False;
+    # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
+    if not (options.flag or options.unflag or options.fill_legacy):
+      if options._import:
+        sys.exit(0);
+      statonly = not options.export;
+    else:
+      statonly = False;
 
-  # convert all the various FLAGS to flagmasks (or Nones)
-  for opt in 'data_flagmask','flagmask','flagmask_all','flagmask_none','flag','unflag','fill_legacy':
-    value = getattr(options,opt);
-    try:
-      flagmask = flagger.lookup_flagmask(value,create=(opt=='flag' and options.create));
-    except Exception,exc:
-      msg = str(exc);
-      if opt == 'flag' and not options.create:
-        msg += "\nPerhaps you forgot the -c/--create option?";
-      error(msg);
-    setattr(options,opt,flagmask);
-
-  # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
-  if options.fill_legacy is not None:
-    options.fill_legacy &= ~Flagger.LEGACY;
-
-  #
-  # -r/--remove: remove flagsets
-  #
-  if options.remove is not None:
-    if options.flag or options.unflag:
-      error("Can't combine -r/--remove with --f/--flag or -u/--unflag.");
-    # get list of names and flagmask to remove
-    remove_names = options.remove.split(",");
-    names_found = [];
-    names_not_found = [];
-    flagmask = 0;
-    for name in remove_names:
+    # convert all the various FLAGS to flagmasks (or Nones)
+    for opt in 'data_flagmask','flagmask','flagmask_all','flagmask_none','flag','unflag','fill_legacy':
+      value = getattr(options,opt);
       try:
-        flagmask |= flagger.flagsets.flagmask(name);
-        names_found.append(name);
-      except:
-        names_not_found.append(name);
-    if not names_found:
-      if names_not_found:
-        error("No such flagset(s): %s"%",".join(names_not_found));
-      error("No flagsets to remove");
-    # unflag flagsets
-    if names_not_found:
-      print "===> WARNING: flagset(s) not found, ignoring: %s"%",".join(names_not_found);
-    print "===> removing flagset(s) %s"%",".join(names_found);
-    print "===> and clearing corresponding flagmask %s"%Flagger.flagmaskstr(flagmask);
+        flagmask = flagger.lookup_flagmask(value,create=(opt=='flag' and options.create));
+      except Exception,exc:
+        msg = str(exc);
+        if opt == 'flag' and not options.create:
+          msg += "\nPerhaps you forgot the -c/--create option?";
+        error(msg);
+      setattr(options,opt,flagmask);
+
+    # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
     if options.fill_legacy is not None:
-      print "===> and filling FLAG/FLAG_ROW using flagmask %s"%Flagger.flagmaskstr(options.fill_legacy);
-    flagger.xflag(unflag=flagmask,fill_legacy=options.fill_legacy);
-    flagger.flagsets.remove_flagset(*names_found);
-    sys.exit(0);
+      options.fill_legacy &= ~Flagger.LEGACY;
 
-  # parse subset options
-  subset = parse_subset_options(options);
-  if not subset:
-    print "===> ended up with empty subset, exiting";
-    sys.exit(0);
+    #
+    # -r/--remove: remove flagsets
+    #
+    if options.remove is not None:
+      if options.flag or options.unflag:
+        error("Can't combine -r/--remove with --f/--flag or -u/--unflag.");
+      # get list of names and flagmask to remove
+      remove_names = options.remove.split(",");
+      names_found = [];
+      names_not_found = [];
+      flagmask = 0;
+      for name in remove_names:
+        try:
+          flagmask |= flagger.flagsets.flagmask(name);
+          names_found.append(name);
+        except:
+          names_not_found.append(name);
+      if not names_found:
+        if names_not_found:
+          error("No such flagset(s): %s"%",".join(names_not_found));
+        error("No flagsets to remove");
+      # unflag flagsets
+      if names_not_found:
+        print "===> WARNING: flagset(s) not found, ignoring: %s"%",".join(names_not_found);
+      print "===> removing flagset(s) %s"%",".join(names_found);
+      print "===> and clearing corresponding flagmask %s"%Flagger.flagmaskstr(flagmask);
+      if options.fill_legacy is not None:
+        print "===> and filling FLAG/FLAG_ROW using flagmask %s"%Flagger.flagmaskstr(options.fill_legacy);
+      flagger.xflag(unflag=flagmask,fill_legacy=options.fill_legacy);
+      flagger.flagsets.remove_flagset(*names_found);
+      sys.exit(0);
 
-  # convert timeslots to reltime option, if specified
-  if options.timeslots:
-    from Owlcat import Parsing
-    tslice = Parsing.parse_slice(options.timeslots);
-    times = sorted(set(get_ms().getcol('TIME')));
-    time0 = times[0] if tslice.start is None else times[tslice.start];
-    time1 = times[-1] if tslice.stop is None else times[tslice.stop-1];
-    time0 -= times[0];
-    time1 -= times[0];
-    subset['reltime'] = time0,time1;
-    print "  ===> select timeslots %s (reltime %g~%g s)"%(tslice,time0,time1);
+    # parse subset options
+    subset = parse_subset_options(options);
+    if not subset:
+      print "===> ended up with empty subset, exiting";
+      sys.exit(0);
 
-  # at this stage all remaining options are handled the same way
-  flagstr = unflagstr = legacystr = None;
-  if options.flag is not None:
-    flagstr = flagger.flagmaskstr(options.flag);
-    print "===> flagging with flagmask %s"%flagstr;
-  if options.unflag is not None:
-    unflagstr = flagger.flagmaskstr(options.unflag);
-    print "===> unflagging with flagmask %s"%unflagstr;
-  if options.fill_legacy is not None:
-    legacystr = flagger.flagmaskstr(options.fill_legacy);
-    print "===> filling legacy flags with flagmask %s"%legacystr;
+    # convert timeslots to reltime option, if specified
+    if options.timeslots:
+      from Owlcat import Parsing
+      tslice = Parsing.parse_slice(options.timeslots);
+      times = sorted(set(get_ms().getcol('TIME')));
+      time0 = times[0] if tslice.start is None else times[tslice.start];
+      time1 = times[-1] if tslice.stop is None else times[tslice.stop-1];
+      time0 -= times[0];
+      time1 -= times[0];
+      subset['reltime'] = time0,time1;
+      print "  ===> select timeslots %s (reltime %g~%g s)"%(tslice,time0,time1);
 
-  # do the job
-  totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C = \
-    flagger.xflag(flag=options.flag,unflag=options.unflag,fill_legacy=options.fill_legacy,**subset);
+    # at this stage all remaining options are handled the same way
+    flagstr = unflagstr = legacystr = None;
+    if options.flag is not None:
+      flagstr = flagger.flagmaskstr(options.flag);
+      print "===> flagging with flagmask %s"%flagstr;
+    if options.unflag is not None:
+      unflagstr = flagger.flagmaskstr(options.unflag);
+      print "===> unflagging with flagmask %s"%unflagstr;
+    if options.fill_legacy is not None:
+      legacystr = flagger.flagmaskstr(options.fill_legacy);
+      print "===> filling legacy flags with flagmask %s"%legacystr;
 
-  # print stats
-  if statonly:
-    print "===> No actions were performed. Showing the result of your selection:"
-  else:
-    print "===> Flagging stats:";
-  rpc = 100.0/totrows if totrows else 0;
-  print "===>   MS size:               %8d rows"%totrows;
-  print "===>   Data/time selection:   %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
-  if legacystr:
-    print "===>     (over which legacy flags were filled using flagmask %s)"%legacystr;
+    # do the job
+    totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C = \
+      flagger.xflag(flag=options.flag,unflag=options.unflag,fill_legacy=options.fill_legacy,**subset);
 
-  percent = 100.0/sel_nvis if sel_nvis else 0;
-  if options.channels or options.corrs:
-    print "===>   Chan/corr slicing reduces this to     %8d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
-  if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
-    print "===>   Flag selection reduces this to        %8d visibilities (%.3g%% of selection)"%(nvis_B,nvis_B*percent);
-  if options.nan or options.above is not None or options.below is not None or \
-      options.fm_above is not None or options.fm_below is not None:
-    print "===>   Data selection reduces this to         %8d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
-  if unflagstr:
-    print "===>     (which were unflagged using flagmask %s)"%unflagstr;
-  if flagstr:
-    print "===>     (which were flagged using flagmask %s)"%flagstr;
+    # print stats
+    if statonly:
+      print "===> No actions were performed. Showing the result of your selection:"
+    else:
+      print "===> Flagging stats:";
+    rpc = 100.0/totrows if totrows else 0;
+    print "===>   MS size:               %8d rows"%totrows;
+    print "===>   Data/time selection:   %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
+    if legacystr:
+      print "===>     (over which legacy flags were filled using flagmask %s)"%legacystr;
 
-  flagger.close();
+    percent = 100.0/sel_nvis if sel_nvis else 0;
+    if options.channels or options.corrs:
+      print "===>   Chan/corr slicing reduces this to     %8d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
+    if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
+      print "===>   Flag selection reduces this to        %8d visibilities (%.3g%% of selection)"%(nvis_B,nvis_B*percent);
+    if options.nan or options.above is not None or options.below is not None or \
+        options.fm_above is not None or options.fm_below is not None:
+      print "===>   Data selection reduces this to         %8d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
+    if unflagstr:
+      print "===>     (which were unflagged using flagmask %s)"%unflagstr;
+    if flagstr:
+      print "===>     (which were flagged using flagmask %s)"%flagstr;
+
+    flagger.close();
+
+  # export flags from file, if so specified
+  if options.export:
+    try:
+      gzf = gzip.GzipFile(options.export,"w");
+      # write stuff
+      ms = get_ms();
+      colnames = set(ms.colnames());
+      columns = [];
+      print "Exporting flags to %s:"%options.export;
+      for colname in FLAGCOLS:
+        if colname in colnames:
+          col = ms.getcol(colname);
+          kws = ms.getcolkeywords(colname);
+          print "  %s: %s%s"%(colname,
+            "shape %s"%"x".join(map(str,col.shape)),
+            ", %d keywords"%len(kws) if kws else "");
+        else:
+          col = kws = None;
+        cPickle.dump((col,kws),gzf);
+      ms.close();
+      gzf.close();
+    except:
+      traceback.print_exc();
+      error("Error exporting flags to %s"%options.export);
+    print "Flags exported OK.";
