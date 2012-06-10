@@ -75,6 +75,8 @@ img_gain=.1
 img_threshold=0Jy
 img_fixed=0
 
+img_export_column=0
+
 # do we have a config file on the command line?
 for arg in $*; do
   if [ "${arg%.conf}" != "$arg" -a -f $arg ]; then
@@ -162,6 +164,12 @@ else
 fi
 
 eval $confirm
+
+# kludge: export data before running
+if [ "$img_export_column" == "$img_weight" ]; then
+  export-ms-column.py $img_ms $img_data $img_name_dirty.expcol.gz
+fi
+
 
 CELLSIZE=`python -c "print $img_arcmin*60./float($img_npix)"`
 
