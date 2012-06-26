@@ -39,11 +39,14 @@ CONFFILE=imager.conf
 
 # Default settings
 img_lwimager=lwimager
+img_image2fits=image2fits
 img_data=DATA
 img_ifrs=""
 img_weight=natural
 img_taper=""
 img_robust=0
+img_wfov=0rad
+img_wnpix=0
 img_spwid=0
 img_field=0
 img_size=512/60
@@ -189,7 +192,7 @@ make_image ()
   # collect mandatory arguments
   cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
-      npix=$img_npix cellsize=${CELLSIZE}arcsec
+      npix=$img_npix cellsize=${CELLSIZE}arcsec wfov=$img_wfov wnpix=$img_wnpix
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
       prefervelocity=$img_prefervelocity
   "
@@ -255,11 +258,11 @@ make_image ()
     # call sanitize() (see above) to make sure / and - in filenames is not interpreted
     # as LEL expressions
     if [ "$img_oper" == "image" ]; then
-      image2fits in="`sanitize $imgname`"*$img_flux_scale out=$imgname_fits && $remove -fr $imgname
+      ${img_image2fits} in="`sanitize $imgname`"*$img_flux_scale out=$imgname_fits && $remove -fr $imgname
     else
-      image2fits in="`sanitize $model`"*$img_flux_scale out=$model_fits && $remove -fr $model
-      image2fits in="`sanitize $residual`"*$img_flux_scale out=$residual_fits && $remove -fr $residual
-      image2fits in="`sanitize $restored`"*$img_flux_scale out=$restored_fits && $remove -fr $restored
+      ${img_image2fits} in="`sanitize $model`"*$img_flux_scale out=$model_fits && $remove -fr $model
+      ${img_image2fits} in="`sanitize $residual`"*$img_flux_scale out=$residual_fits && $remove -fr $residual
+      ${img_image2fits} in="`sanitize $restored`"*$img_flux_scale out=$restored_fits && $remove -fr $restored
     fi
     return 0
   else
