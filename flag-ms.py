@@ -156,6 +156,8 @@ if __name__ == "__main__":
   group.add_option("-T","--timeslots",type="string",
                     help="timeslot selection: single number or start:end to select timeslots start through end-1, "
                     "or start~end to select timeslots start through end.");
+  group.add_option("-M","--timeslot-multiplier",type="int",default=1,
+                    help="multiplies the timeslot numbers given to -T by the given factor. Default is 1.");
   group.add_option("-X","--corrs",type="string",
                     help="correlation selection. Use comma-separated list of correlation indices.");
   group.add_option("-S","--stations",type="string",
@@ -397,7 +399,7 @@ if __name__ == "__main__":
     # convert timeslots to reltime option, if specified
     if options.timeslots:
       from Owlcat import Parsing
-      tslice = Parsing.parse_slice(options.timeslots);
+      tslice = Parsing.parse_slice(options.timeslots,options.timeslot_multiplier);
       times = sorted(set(get_ms().getcol('TIME')));
       time0 = times[0] if tslice.start is None else times[tslice.start];
       time1 = times[-1] if tslice.stop is None else times[tslice.stop-1];

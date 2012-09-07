@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
-def parse_slice (spec):
+def parse_slice (spec,multiplier=1):
   """Parses a slice specification like "x" or x:y" or "x:y:step" or "x~y" or "x~y:step".
   The x:y form is an exclusive range, x~y is inclusive.
   Returns a slice object.
@@ -16,9 +16,9 @@ def parse_slice (spec):
   sep = match.group('sep');
   # No match for first separator implies single number. If even that is missing, return full slice
   if sep == None:
-    return slice(start,start+1) if start is not None else slice(0,None);
+    return slice(start*multiplier,(start+1)*multiplier) if start is not None else slice(0,None);
   # increment end if specified inclusive slice as "start~end"
   elif sep == "~" and end is not None:
     end += 1;
-  return slice(start,end,step);
+  return slice(start and start*multiplier,end and end*multiplier,step and step*multiplier);
 

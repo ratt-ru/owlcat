@@ -30,4 +30,6 @@ if [ "$2" == "" ]; then
   exit 2
 fi
 
+export PYTHONPATH=$PYTHONPATH:$MEQTREES_CATTERY_PATH:~/Cattery
+#python -c "import Meow.IfrSet;ss=Meow.IfrSet.from_ms('$1').subset('$2'); print '%d//%s'%(len(ss.ifr_index()),ss.taql_string());" 
 python -c "import Meow.IfrSet;ss=Meow.IfrSet.from_ms('$1').subset('$2'); print '%d//%s'%(len(ss.ifr_index()),ss.taql_string());" 2>/dev/null | grep ANTENNA1==
