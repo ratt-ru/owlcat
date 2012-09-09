@@ -45,8 +45,9 @@ img_ifrs=""
 img_weight=natural
 img_taper=""
 img_robust=0
-img_wfov=0rad
-img_wnpix=0
+# wfov/wnpix is optional, only works with newer imagers, so only pass through if present in config files
+#img_wfov=0rad
+#img_wnpix=0
 img_spwid=0
 img_field=0
 img_size=512/60
@@ -192,7 +193,7 @@ make_image ()
   # collect mandatory arguments
   cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
-      npix=$img_npix cellsize=${CELLSIZE}arcsec wfov=$img_wfov wnpix=$img_wnpix
+      npix=$img_npix cellsize=${CELLSIZE}arcsec ${img_wfov:+wfov=$img_wfov} ${img_wnpix:+wnpix=$img_wnpix}
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
       prefervelocity=$img_prefervelocity
   "
