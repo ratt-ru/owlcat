@@ -33,6 +33,7 @@ import re
 import gzip
 import traceback
 import cPickle
+import Owlcat.Tables
 
 flagger = parser = ms = msname = None;
 
@@ -250,23 +251,12 @@ if __name__ == "__main__":
   FLAGCOLS = "FLAG","FLAG_ROW","BITFLAG","BITFLAG_ROW";
   if options._import:
     try:
-      gzf = gzip.GzipFile(options._import,"r");
-      # read cols and write them to MS
+      dump = Owlcat.Tables.TableDump(options._import,compress=True);
       ms = get_ms(readonly=False);
       print "Importing flags from %s:"%options._import;
-      for colname in FLAGCOLS:
-        (col,kws) = cPickle.load(gzf);
-        print "  %s: %s%s"%(colname,
-          "shape %s"%"x".join(map(str,col.shape)) if col is not None else "None",
-          ", %d keywords"%len(kws) if kws else "");
-        if col is not None:
-          ms.putcol(colname,col);
-        if kws is not None:
-          ms.putcolkeywords(colname,kws);
-        col = None;
-      # close up
+      dump.load(ms,verbose=True);
+      dump.close();
       ms.close();
-      gzf.close();
     except:
       traceback.print_exc();
       error("Error importing flags from %s, exiting"%options._import);
@@ -453,24 +443,15 @@ if __name__ == "__main__":
   # export flags from file, if so specified
   if options.export:
     try:
-      gzf = gzip.GzipFile(options.export,"w");
-      # write stuff
+      dump = Owlcat.Tables.TableDump(options.export,write=True,compress=True);
       ms = get_ms();
       colnames = set(ms.colnames());
-      columns = [];
-      print "Exporting flags to %s:"%options.export;
+      print "Exporting flags to %s, %d rows:"%(options.export,ms.nrows());
       for colname in FLAGCOLS:
         if colname in colnames:
-          col = ms.getcol(colname);
-          kws = ms.getcolkeywords(colname);
-          print "  %s: %s%s"%(colname,
-            "shape %s"%"x".join(map(str,col.shape)),
-            ", %d keywords"%len(kws) if kws else "");
-        else:
-          col = kws = None;
-        cPickle.dump((col,kws),gzf);
+          dump.dump_column(ms,colname,verbose=True);
       ms.close();
-      gzf.close();
+      dump.close();
     except:
       traceback.print_exc();
       error("Error exporting flags to %s"%options.export);
