@@ -98,6 +98,8 @@ fi
 trial=true
 confirm=true
 
+echo "run-imager.sh command line: $*"
+
 # overwrite with command line
 while [ "$1" != "" ]; do
   if [ "${1%=*}" != "$1" ]; then
