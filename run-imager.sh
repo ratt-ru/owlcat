@@ -246,6 +246,9 @@ make_image ()
     cmd="$cmd model=$model restored=$restored residual=$residual
       niter=$img_niter gain=$img_gain threshold=$img_threshold fixed=$img_fixed
     "
+    if [ "$img_maskblc" != "" -o "$img_masktrc" ]; then
+      cmd="$cmd maskblc=$img_maskblc masktrc=$img_masktrc"
+    fi
     echo "Making clean image: " $cmd
   fi
 
