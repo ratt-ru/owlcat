@@ -58,6 +58,7 @@ img_flux_scale=2
 img_phasecenter=""
 img_wprojplanes=0
 img_select=""
+img_mask=""
 
 img_channels=""
 img_img_channels=""
@@ -83,7 +84,7 @@ img_export_column=0
 
 # do we have a config file on the command line?
 for arg in $*; do
-  if [ "${arg%.conf}" != "$arg" -a -f $arg ]; then
+  if [ "${arg%.conf}" != "$arg" -a "${arg#+}" == "$arg" -a -f $arg ]; then
     CONFFILE=$arg
     echo "Using imager config file $CONFFILE"
     break
@@ -94,6 +95,15 @@ done
 if [ -f $CONFFILE ]; then
   source $CONFFILE
 fi
+
+# load extra config files
+for arg in $*; do
+  if [ "${arg%.conf}" != "$arg" -a "${arg#+}" != "$arg" -a -f ${arg#+} ]; then
+    echo "Loading additional config file ${arg#+}"
+    source ${arg#+}
+  fi
+done
+
 
 trial=true
 confirm=true
@@ -247,7 +257,7 @@ make_image ()
       niter=$img_niter gain=$img_gain threshold=$img_threshold fixed=$img_fixed
     "
     if [ "$img_maskblc" != "" -o "$img_masktrc" ]; then
-      cmd="$cmd maskblc=$img_maskblc masktrc=$img_masktrc"
+      cmd="$cmd mask=${img_mask:-mask} maskblc=$img_maskblc masktrc=$img_masktrc maskvalue=1"
     fi
     echo "Making clean image: " $cmd
   fi
