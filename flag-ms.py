@@ -223,6 +223,8 @@ if __name__ == "__main__":
   group = OptionGroup(parser,"Other options");
   group.add_option("-l","--list",action="store_true",
                   help="lists various info about the MS, including its flagsets.");
+  group.add_option("-s","--stats",action="store_true",
+                  help="prints per-flagset flagging stats.");
   group.add_option("-r","--remove",metavar="FLAGSET(s)",type="string",
                   help="unflags and removes named flagset(s). You can use a comma-separated list.");
   group.add_option("--export",type="string",metavar="FILENAME",
@@ -410,10 +412,37 @@ if __name__ == "__main__":
       legacystr = flagger.flagmaskstr(options.fill_legacy);
       print "===> filling legacy flags with flagmask %s"%legacystr;
 
-    # do the job
+
+    # if --stats in effect, loop over all flagsets and print stats
+    if options.stats:
+      print "===> --stats in effect, showing per-flagset statistics"
+      printed_header = False;
+      for flagset in list(flagger.flagsets.names())+["+L"]:
+        # get stats for this flagset
+        subset['flagmask'] = flagger.lookup_flagmask(flagset);
+        totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C = flagger.xflag(**subset);
+        percent = 100.0/sel_nvis if sel_nvis else 0;
+        # print them
+        if flagset is "+L":
+          label = "legacy FLAG/FLAG_ROW";
+        else:
+          label =  "Flagset %s (0x%02X)"%(flagset,flagger.flagsets.flagmask(flagset));
+        if not printed_header:
+          printed_header = True;
+          rpc = 100.0/totrows if totrows else 0;
+          print "===>   MS size:               %8d rows"%totrows;
+          print "===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
+          if options.channels or options.corrs:
+            print "===>   Chan/corr slicing reduces this to    %12d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
+        print "===>   %-29s includes %10d visibilities (%.3g%% of selection)"%(label,nvis_B,nvis_B*percent);
+      else:
+        print "  No flagsets.";
+      sys.exit(0);
+
+    # else not stats mode, do the actual flagging job
     totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C = \
       flagger.xflag(flag=options.flag,unflag=options.unflag,fill_legacy=options.fill_legacy,**subset);
-
+      
     # print stats
     if statonly:
       print "===> No actions were performed. Showing the result of your selection:"
@@ -421,18 +450,18 @@ if __name__ == "__main__":
       print "===> Flagging stats:";
     rpc = 100.0/totrows if totrows else 0;
     print "===>   MS size:               %8d rows"%totrows;
-    print "===>   Data/time selection:   %8d rows, %8d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
+    print "===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)"%(sel_nrow,sel_nvis,sel_nrow*rpc);
     if legacystr:
       print "===>     (over which legacy flags were filled using flagmask %s)"%legacystr;
 
     percent = 100.0/sel_nvis if sel_nvis else 0;
     if options.channels or options.corrs:
-      print "===>   Chan/corr slicing reduces this to     %8d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
+      print "===>   Chan/corr slicing reduces this to     %10d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
     if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
-      print "===>   Flag selection reduces this to        %8d visibilities (%.3g%% of selection)"%(nvis_B,nvis_B*percent);
+      print "===>   Flag selection reduces this to        %10d visibilities (%.3g%% of selection)"%(nvis_B,nvis_B*percent);
     if options.nan or options.above is not None or options.below is not None or \
         options.fm_above is not None or options.fm_below is not None:
-      print "===>   Data selection reduces this to         %8d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
+      print "===>   Data selection reduces this to         %10d visibilities (%.3g%% of selection)"%(nvis_C,nvis_C*percent);
     if unflagstr:
       print "===>     (which were unflagged using flagmask %s)"%unflagstr;
     if flagstr:

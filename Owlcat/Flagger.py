@@ -240,7 +240,7 @@ class Flagger (Timba.dmi.verbosity):
     sub_mss = [];
     nrows = 0;
     if ddids is None:
-      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION')).nrows());
+      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),ack=False).nrows());
     for ddid in ddids:
       subms = ms.query("DATA_DESC_ID==%d"%ddid);
       sub_mss.append((ddid,nrows,subms));
@@ -306,7 +306,7 @@ class Flagger (Timba.dmi.verbosity):
 
     # get DDIDs
     if ddid is None:
-      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),readonly=True).nrows());
+      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),ack=False,readonly=True).nrows());
     elif isinstance(ddid,int):
       ddids = [ ddid ];
     elif isinstance(ddid,(tuple,list)):
@@ -669,7 +669,7 @@ class Flagger (Timba.dmi.verbosity):
     nvis_A = nvis_B = nvis_C = 0;
     # get DDIDs and FIELD_IDs
     if ddid is None:
-      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),readonly=True).nrows());
+      ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'),ack=False,readonly=True).nrows());
     elif isinstance(ddid,int):
       ddids = [ ddid ];
     elif isinstance(ddid,(tuple,list)):
