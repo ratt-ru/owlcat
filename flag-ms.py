@@ -435,8 +435,6 @@ if __name__ == "__main__":
           if options.channels or options.corrs:
             print "===>   Chan/corr slicing reduces this to    %12d visibilities (%.3g%% of selection)"%(nvis_A,nvis_A*percent);
         print "===>   %-29s includes %10d visibilities (%.3g%% of selection)"%(label,nvis_B,nvis_B*percent);
-      else:
-        print "  No flagsets.";
       sys.exit(0);
 
     # else not stats mode, do the actual flagging job
