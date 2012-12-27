@@ -58,6 +58,8 @@ img_flux_scale=2
 img_phasecenter=""
 img_wprojplanes=0
 img_select=""
+img_uvmin=""
+img_uvmax=""
 img_mask=""
 
 img_channels=""
@@ -153,6 +155,16 @@ if [ "$img_arcmin" == "" -o "$img_npix" == "" ]; then
   img_npix=${img_size%/*}
 fi
 
+# print baseline settings
+if [ "$img_uvmin" != "" ]; then
+  img_select="${imgselect:+($img_select)&&}(SQRT(SUMSQUARE(UVW[1:2]))>=$img_uvmin)"
+  echo "uvmin $img_uvmin, select string is $img_select"
+fi
+if [ "$img_uvmax" != "" ]; then
+  img_select="${imgselect:+($img_select)&&}(SQRT(SUMSQUARE(UVW[1:2]))<=$img_uvmax)"
+  echo "uvmax $img_uvmax, select string is $img_select"
+fi
+
 # print ifr settings
 if [ "$img_ifrs" == "" ]; then
   echo "Using all interferometers"
@@ -176,7 +188,7 @@ else
   else
     img_select="$ifr_select"
   fi
-  echo "select=$img_select"
+  echo "select string is $img_select"
 fi
 
 eval $confirm
