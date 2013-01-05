@@ -157,7 +157,13 @@ fi
 
 # print baseline settings
 if [ "$img_uvmin" != "" ]; then
-  img_select="${imgselect:+($img_select)&&}(SQRT(SUMSQUARE(UVW[1:2]))>=$img_uvmin)"
+  if [ "${img_uvmin%,*}" == "$img_uvmin" ]; then
+    img_select="${imgselect:+($img_select)&&}(SQRT(SUMSQUARE(UVW[1:2]))>=$img_uvmin)"
+  else
+    a=${img_uvmin%,*}
+    b=${img_uvmin#*,}
+    img_select="${imgselect:+($img_select)&&}((UVW[1]/$a)**2+(UVW[2]/$b)**2>=1)"
+  fi
   echo "uvmin $img_uvmin, select string is $img_select"
 fi
 if [ "$img_uvmax" != "" ]; then
