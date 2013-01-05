@@ -72,6 +72,7 @@ img_name_dirty=dirty
 img_name_restored=restored
 img_name_model=model
 img_name_residual=residual
+img_name_suffix=""
 
 img_cachesize=512
 
@@ -135,10 +136,10 @@ while [ "$1" != "" ]; do
 done
 
 # expand vars in filenames
-img_name_dirty=`eval echo $img_name_dirty`
-img_name_restored=`eval echo $img_name_restored`
-img_name_model=`eval echo $img_name_model`
-img_name_residual=`eval echo $img_name_residual`
+img_name_dirty=`eval echo $img_name_dirty$img_name_suffix`
+img_name_restored=`eval echo $img_name_restored$img_name_suffix`
+img_name_model=`eval echo $img_name_model$img_name_suffix`
+img_name_residual=`eval echo $img_name_residual$img_name_suffix`
 
 # MS must be set
 if [ -z "$img_ms" ]; then

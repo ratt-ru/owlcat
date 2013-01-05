@@ -58,6 +58,8 @@ if __name__ == "__main__":
                     help="proceed without confirmation, and overwrite output MS if it already exists");
   parser.add_option("-s","--renumber-spws",dest="renumber",action="store_true",
                     help="treat each MS as a separate spectral window");
+  parser.add_option("-v","--verbose",action="store_true",
+                    help="be more verbose");
 
   (options,msnames) = parser.parse_args();
 
@@ -103,6 +105,8 @@ if __name__ == "__main__":
     ddid_tab0 = table(tab0.getkeyword("DATA_DESCRIPTION"),readonly=False);
     spw_tab0 = table(tab0.getkeyword("SPECTRAL_WINDOW"),readonly=False);
 
+  overprint = progress if options.verbose else progress.overprint;
+
   for msname in msins:
     tab = table(msname);
     nr0 = tab0.nrows();
@@ -111,6 +115,7 @@ if __name__ == "__main__":
     tab0.addrows(tab.nrows());
     for col in tab.colnames():
       if col not in SKIP_COLUMNS:
+        overprint("Reading column %s"%col);
         try:
           data = tab.getcol(col);
         except:
@@ -122,11 +127,11 @@ if __name__ == "__main__":
         if options.renumber and col == "DATA_DESC_ID":
           progress("Adding %d to DATA_DESC_ID"%ddid_tab0.nrows());
           data += ddid_tab0.nrows();
-        progress.overprint("Writing column %s, shape %s"%(col,data.shape));
+        overprint("Writing column %s, shape %s"%(col,data.shape));
         tab0.putcol(col,data,nr0);
     # if renumbering, need to concatenate the DDID and SPW tables
     if options.renumber:
-      progress.overprint("Updating DATA_DESCRIPTION subtable");
+      overprint("Updating DATA_DESCRIPTION subtable");
       # append content of the DATA_DESCRIPTION table, while renumbering spectral window IDs
       ddid_tab = table(tab.getkeyword("DATA_DESCRIPTION"),readonly=False);
       nr0 = ddid_tab0.nrows();
@@ -135,10 +140,10 @@ if __name__ == "__main__":
         data = ddid_tab.getcol(col);
         if col == "SPECTRAL_WINDOW_ID":
           data += spw_tab0.nrows();
-        progress.overprint("Writing column %s, shape %s"%(col,data.shape));
+        overprint("Writing column %s, shape %s"%(col,data.shape));
         ddid_tab0.putcol(col,data,nr0);
       # append content of the SPECTRAL_WINDOW
-      progress.overprint("Updating SPECTRAL_WINDOW subtable");
+      overprint("Updating SPECTRAL_WINDOW subtable");
       spw_tab = table(tab.getkeyword("SPECTRAL_WINDOW"),readonly=False);
       nr0 = spw_tab0.nrows();
       spw_tab0.addrows(spw_tab.nrows());
@@ -147,7 +152,7 @@ if __name__ == "__main__":
         spw_tab0.putcol(col,data,nr0);
 
 
-  progress.overprint("Closing output MS %s\n"%msout);
+  overprint("Closing output MS %s\n"%msout);
   nr0 = tab0.nrows();
   tab0.close();
   progress("Wrote %d rows to output MS"%nr0);
