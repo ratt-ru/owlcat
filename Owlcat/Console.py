@@ -3,7 +3,7 @@
 import os
 import sys
 import time
-import curses
+#import curses
 
 # This stuff doesn't work when running the script in the background!
 # Dunno why, so disabling this for 1.2
