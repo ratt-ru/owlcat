@@ -148,6 +148,12 @@ if [ -z "$img_ms" ]; then
   exit 1
 fi
 
+# for weight=default, disable taper (otherwise the taper may be e.g. applied twice)
+if [ "$img_weight" == "default" -a "$img_taper" != "" ]; then
+  echo "WARNING: weight=default but taper=$img_taper is set. Disabling the taper!"
+  img_taper=""
+fi
+
 # print final var settings
 set | grep ^img_ | cut -c 5-
 
