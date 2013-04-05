@@ -50,7 +50,9 @@ img_robust=0
 #img_wnpix=0
 img_spwid=0
 img_field=0
-img_size=512/60
+img_size=
+img_npix=512
+img_cellsize=1arcsec
 img_mode=channel
 img_stokes=I
 img_padding=1.2
@@ -158,9 +160,16 @@ fi
 set | grep ^img_ | cut -c 5-
 
 # expand size into arcmin and npix
-if [ "$img_arcmin" == "" -o "$img_npix" == "" ]; then
-  img_arcmin=${img_size#*/}
+if [ "$img_arcmin" != "" -a "$img_npix" != 0 ]; then
+  img_cellsize=`python -c "print '%farcmin'%$img_arcmin/float($img_npix)"`
+elif [ "$img_cellsize" == "" -o "$img_npix" == "" ]; then
+  if [ "$img_size" == "" ]; then
+    echo "ERROR: one of size, arcmin & npix, or cellsize & npix must be specified"
+    exit 1
+  fi
+  local _arcmin=${img_size#*/}
   img_npix=${img_size%/*}
+  img_cellsize=`python -c "print '%farcmin'%$_arcmin/float($img_npix)"`
 fi
 
 # print baseline settings
@@ -212,9 +221,6 @@ if [ "$img_export_column" == "$img_weight" ]; then
   export-ms-column.py $img_ms $img_data $img_name_dirty.expcol.gz
 fi
 
-
-CELLSIZE=`python -c "print $img_arcmin*60./float($img_npix)"`
-
 # helper function: protects / and - in filenames with backslash,
 # so image2fits does not interpret them as LEL arithmetic
 sanitize ()
@@ -231,7 +237,7 @@ make_image ()
   # collect mandatory arguments
   cmd="$img_lwimager ms=$img_ms data=$img_data operation=$img_oper
       stokes=$img_stokes mode=$img_mode weight=$img_weight wprojplanes=$img_wprojplanes
-      npix=$img_npix cellsize=${CELLSIZE}arcsec ${img_wfov:+wfov=$img_wfov} ${img_wnpix:+wnpix=$img_wnpix}
+      npix=$img_npix cellsize=$img_cellsize ${img_wfov:+wfov=$img_wfov} ${img_wnpix:+wnpix=$img_wnpix}
       spwid=$img_spwid field=$img_field padding=$img_padding cachesize=$img_cachesize
       prefervelocity=$img_prefervelocity
   "

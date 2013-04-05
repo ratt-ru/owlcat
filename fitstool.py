@@ -87,7 +87,7 @@ if __name__ == "__main__":
       for hdrline in img[0].header.ascard:
         print hdrline; 
   
-  if options.replace:
+  if options.replace or len(imagenames)<2:
     if options.output:
       parser.error("Cannot combine -r/--replace with -o/--output");
     outname = imagenames[0];
@@ -103,6 +103,8 @@ if __name__ == "__main__":
     key,val = keyval.split("=");
     if val[0] == "'" and val[-1] == "'":
       images[0][0].header[key] = val[1:-1:];
+    elif val[-1] == 'd' or key.startswith('NAXIS'):
+      images[0][0].header[key] = int(val[:-1] if val[-1]=='d' else val);
     else:
       images[0][0].header[key] = float(val);
     print "Setting header %s=%s"%(key,val);

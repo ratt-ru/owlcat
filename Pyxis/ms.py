@@ -1,30 +1,31 @@
+"""Pyxis module for MS-related operations""";
+
 import numpy as np
 import math
 from pyrap.tables import table
 import os.path
 import pyfits
 
-MS = None;
-IMAGE = None;
+from Pyxis import *
 
-## template: strips off MS suffix to make MSBASE
-#def MSBASE_Template ():
-  #base = MS;
-  #while base and base[-1] == "/":
-    #base = base[:-1];
-  #return os.path.splitext(base)[0];
-
+v.MS = None;
+v.IMAGE = None;
 
 # external tools  
 lwimager = x.lwimager;
 tigger = xz.tigger
 
+PLOTMS_ARGS = "";
+plotms = x("plot-ms.py").args("$PLOTMS_ARGS"); 
+
+
+
 def msw (msname="$MS"):
-  """ms([msname]) Opens the MS (by argument, or global $MS variable) read-write, returns table object"""
+  """Opens the MS read-write, returns table object"""
   return ms(msname,write=True);
 
 def ms (msname="$MS",write=False):
-  """ms([msname]) Opens the MS (by argument, or global $MS variable) read-only, returns table object"""
+  """Opens the MS (read-only by default), returns table object"""
   msname = interpolate_locals("msname");
   if not msname:
     raise ValueError("'msname' or global MS variable must be set");
@@ -35,8 +36,8 @@ def _filename (base,newext):
     base = base[:-1];
   return os.path.splitext(base)[0]+"."+newext;
   
-def ms_uvcov (msname="$MS",save=None):
-  """Plots uv coverage of the specified MS, or the global 'MS'"""
+def uvcov (msname="$MS",save=None):
+  """Makes uv-coverage plot"""
   msname,save = interpolate_locals("msname save");
   uv = ms(msname).getcol("UVW")[:,:2];
   import pylab
@@ -52,8 +53,8 @@ def _strtodeg (arg):
         return float(size[:-len(suffix)])*scale;
   return float(arg);
   
-def ms_dirtyimage (msname="$MS",output="$msname_BASE.dirty.fits",show=True,size=None,**kw):
-  """Makes a dirty image from this MS""";
+def dirtyimage (msname="$MS",output="${msname:BASE}.dirty.fits",show=True,size=None,**kw):
+  """Makes a dirty image""";
   msname,output = interpolate_locals("msname output");
   if not msname:
     raise ValueError("'msname' or global MS variable must be set");
@@ -82,7 +83,7 @@ def ms_dirtyimage (msname="$MS",output="$msname_BASE.dirty.fits",show=True,size=
   if show:
     tigger(IMAGE);
   
-def img_plot (image="$IMAGE",range=None,index=None,save=None):
+def imgplot (image="$IMAGE",range=None,index=None,save=None):
   """Plots image""";
   image,save = interpolate_locals("image save");
   if not image:
@@ -96,3 +97,6 @@ def img_plot (image="$IMAGE",range=None,index=None,save=None):
   if range:
     pylab.clim(*range);
   pylab.savefig(save) if save else pylab.show();
+
+# register ourselves with Pyxis
+register_pyxis_module();

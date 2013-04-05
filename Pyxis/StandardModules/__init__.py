@@ -1,1 +1,1 @@
-pyxis_preload = [ "ms" ];
+pyxis_preload = [ "ms","calib" ];

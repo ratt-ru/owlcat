@@ -8,7 +8,7 @@ import itertools
 
 import PyxisImpl
 import PyxisImpl.Internals
-from PyxisImpl.Internals import _int_or_str,interpolate,loadconf,assign_templates
+from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign_templates,register_pyxis_module
 
 def _init (context):
   global x;
@@ -28,7 +28,7 @@ def _init (context):
   xz = PyxisImpl.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
   xz.__name__ = 'xz';
 
-  v = PyxisImpl.Internals.OptionalVariable(context,assign);
+  v = PyxisImpl.Internals.OptionalVariable(context,_assign_global);
   object.__setattr__(v,'__name__','v');
   
   E = PyxisImpl.Internals.ShellVariable();
@@ -43,17 +43,9 @@ def _I (string,level=1):
   _i(string,-1): interpolate across all callers
   """;
   frame = inspect.currentframe();
-  if level < 0:
-    frame = frame.f_back;
-    localdicts = [];
-    while frame:
-      localdicts.append(frame.f_locals); 
-      frame = frame.f_back;
-  else:
-    for i in range(level):
-      frame = frame.f_back;
-    localdicts = [ frame.f_locals ];
-  return interpolate(string,localdicts);
+  for i in range(level):
+    frame = frame and frame.f_back;
+  return interpolate(string,frame);
   
 def _II (*strings):
   """_II(string): interpolates multiple strings. Does an implicit assign_templates call beforehand. Useful as
@@ -61,9 +53,11 @@ def _II (*strings):
   """;
   PyxisImpl.Internals.assign_templates();
   frame = inspect.currentframe().f_back;
-  ret = [ x and interpolate(x,[frame.f_locals]) for x in strings ];
+  ret = [ x and interpolate(x,frame) for x in strings ];
   return ret[0] if len(strings)<2 else ret;
 
+II = _II;  
+  
 def interpolate_locals (*varnames):
   """interpolates the variable names (from the local context) given by its argument(s).
   Returns new values in the order given. Useful as the opening line of a function, for example:
@@ -75,7 +69,8 @@ def interpolate_locals (*varnames):
   """;
   PyxisImpl.Internals.assign_templates();
   # interpolate the whole locals() dict
-  locs = interpolate(inspect.currentframe().f_back.f_locals);
+  frame = inspect.currentframe().f_back;
+  locs = interpolate(frame.f_locals,frame,depth=2);
   # return variables in the order listed
   ret = [ locs.get(name) for name in itertools.chain(*[ v.split(" ") for v in varnames ]) ];
   return ret if len(ret) != 1 else ret[0];
@@ -112,23 +107,23 @@ def _abort (*msg):
   
 def debug (*msg):
   """Prints debug message(s)""";
-  _debug(*[ interpolate(x,inspect.currentframe().f_back.f_locals) for x in msg ]);
+  _debug(*[ _I(x,2) for x in msg ]);
 
 def verbose (level,*msg):
   """Prints verbosity message(s), if verbosity level is >= Context.pyxis_verbosity""";
-  _verbose(level,*[ interpolate(x,inspect.currentframe().f_back.f_locals) for x in msg ]);
+  _verbose(level,*[ _I(x,2) for x in msg ]);
 
 def info (*msg):
   """Prints info message(s)""";
-  _info(*[ interpolate(x,inspect.currentframe().f_back.f_locals) for x in msg ]);
+  _info(*[ _I(x,2) for x in msg ]);
 
 def warn (*msg):
   """Prints warning message(s)""";
-  _warn(*[ interpolate(x,inspect.currentframe().f_back.f_locals) for x in msg ]);
+  _warn(*[ _I(x,2) for x in msg ]);
 
 def abort (*msg):
   """Prints error message(s) and aborts""";
-  _abort(*[ interpolate(x,inspect.currentframe().f_back.f_locals) for x in msg ]);
+  _abort(*[ _I(x,2) for x in msg ]);
   
 def printvars ():
   """Prints the current variable settings in Context""";
@@ -152,27 +147,42 @@ def printvars ():
   # now deal with the callables
   print "Functions:";
   print " ",", ".join([ name for name,value in globs 
-    if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") ]);
+    if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
   print "External tools:";
   for name,value in globs:
     if isinstance(value,PyxisImpl.Internals.ShellExecutor):
       print "  %s=%s"%(name,value.path);
+  print "Pyxis built-ins:";
+  print " ",", ".join([ name for name,value in globs 
+    if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
 
 def exists (filename):
-  return os.path.exists(interpolate(filename,inspect.currentframe().f_back.f_locals));
+  return os.path.exists(_I(filename,2));
   
-def assign (name,value,interpolate=True,uselocals=True,verbose_level=2):
+def _assign_global (name,value,interpolate=True,frame=None,verbose_level=2):
+  assign(name,value,namespace=PyxisImpl.Context,interpolate=interpolate,frame=frame,verbose_level=verbose_level);
+  
+def assign (name,value,namespace=None,interpolate=True,frame=None,verbose_level=2):
+  frame = frame or inspect.currentframe().f_back;
+  # find namespace
+  if not namespace and '.' in name:
+    nsname,name = name.rsplit(".",1);
+    namespace = PyxisImpl._namespaces.get(nsname);
+    if namespace is None:
+      raise ValueError,"invalid namespace %s"%nsname;
+  elif not namespace:
+    namespace = frame.f_globals;
   # templates are not interpolated, all others are
   if name.endswith("_Template"):
     _verbose(verbose_level,"setting %s=%s"%(name,value));
-    PyxisImpl.Context[name] = value;
+    namespace[name] = value;
   else:
-    value1 = PyxisImpl.Internals.interpolate(value,uselocals and inspect.currentframe().f_back.f_locals) if interpolate else value;
-    PyxisImpl.Context[name] = value1;
+    value1 = PyxisImpl.Internals.interpolate(value,frame) if interpolate else value;
+    namespace[name] = value1;
     _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
   PyxisImpl.Internals.assign_templates();
 
-def _per (varname,localdict,*commands):
+def _per (varname,*commands):
   saveval = PyxisImpl.Context.get(varname,None);
   varlist = PyxisImpl.Context.get(varname+"_List",None);
   if varlist is None:
@@ -185,7 +195,7 @@ def _per (varname,localdict,*commands):
   _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,",".join(map(str,commands)),varname," ".join(map(str,varlist))));
   # do the actual iteration
   for value in varlist:
-    assign(varname,interpolate(value,localdict),uselocals=False);
+    assign(varname,_I(value,3),interpolate=False);
     PyxisImpl.Internals.run(*commands);
   # assign old value
   if saveval is not None:
@@ -194,10 +204,8 @@ def _per (varname,localdict,*commands):
     PyxisImpl.Internals.assign_templates();
 
 def per (varname,*commands):
-  _per(varname,inspect.currentframe().f_back.f_locals,*commands);
+  _per(varname,*commands);
 
 def per_ms (*commands):
-  assign("step",0);
-  _per("MS",inspect.currentframe().f_back.f_locals,*commands);
-
+  _per("MS",*commands);
 

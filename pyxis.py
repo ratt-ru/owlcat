@@ -33,8 +33,7 @@ import subprocess
 import imp
 
 import Pyxis
-from Pyxis.Context import *
-
+import PyxisImpl.Internals
 
 if __name__ == "__main__":
 
@@ -43,36 +42,37 @@ if __name__ == "__main__":
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] a=value command_x b=value c=value command_y ...""",
     description="Runs a sequence of reduction commands");
-  parser.add_option("--log",type="string",
-                    help="name of log file");
-  parser.add_option("-f","--force",dest="force",action="store_true",
-                    help="proceed without confirmation, and overwrite output MS if it already exists");
-  parser.add_option("-s","--renumber-spws",dest="renumber",action="store_true",
-                    help="treat each MS as a separate spectral window");
+  parser.add_option("--log",type="string",metavar="FILENAME",
+                    help="log output to file");
+  parser.add_option("-l",dest="default_log",action="store_true",
+                    help="equivalent to --log pyxis.log");
 
   (options,args) = parser.parse_args();
 
+  if options.log:
+    v.LOG = options.log;
+  elif options.default_log:
+    v.LOG = "pyxis.log";
+    
+  # if options
   # sort arguments into commands and MSs
   mslist = [];
   commands = []
   for arg in args:
-    if re.match(".*\\.(MS|ms)$",arg):
+    if not PyxisImpl.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)$",arg):
+      assign("MS",arg);
       mslist.append(arg);
     else:
       commands.append(arg);
       
-  # load config files -- all variable assignments go into the Context scope
-  Pyxis.initconf();
-  
   # MS list from command line overrides defaults
   if mslist:
-    info("PYRATE: overriding MS list with",mslist);
-    Pyxis.Context.MS_List = mslist;
-    Pyxis.Context.pop("MS_List_Template",None);
+    info("setting MS list with",mslist);
+    globals().pop("MS_List_Template",None);
   
   # run commands
   if not commands:
-    Pyxis._info("PYRATE: no commands to execute");
+    info("no commands to execute");
   else:
-    Pyxis.run(*commands);
+    run(*commands);
   
