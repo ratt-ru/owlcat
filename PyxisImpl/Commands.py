@@ -5,10 +5,15 @@ import os
 import os.path
 import time
 import itertools
+import math
 
 import PyxisImpl
 import PyxisImpl.Internals
-from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign_templates,register_pyxis_module
+from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign,assign_templates,register_pyxis_module
+
+DEG = math.pi/180
+ARCMIN = DEG/60
+ARCSEC = ARCMIN/60
 
 def _init (context):
   global x;
@@ -28,10 +33,10 @@ def _init (context):
   xz = PyxisImpl.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
   xz.__name__ = 'xz';
 
-  v = PyxisImpl.Internals.OptionalVariable(context,_assign_global);
+  v = PyxisImpl.Internals.GlobalVariableSpace(context);
   object.__setattr__(v,'__name__','v');
   
-  E = PyxisImpl.Internals.ShellVariable();
+  E = PyxisImpl.Internals.ShellVariableSpace();
   object.__setattr__(E,'__name__','E');
 
 
@@ -78,9 +83,15 @@ def interpolate_locals (*varnames):
 def _timestamp ():
   return time.strftime("%Y/%m/%d %H:%M:%S");
   
+def _message (*msg):
+  output = " ".join(map(str,msg));
+  print output;
+  if sys.stdout is not sys.__stdout__ and not PyxisImpl.Context.get('QUIET'):
+    sys.__stdout__.write(output+"\n");
+  
 def _debug (*msg):
   """Prints debug message(s) without interpolation""";
-  print _timestamp(),"DEBUG:",' '.join(map(str,msg));
+  _message(_timestamp(),"DEBUG:",*msg);
 
 def _verbose (level,*msg):
   """Prints verbosity message(s), if verbosity level is >= Context.pyxis_verbosity""";
@@ -89,19 +100,23 @@ def _verbose (level,*msg):
   except:
     verb = 1;
   if level <= verb:
-    print "PYXIS:",' '.join(map(str,msg));
+    _message("PYXIS:",*msg);
 
 def _info (*msg):
   """Prints info message(s) without interpolation""";
-  print _timestamp(),"INFO:",' '.join(map(str,msg));
+  _message(_timestamp(),"INFO:",*msg);
 
 def _warn (*msg):
   """Prints warning message(s) without interpolation""";
-  print _timestamp(),"WARNING:",' '.join(map(str,msg));
+  _message(_timestamp(),"WARNING:",*msg);
+
+def _error (*msg):
+  """Prints error message(s) without interpolation""";
+  _message(_timestamp(),"ERROR:",*msg);
 
 def _abort (*msg):
   """Prints error message(s) without interpolation and aborts""";
-  print _timestamp(),"ERROR:",' '.join(map(str,msg));
+  _message(_timestamp(),"ERROR:",*msg);
   PyxisImpl.Internals.flush_log();
   sys.exit(1);
   
@@ -120,6 +135,10 @@ def info (*msg):
 def warn (*msg):
   """Prints warning message(s)""";
   _warn(*[ _I(x,2) for x in msg ]);
+
+def error (*msg):
+  """Prints error message(s)""";
+  _error(*[ _I(x,2) for x in msg ]);
 
 def abort (*msg):
   """Prints error message(s) and aborts""";
@@ -159,29 +178,6 @@ def printvars ():
 def exists (filename):
   return os.path.exists(_I(filename,2));
   
-def _assign_global (name,value,interpolate=True,frame=None,verbose_level=2):
-  assign(name,value,namespace=PyxisImpl.Context,interpolate=interpolate,frame=frame,verbose_level=verbose_level);
-  
-def assign (name,value,namespace=None,interpolate=True,frame=None,verbose_level=2):
-  frame = frame or inspect.currentframe().f_back;
-  # find namespace
-  if not namespace and '.' in name:
-    nsname,name = name.rsplit(".",1);
-    namespace = PyxisImpl._namespaces.get(nsname);
-    if namespace is None:
-      raise ValueError,"invalid namespace %s"%nsname;
-  elif not namespace:
-    namespace = frame.f_globals;
-  # templates are not interpolated, all others are
-  if name.endswith("_Template"):
-    _verbose(verbose_level,"setting %s=%s"%(name,value));
-    namespace[name] = value;
-  else:
-    value1 = PyxisImpl.Internals.interpolate(value,frame) if interpolate else value;
-    namespace[name] = value1;
-    _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
-  PyxisImpl.Internals.assign_templates();
-
 def _per (varname,*commands):
   saveval = PyxisImpl.Context.get(varname,None);
   varlist = PyxisImpl.Context.get(varname+"_List",None);
@@ -195,11 +191,11 @@ def _per (varname,*commands):
   _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,",".join(map(str,commands)),varname," ".join(map(str,varlist))));
   # do the actual iteration
   for value in varlist:
-    assign(varname,_I(value,3),interpolate=False);
+    assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
     PyxisImpl.Internals.run(*commands);
   # assign old value
   if saveval is not None:
-    globals()[varname] = saveval;
+    assign(varname,saveval,namespace=PyxisImpl.Context,interpolate=False);
     _verbose(1,"restoring %s=%s"%(varname,saveval));
     PyxisImpl.Internals.assign_templates();
 

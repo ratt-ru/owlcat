@@ -306,6 +306,7 @@ make_image ()
     # call sanitize() (see above) to make sure / and - in filenames is not interpreted
     # as LEL expressions
     if [ "$img_oper" == "image" ]; then
+      
       ${img_image2fits} in="`sanitize $imgname`"*$img_flux_scale out=$imgname_fits && $remove -fr $imgname
     else
       ${img_image2fits} in="`sanitize $model`"*$img_flux_scale out=$model_fits && $remove -fr $model

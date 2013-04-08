@@ -27,11 +27,13 @@ def init (context):
   PyxisImpl._predefined_names = set(context.iterkeys());
   PyxisImpl.Commands._init(context);
   # loaded modules
-  global _namespaces;
+  global _namespaces,_superglobals;
   _namespaces = dict();
-  # the "v" and "" namespaces correspond to the global context
-  _namespaces[''] = context;
-  _namespaces['v'] = context;
+  _superglobals = dict();
+  # The "v" and "" namespaces correspond to the global context
+  # All variables of that context are superglobals.
+  _namespaces[''] = _namespaces['v'] = context;
+  _superglobals[id(context)] = context;
   # report verbosity
   if preset_verbosity is None and context['VERBOSE'] == 1:
     _verbose(1,"VERBOSE=1 by default");
@@ -149,47 +151,55 @@ Executors created via 'xz' are optional, and run commands in the background.
   def __repr__ (self):
     name = self.__name__;
     return "Pyxis built-in %s: access to shell commands. Use help(%s) for details."%(name,name);
-    
 
-class OptionalVariable (object):
-  """This object provides "smart" access to global Pyxis variables. Note that most Pyxis code runs with
-globals directly accessible as Python variables anyway, but "v" provides a number of extra features:
-
-  v.VARNAME evaluates to the variable VARNAME, or to the empty string, if VARNAME is not defined
-  v('VARNAME',default) evaluates to the variable VARNAME, or to default if VARNAME is not defined.
-     If default is a string, local variables of the caller are interpolated.
-  v.VARNAME=value assigns to a global variable, and causes templates to be re-evaluated, and other 
-    implicit variable-related actions to be taken. In particular, v.LOG="logfile" will set a new
-    log destination.
-  """;
-  
-  def __init__ (self,namespace,assigner=None):
+class _DictAccessor (object):
+  """Helper class that maps dicts to attributes""";
+  def __init__ (self,namespace):
     object.__setattr__(self,'namespace',namespace);
-    object.__setattr__(self,'_assign_func',assigner);
     
   def __call__ (self,name,default=""):
     if isinstance(default,str):
       default = interpolate(default,inspect.currentframe().f_back);
     return object.__getattribute__(self,'namespace').get(name,default);
     
-  def __getattr__ (self,attr,default=""):
-    return self(attr,default);
+  def __getattr__ (self,name,default=""):
+    if isinstance(default,str):
+      default = interpolate(default,inspect.currentframe().f_back);
+    return object.__getattribute__(self,'namespace').get(name,default);
+    
+  def __setattr__ (self,name,value):
+    object.__getattribute__(self,'namespace')[name] = value;
+
+class GlobalVariableSpace (_DictAccessor):
+  """The "v" object provides access to global Pyxis variables. Global variables assigned with
+  v.VARNAME=value are propagated across all imported Pyxis modules. They can then be referenced
+  directly as VARNAME. The "v" object itself provides a number of extra features:
+
+  v.VARNAME evaluates to the variable VARNAME, or to the empty string, if VARNAME is not defined
+  v('VARNAME',default) evaluates to the variable VARNAME, or to default if VARNAME is not defined.
+     If default is a string, local variables of the caller are interpolated.
+  v.VARNAME=value assigns to a global variable, and also causes templates to be re-evaluated, and 
+    other implicit variable-related actions to be taken. In particular, v.LOG="logfile" will set a 
+    new log destination.
+  """;
+  
+  def __init__ (self,namespace):
+    _DictAccessor.__init__(self,namespace);
     
   def __setattr__ (self,attr,value):
-    assigner = object.__getattribute__(self,'_assign_func') or object.__setattr__;
-    return assigner(attr,value,frame=inspect.currentframe().f_back); 
+    assign(attr,value,namespace=self.namespace,frame=inspect.currentframe().f_back); 
     
   def __repr__ (self):
     name = object.__getattribute__(self,'__name__');
-    return "Pyxis built-in %s: smart access to global variables. Try %s.VARNAME, or help(%s)."%(name,name,name);
+    return "Pyxis built-in %s: global variable space. Try %s.VARNAME, or help(%s)."%(name,name,name);
     
-class ShellVariable (OptionalVariable):
+class ShellVariableSpace (_DictAccessor):
   """This object provides quick access to environment (i.e. shell) variables. Use e.g.
   E.HOME or E("HOME",default) to access a shell variable. If default is a string, local 
   variables of the caller are interpolated.
   """;
   def __init__ (self):
-    OptionalVariable.__init__(self,os.environ);
+    _DictAccessor.__init__(self,os.environ);
     
   def __repr__ (self):
     name = object.__getattribute__(self,'__name__');
@@ -302,14 +312,51 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
     
+def assign (name,value,namespace=None,interpolate=True,frame=None,verbose_level=2):
+  frame = frame or inspect.currentframe().f_back;
+  # find namespace
+  if not namespace:
+    if '.' in name:
+      nsname,name = name.rsplit(".",1);
+      namespace = _namespaces.get(nsname);
+      if namespace is None:
+        raise ValueError,"invalid namespace %s"%nsname;
+    else:
+      namespace = frame.f_globals;
+  # get superglobals associated with this namespace
+  superglobs = _superglobals.get(id(namespace),[]);
+  # templates are not interpolated, all others are
+  if name.endswith("_Template"):
+    _verbose(verbose_level,"setting %s=%s"%(name,value));
+    namespace[name] = value;
+  else:
+    value1 = PyxisImpl.Internals.interpolate(value,frame) if interpolate else value;
+    namespace[name] = value1;
+    _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
+  # if variable is superglobal, propagate across all namespaces defining that superglobal
+  if name in superglobs:
+    for ns in _namespaces.itervalues():
+      if name in _superglobals.get(id(ns)):
+        ns[name] = value;
+  # reprocess templates
+  assign_templates();
+
+_in_assign_templates = False;
+
 def assign_templates ():
   """For every variable in PyxisImpl.Context that ends with "_Template", assigns value to it by interpolating the template.""";
+  ## non-reentrant, otherwise any call to Pyxis methods from within a template is liable to cause recursion
+  global _in_assign_templates;
+  if _in_assign_templates:
+    return;
+  _in_assign_templates = True;
   for count in range(100):
     updated = False;
     for modname,context in list(_namespaces.iteritems())+[ ("",PyxisImpl.Context) ]:
+      superglobs = _superglobals[id(context)];
       newvalues = {};
       # interpolate new values for each variable that has a _Template equivalent
-      for var,value in context.iteritems():
+      for var,value in list(context.iteritems()):
         if var.endswith("_Template"):
           # string templates are interpolated, callable ones are called
           if isinstance(value,str):
@@ -322,12 +369,18 @@ def assign_templates ():
         if oldval != value:
           updated = True;
           context[var] = value;
-          _verbose(2,"%s templated value %s.%s=%s"%("initialized" if oldval is None else "updated",modname,var,value));
+          # if variable is superglobal, propagate across all namespaces defining that superglobal
+          if var in superglobs:
+            for ns in _namespaces.itervalues():
+              if var in _superglobals.get(id(ns)):
+                ns[var] = value;
+          _verbose(3,"%s templated value %s.%s=%s"%("initialized" if oldval is None else "updated",modname,var,value));
     if not updated:
       break;
   else:
     _abort("Too many template assignment steps. This can be caused by templates that cross-reference each other");
   set_logfile(PyxisImpl.Context.get('LOG',None));
+  _in_assign_templates = False;
 
 _current_logfile = None;
 _current_logobj = None;
@@ -360,9 +413,13 @@ def set_logfile (filename):
     else:
       _info("log started");
     _current_logfile = filename;
-        
+
+_initconf_done = False;        
 def initconf (*files):
   """Loads configuration from specified files, or from default file""";
+  global _initconf_done;
+  if not _initconf_done:
+    _initconf_done = True;
   if not files:
     files = glob.glob("pyxis*.py") + glob.glob("pyxis*.conf");
   # load config files -- all variable assignments go into the PyxisImpl.Context scope
@@ -371,7 +428,7 @@ def initconf (*files):
   for filename in files:
     PyxisImpl.Commands.loadconf(filename,inspect.currentframe().f_back);
   assign_templates();
-  _report_symbols("global",
+  _report_symbols("global",[],
       [ (name,obj) for name,obj in PyxisImpl.Context.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ ]);
 
 def loadconf (filename,frame=None):
@@ -392,30 +449,55 @@ def load_package (pkgname,filename,report=True):
 #                 if not name.startswith("_") and not name in oldstuff ];
 #  _report_symbols(pkgname,newnames);
   
-def register_pyxis_module ():
+def register_pyxis_module (superglobals=""):
   """Registers a module (the callee) as part of the Pyxis environment""";
   import PyxisImpl.Commands
-  globs = inspect.currentframe().f_back.f_globals;
+  frame = inspect.currentframe().f_back;
+  globs = frame.f_globals;
+  # check for double registration
+  if id(globs) in _superglobals:
+    raise RuntimeError,"module '%s' is already registered"%modname;
   modname = globs['__name__'].split(".",1)[1];
+  # build list of superglobals
+  if isinstance(superglobals,str):
+    superglobs = superglobals.split();
+  else:
+    superglobs = itertools.chain(*[ x.split() for x in superglobals ]);
+  superglobs = frozenset(superglobs);
   _verbose(1,"registered module '%s'"%modname);
   _namespaces[modname] = globs;
-  _report_symbols(modname,
-      [ (name,obj) for name,obj in globs.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ ]);
+  _superglobals[id(globs)] = superglobs;
+  # add superglobals
+  for sym in superglobs:
+    # if superglobal is already defined, copy its value to the new module
+    # if superglobal was not yet defined, get its value form the module (or use None),
+    # and propagate this value super-globally via assign
+    if sym in PyxisImpl.Context:
+      globs[sym] = PyxisImpl.Context[sym];
+    else:
+      assign(sym,globs.get(sym,None),namespace=PyxisImpl.Context,frame=frame)
+  # report 
+  _report_symbols(modname,superglobs,
+      [ (name,obj) for name,obj in globs.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ and name not in superglobs ]);
   
-def _report_symbols (pkgname,syms):
-  varibs = sorted([name for name,obj in syms if not callable(obj) and not inspect.ismodule(obj) 
+def _report_symbols (pkgname,superglobs,syms):
+  if PyxisImpl.Context['VERBOSE'] >= 2:
+    varibs = sorted([name for name,obj in syms if not callable(obj) and not inspect.ismodule(obj) 
                                                               and not name.endswith("_Template") ]);
-  funcs = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and not isinstance(obj,ShellExecutor) ]);
-  shtools = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and isinstance(obj,ShellExecutor) ]);
-  temps = sorted([name[:-9] for name,obj in syms if name.endswith("_Template") ]);
-  if funcs:
-    _verbose(2,"%s functions:"%pkgname," ".join(funcs));
-  if shtools:
-    _verbose(2,"%s external tools:"%pkgname," ".join(shtools));
-  if varibs:
-    _verbose(2,"%s variables:"%pkgname," ".join(varibs));
-  if temps:
-    _verbose(2,"%s templates for:"%pkgname," ".join(temps));
+    funcs = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and not isinstance(obj,ShellExecutor) ]);
+    shtools = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and isinstance(obj,ShellExecutor) ]);
+    temps = sorted([name[:-9] for name,obj in syms if name.endswith("_Template") ]);
+    if funcs:
+      _verbose(2,"%s functions:"%pkgname," ".join(funcs));
+    if shtools:
+      _verbose(2,"%s external tools:"%pkgname," ".join(shtools));
+    if superglobs:
+      _verbose(2,"%s superglobals:"%pkgname," ".join(superglobs));
+    if varibs:
+      _verbose(2,"%s variables:"%pkgname," ".join(varibs));
+    if temps:
+      _verbose(2,"%s templates for:"%pkgname," ".join(temps));
+  
   
     
 def find_exec (cmd):
@@ -499,6 +581,14 @@ _re_assign = re.compile("^([\w.]+)(=)(.*)$");
 _re_command1 = re.compile("^(\\??\w+)\\[(.*)\\]$");
 _re_command2 = re.compile("^(\\??\w+)\\((.*)\\)$");
   
+def _parse_cmdline_value (value):
+  """Helper function. Parses value as a python expression. If not successful, uses a string directly"""
+  try:
+    exec("a=%s"%value);
+    return a;
+  except:
+    return value;
+  
 def run (*commands):
   """Runs list of commands""";
   import PyxisImpl.Commands
@@ -515,13 +605,12 @@ def run (*commands):
     if match:
       name,op,value = match.groups();
       # assign variable -- note that templates are not interpolated
-      PyxisImpl.Commands.assign(name,value,frame=frame);
+      PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame);
       continue;
     # syntax 2: command(args) or command[args]. command can have a "?" prefix
     match = _re_command1.match(command) or _re_command2.match(command);
     if match:
       comname,comargs = match.groups();
-      comcall = find_command(comname,inspect.currentframe().f_back);
       # split up arguments
       args = [];
       kws = {};
@@ -529,14 +618,17 @@ def run (*commands):
         arg = interpolate(arg,frame).strip();
         match = re.match("^(\w+)=(.*)$",arg);
         if match:
-          kws[match.group(1)] = _int_or_str(match.group(2));
+          kws[match.group(1)] = _parse_cmdline_value(match.group(2));
         else:
-          args.append(arg);
+          args.append(_parse_cmdline_value(arg));
       # exec command
+      _initconf_done or initconf();  # make sure config is loaded
+      comcall = find_command(comname,inspect.currentframe().f_back);
       comcall(*args,**kws);
       assign_templates();
       continue;
     # syntax 3: standalone command. This better be found!
+    _initconf_done or initconf();  # make sure config is loaded
     comcall = find_command(command,inspect.currentframe().f_back);
     comcall();
     assign_templates();

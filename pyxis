@@ -31,6 +31,10 @@ import re
 import time
 import subprocess
 import imp
+import traceback
+
+# defer config until later
+pyxis_skip_config=True
 
 import Pyxis
 import PyxisImpl.Internals
@@ -69,10 +73,33 @@ if __name__ == "__main__":
   if mslist:
     info("setting MS list with",mslist);
     globals().pop("MS_List_Template",None);
+    
+  ts0 = time.time();
   
   # run commands
   if not commands:
     info("no commands to execute");
   else:
-    run(*commands);
-  
+    try:
+      run(*commands);
+      retcode = 0;
+    except Exception:
+      if sys.stdout is not sys.__stdout__:
+        traceback.print_exc();
+        error("Exception raised, aborting");
+        PyxisImpl.Internals.flush_log();
+      sys.stdout = sys.__stdout__;
+      sys.stderr = sys.__stderr__;
+      traceback.print_exc();
+      error("Exception raised, aborting");
+      retcode = 1;
+ 
+  ts0 = time.time() - ts0;
+  h = ts0//3600;
+  m = (ts0-h*3600)//60;
+  s = ts0%60;     
+  info("Elapsed time is %dh%dm%.2fs"%(h,m,s));
+  if retcode:
+    sys.exit(retcode);
+      
+      

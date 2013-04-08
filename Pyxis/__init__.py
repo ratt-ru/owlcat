@@ -1,5 +1,13 @@
 import inspect
 import os.path
+import math
+import numpy
+np = numpy
+
+# some useful constants
+DEG = math.pi/180
+ARCMIN = DEG/60
+ARCSEC = DEG/3600
 
 import PyxisImpl
 #from PyxisImpl.Commands import *
