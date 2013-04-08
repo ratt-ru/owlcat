@@ -457,7 +457,7 @@ def register_pyxis_module (superglobals=""):
   # check for double registration
   if id(globs) in _superglobals:
     raise RuntimeError,"module '%s' is already registered"%modname;
-  modname = globs['__name__'].split(".",1)[1];
+  modname = globs['__name__'].split(".",1)[-1];
   # build list of superglobals
   if isinstance(superglobals,str):
     superglobs = superglobals.split();

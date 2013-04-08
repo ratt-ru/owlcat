@@ -37,7 +37,10 @@ def _filename (base,newext):
   return os.path.splitext(base)[0]+"."+newext;
   
 def uvcov (msname="$MS",save=None):
-  """Makes uv-coverage plot"""
+  """Makes uv-coverage plot
+  'msname' is superglobal MS by default.
+  If 'save' is given, saves figure to file.
+  """
   msname,save = interpolate_locals("msname save");
   uv = ms(msname).getcol("UVW")[:,:2];
   import pylab
@@ -54,7 +57,12 @@ def _strtodeg (arg):
   return float(arg);
 
 def dirtyimage (msname="$MS",output="${msname:BASE}.dirty.fits",show=True,size=None,**kw):
-  """Makes a dirty image""";
+  """Makes a dirty image.
+  'msname' is superglobal MS by default.
+  'output' is output fits file, built from the MS name by default
+  If 'show' is True, invokes tigger on the file if available.
+  
+  """;
   msname,output = interpolate_locals("msname output");
   if not msname:
     raise ValueError("'msname' or global MS variable must be set");

@@ -29,6 +29,10 @@ if not _initialized:
   verbose(1,"loading Pyxis into context '%s'"%_context.get('__name__'));
   exec('from PyxisImpl.Commands import *',_context);
   exec('from PyxisImpl.Commands import _I,_II',_context);
+  
+  import Pyxides
+  # add Pyxides path to module includes (so we can do stuff like "import ms" instead of "from Pyxides import ms"
+  sys.path.append(os.path.dirname(Pyxides.__file__));
 
   ## import standard modules, unless a specific other set is given
   #if not context.get("pyxis_preload"):
