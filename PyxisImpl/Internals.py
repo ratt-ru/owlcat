@@ -536,7 +536,7 @@ def _call_exec (path,*args,**kws):
   flush_log();
   if bg:
     global _bg_processes;
-    po = subprocess.Popen(args);
+    po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'));
     _bg_processes.append(po);
     _verbose(1,"executing '%s' in background: pid %d"%(" ".join(args),po.pid));
   else:
@@ -544,17 +544,40 @@ def _call_exec (path,*args,**kws):
     type(sys.stdout) is file and sys.stdout.flush();
     type(sys.stderr) is file and sys.stderr.flush();
     if type(stdout) is not file or type(stderr) is not file:
-      retcode = subprocess.call(args);
+      po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'));
+      #retcode = subprocess.call(args);
     else:
-      retcode = subprocess.call(args,stdin=stdin,stdout=stdout,stderr=stderr);
-    if retcode:
+      po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'),stdin=stdin,stdout=stdout,stderr=stderr);
+      #retcode = subprocess.call(args,stdin=stdin,stdout=stdout,stderr=stderr);
+    po.wait();
+    if po.returncode:
       if allow_fail:
-        _warn("PYXIS: '%s' returns error code %d"%(path,retcode));
+        _warn("PYXIS: '%s' returns error code %d"%(path,po.returncode));
         return;
       else:
-        _abort("PYXIS: '%s' returns error code %d"%(path,retcode));
+        _abort("PYXIS: '%s' returns error code %d"%(path,po.returncode));
     else:
       _verbose(2,"'%s' succeeded"%path);
+
+
+## Function to ensure that child processes are killed when Pyxis is killed, see subprocess.Popen calls above
+## source: http://www.evans.io/posts/killing-child-processes-on-parent-exit-prctl/
+import signal
+from ctypes import cdll
+
+def _on_parent_exit(signame):
+    """Return a function to be run in a child process which will trigger
+    SIGNAME to be sent when the parent process dies.""";
+    signum = getattr(signal, signame)
+    # Constant taken from http://linux.die.net/include/linux/prctl.h
+    _PR_SET_PDEATHSIG = 1
+    def set_parent_exit_signal():
+        # http://linux.die.net/man/2/prctl
+        result = cdll['libc.so.6'].prctl(_PR_SET_PDEATHSIG, signum)
+        if result != 0:
+            raise RuntimeError('prctl failed with error code %s' % result)
+    return set_parent_exit_signal
+    
 
 def find_command (comname,frame=None):
   """Locates command by name. If command is present (as a callable) in PyxisImpl.Context, returns that.
