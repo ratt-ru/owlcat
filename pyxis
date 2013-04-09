@@ -78,6 +78,7 @@ if __name__ == "__main__":
     
   ts0 = time.time();
   
+  retcode = 0;
   # run commands
   if not commands:
     info("no commands to execute");
