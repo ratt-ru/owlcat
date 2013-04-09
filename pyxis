@@ -34,7 +34,9 @@ import imp
 import traceback
 
 # defer config until later
-pyxis_skip_config=True
+PYXIS_LOAD_CONFIG = False
+# disable auto-import -- meant for interactive sessions only
+PYXIS_AUTO_IMPORT_MODULES = False
 
 import Pyxis
 import PyxisImpl.Internals

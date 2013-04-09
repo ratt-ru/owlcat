@@ -32,7 +32,9 @@ if not _initialized:
   
   import Pyxides
   # add Pyxides path to module includes (so we can do stuff like "import ms" instead of "from Pyxides import ms"
-  sys.path.append(os.path.dirname(Pyxides.__file__));
+  if not _context.get("pyxis_add_pyxides_path"):
+    verbose(2,"adding Pyxides to import path. Set pyxis_add_pyxides_path=False to disable");
+    sys.path.append(os.path.dirname(Pyxides.__file__));
 
   ## import standard modules, unless a specific other set is given
   #if not context.get("pyxis_preload"):

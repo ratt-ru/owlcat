@@ -27,9 +27,10 @@ def init (context):
   PyxisImpl._predefined_names = set(context.iterkeys());
   PyxisImpl.Commands._init(context);
   # loaded modules
-  global _namespaces,_superglobals;
+  global _namespaces,_superglobals,_modules;
   _namespaces = dict();
   _superglobals = dict();
+  _modules = set();
   # The "v" and "" namespaces correspond to the global context
   # All variables of that context are superglobals.
   _namespaces[''] = _namespaces['v'] = context;
@@ -415,8 +416,10 @@ def set_logfile (filename):
     _current_logfile = filename;
 
 _initconf_done = False;        
-def initconf (*files):
+def initconf (force=False,*files):
   """Loads configuration from specified files, or from default file""";
+  if not force and not PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True):
+    return;
   global _initconf_done;
   if not _initconf_done:
     _initconf_done = True;
@@ -424,13 +427,22 @@ def initconf (*files):
     files = glob.glob("pyxis*.py") + glob.glob("pyxis*.conf");
   # load config files -- all variable assignments go into the PyxisImpl.Context scope
   if files:
-    _verbose(1,"auto-loading config files and scripts from 'pyxis*.{py,conf}'. To disable this, set pyxis_skip_config=True before importing Pyxis");
+    if force:
+      _verbose(1,"auto-loading config files and scripts from 'pyxis*.{py,conf}'");
+    else:
+      _verbose(1,"auto-loading config files and scripts from 'pyxis*.{py,conf}'. Preset PYXIS_LOAD_CONFIG=False to disable.");
   for filename in files:
     PyxisImpl.Commands.loadconf(filename,inspect.currentframe().f_back);
   assign_templates();
   _report_symbols("global",[],
       [ (name,obj) for name,obj in PyxisImpl.Context.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ ]);
-
+  # make all auto-imported Pyxides modules available to global context
+  toplevel = [ m for m in _modules if not '.' in m and (m in sys.modules or "Pyxides."+m in sys.modules) ];
+  if PyxisImpl.Context.get("PYXIS_AUTO_IMPORT_MODULES",True) and toplevel:
+    _verbose(1,"importing top-level modules (%s) for you. Preset PYXIS_AUTO_IMPORT_MODULES=False to disable."%", ".join(toplevel));
+    for mod in toplevel:
+      PyxisImpl.Context[mod] = sys.modules.get(mod,sys.modules.get("Pyxides."+m));
+  
 def loadconf (filename,frame=None):
   """Loads config file""";
   filename = interpolate(filename,frame or inspect.currentframe().f_back);
@@ -457,7 +469,10 @@ def register_pyxis_module (superglobals=""):
   # check for double registration
   if id(globs) in _superglobals:
     raise RuntimeError,"module '%s' is already registered"%modname;
-  modname = globs['__name__'].split(".",1)[-1];
+  modname = globs['__name__'];
+  _modules.add(modname);
+  if modname.startswith("Pyxides."):
+    modname = modname.split(".",1)[-1];
   # build list of superglobals
   if isinstance(superglobals,str):
     superglobs = superglobals.split();
@@ -645,7 +660,7 @@ def run (*commands):
         else:
           args.append(_parse_cmdline_value(arg));
       # exec command
-      _initconf_done or initconf();  # make sure config is loaded
+      _initconf_done or initconf(force=True);  # make sure config is loaded
       comcall = find_command(comname,inspect.currentframe().f_back);
       comcall(*args,**kws);
       assign_templates();
