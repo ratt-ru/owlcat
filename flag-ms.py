@@ -206,6 +206,8 @@ if __name__ == "__main__":
   parser.add_option_group(group);
 
   group = OptionGroup(parser,"Actions to take on selection (may be combined)");
+  group.add_option("-x","--extend-all-corr",action="store_true",
+                   help="apply selection to all correlations if at least one is selected");
   group.add_option("-f","--flag",metavar="FLAGS",type="string",
                   help="raise the specified FLAGS");
   group.add_option("-u","--unflag",metavar="FLAGS",type="string",
@@ -439,7 +441,9 @@ if __name__ == "__main__":
 
     # else not stats mode, do the actual flagging job
     totrows,sel_nrow,sel_nvis,nvis_A,nvis_B,nvis_C = \
-      flagger.xflag(flag=options.flag,unflag=options.unflag,fill_legacy=options.fill_legacy,**subset);
+      flagger.xflag(flag=options.flag,unflag=options.unflag,fill_legacy=options.fill_legacy,
+        flag_allcorr=options.extend_all_corr,
+        **subset);
       
     # print stats
     if statonly:

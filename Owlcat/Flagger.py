@@ -633,7 +633,7 @@ class Flagger (Timba.dmi.verbosity):
           flagmask_all=None,              # all bitflags set in the given flagmask (or flagset name)
           flagmask_none=None,             # no bitflags set in the given flagmask (or flagset name)
               # Subset C. Subset within subset B based on data clipping
-          data_nan=False,                  # restrict flagged subset to NAN/INF data
+          data_nan=False,                 # restrict flagged subset to NAN/INF data
           data_above=None,                # restrict flagged subset to abs(data)>X
           data_below=None,                #                        and abs(data)<X
           data_fm_above=None,             # same as data_above/_below, but flags based on the mean
@@ -642,6 +642,7 @@ class Flagger (Timba.dmi.verbosity):
           data_flagmask=-1,               # flagmask to apply to data column when computing mean
 
               # other options
+          flag_allcorr=True,              # flag all correlations if at least one is flagged
           progress_callback=None,         # callback, called with (n,nmax) to report progress
           purr=False                      # if True, writes comments to purrpipe
           ):
@@ -857,9 +858,14 @@ class Flagger (Timba.dmi.verbosity):
             self.dprintf(3,"data_fm_above/below filtering leaves %d visibilities\n",vismask.sum());
         # finally, subset E is ready
         nv = vismask.sum();
-        nvis_C += nv;
         self.dprintf(2,"subset C (data clipping) leaves %d visibilities\n",nv);
-
+        # extending flagging to all correlations
+        if flag_allcorr:
+         vismask |= numpy.logical_or.reduce(vismask,2)[:,:,numpy.newaxis];
+         nv = vismask.sum();
+         self.dprintf(2,"which extends to %d visibilities with flag_allcorr in effect\n",nv);
+        nvis_C += nv;
+ 
         # now, do the actual flagging
         if flag or unflag or fill_legacy is not None:
           rf = rowflags();

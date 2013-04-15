@@ -418,6 +418,7 @@ def set_logfile (filename):
 _initconf_done = False;        
 def initconf (force=False,*files):
   """Loads configuration from specified files, or from default file""";
+  print "initconf",force,PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True);
   if not force and not PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True):
     return;
   global _initconf_done;
@@ -666,7 +667,7 @@ def run (*commands):
       assign_templates();
       continue;
     # syntax 3: standalone command. This better be found!
-    _initconf_done or initconf();  # make sure config is loaded
+    _initconf_done or initconf(force=True);  # make sure config is loaded
     comcall = find_command(command,inspect.currentframe().f_back);
     comcall();
     assign_templates();
