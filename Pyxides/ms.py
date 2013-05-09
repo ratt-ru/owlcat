@@ -8,8 +8,7 @@ import pyfits
 from Pyxis import *
 
 # register ourselves with Pyxis, and define the superglobals
-register_pyxis_module(superglobals="MS DDID FIELD IMAGE");
-
+register_pyxis_module(superglobals="MS MSDIR MSBASENAME DDID FIELD IMAGE");
 
 # external tools  
 lwimager = x.lwimager;

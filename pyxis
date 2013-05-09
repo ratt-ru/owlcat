@@ -75,6 +75,7 @@ if __name__ == "__main__":
   if mslist:
     info("setting MS list with",mslist);
     globals().pop("MS_List_Template",None);
+    globals()['MS_List'] = mslist;
     
   ts0 = time.time();
   

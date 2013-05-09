@@ -4,6 +4,9 @@ import pyrap.images
 import os
 import subprocess
 
+# Pyxides.mq is needed to make the Cattery available (see reference to Meow below)
+import mqt
+
 # register ourselves with Pyxis and define the superglobals
 register_pyxis_module(superglobals="MS DDID FIELD");
 
@@ -41,7 +44,7 @@ _lwimager_args = set(("spwid field prior image model restored residual data mode
 def run (ms='$MS',ifrs=None,**kw):
   print ms,MS,v.MS
   # make dict of imager arguments that have been specified globally or locally
-  args = dict([ (arg,globals()[arg]) for arg in _lwimager_args if arg in globals() ]);
+  args = dict([ (arg,globals()[arg]) for arg in _lwimager_args if arg in globals() and globals()[arg] is not None ]);
   args.update([ (arg,kw[arg]) for arg in _lwimager_args if arg in kw ]);
   # add spwid and field arguments
   args.setdefault('ms',ms);
@@ -49,10 +52,10 @@ def run (ms='$MS',ifrs=None,**kw):
   FIELD is not None and args.setdefault('field',FIELD);
   # have an IFR subset? Parse that too
   ifrs = ifrs or globals()['ifrs'];
-  if ifrs:
+  if ifrs and ifrs.lower() != "all":
     import Meow.IfrSet
-    subset = Meow.IfrSet.from_ms(ms).subset(kw['ifrs']).taql_string();
-    args['select'] = "(%s)&&(%s)"%(args['select'],subset) if select in args else subset;
+    subset = Meow.IfrSet.from_ms(ms).subset(ifrs).taql_string();
+    args['select'] = "(%s)&&(%s)"%(args['select'],subset) if 'select' in args else subset;
   # make image names
   fitsfiles = {};
   for x in _fileargs:

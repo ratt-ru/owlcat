@@ -264,9 +264,9 @@ def interpolate (arg,frame,depth=1,ignore=set(),skip=set()):
   else:
     return arg;
 
-# RE pattern matching the [PREFIX<][NAMESPACES.]NAME[?DEFAULT][:BASE][>SUFFIX] syntax
+# RE pattern matching the [PREFIX<][NAMESPACES.]NAME[?DEFAULT][:BASE|DIR][>SUFFIX] syntax
 _substpattern = \
-  "(?i)((?P<prefix>[^{}]+)<)?(?P<name>[._a-z][._a-z0-9]*)(\\?(?P<defval>[^}\\$]*?))?(:(?P<command>BASE|DIR))?(>(?P<suffix>[^{}]+))?"
+  "(?i)((?P<prefix>[^{}]+)<)?(?P<name>[._a-z][._a-z0-9]*)(\\?(?P<defval>[^}\\$]*?))?(:(?P<command>BASE|DIR|FILE))?(>(?P<suffix>[^{}]+))?"
     
 class SmartTemplate (string.Template):
   pattern = "(?P<escaped>\\$\\$)|(\\$(?P<named>[_a-z][_a-z0-9]*))|(\\${(?P<braced>%s)})|(?P<invalid>\\$)"%_substpattern;
@@ -303,11 +303,12 @@ class DictProxy (object):
     # check for commands
     if isinstance(value,str) and command:
       if command.upper() == "BASE":
-        while value and value[-1] == "/":
-          value = value[:-1];
-        value = os.path.splitext(value)[0];
+        value = value and os.path.basename(value);
+        value = value and os.path.splitext(value)[0];
       elif command.upper() == "DIR":
-        value = os.path.dirname(value) or ".";
+        value = (value and os.path.dirname(value)) or ".";
+      elif command.upper() == "FILE":
+        value = value and os.path.basename(value);
     return (prefix or "")+str(value)+(suffix or "") if value not in ('',None) else "";
     
   def __contains__ (self,item):
@@ -363,7 +364,11 @@ def assign_templates ():
           if isinstance(value,str):
             newvalues[var[:-len("_Template")]] = interpolate(value,context);
           elif callable(value):
-            newvalues[var[:-len("_Template")]] = value();
+            try:
+              newvalues[var[:-len("_Template")]] = value();
+            except:
+              traceback.print_exc();
+              _warn("PYXIS: error evaluating template %s"%var);
       # update dict
       for var,value in newvalues.iteritems():
         oldval = context.get(var,None);
@@ -418,7 +423,7 @@ def set_logfile (filename):
 _initconf_done = False;        
 def initconf (force=False,*files):
   """Loads configuration from specified files, or from default file""";
-  print "initconf",force,PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True);
+#  print "initconf",force,PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True);
   if not force and not PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True):
     return;
   global _initconf_done;
@@ -457,7 +462,7 @@ def load_package (pkgname,filename,report=True):
     exec(file(filename),PyxisImpl.Context);
   except:
     traceback.print_exc();
-    _abort("PYXIS: error parsing %s, see output above for details"%filename);
+    _abort("PYXIS: error parsing %s, see output above and/or log for details"%filename);
 #  newnames =  [ (name,obj) for name,obj in PyxisImpl.Context.iteritems() 
 #                 if not name.startswith("_") and not name in oldstuff ];
 #  _report_symbols(pkgname,newnames);

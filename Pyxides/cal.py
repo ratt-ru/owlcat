@@ -5,7 +5,7 @@ import mqt
 import imager
 
 # register ourselves with Pyxis, and define what superglobals we use
-register_pyxis_module(superglobals="MS DDID LSM FIELD");
+register_pyxis_module(superglobals="MS DDID LSM FIELD BAND");
 
 # various tools
 # Note that default arguments are interpolated when the tool is actually invoked
@@ -14,7 +14,7 @@ copy		= x.cp.args("-a");
 plotparms       = x("plot-parms.py").args("$PLOTPARMS_ARGS");
 flagms          = x("flag-ms.py")
 mergems         = x("merge-ms.py");
-downweigh       = x("downweigh-redundant-baselines.py")
+downweigh_redundant = x("downweigh-redundant-baselines.py")
 fitstool        = x("fitstool.py")
 tigger_restore  = x("tigger-restore")
 tigger_convert  = x("tigger-convert")
@@ -44,8 +44,11 @@ OUTFILE_Template = '${DESTDIR>/}${MS:BASE}${_spw<DDID}${_s<STEP}${_<LABEL}'
 
 ## runtime globals
 
-## channel range, as (start,end[,step]), or list of such tuples per DDID, or None for all
+## channel range, as first,last[,step], or list of such tuples per DDID, or None for all
 CHANRANGE = None
+
+# interferometer subset
+IFRS = "all"
 
 ## current spwid and number of channels. Note that these are set automatically from the MS by the _msddid_Template below
 SPWID = 0
@@ -81,15 +84,20 @@ def _chanspec_Template ():
     CHAN_TDL = 'ms_sel.select_channels=0';
   else:
     if type(chans) is int:
-      CHANSTART,CHANSTEP,NUMCHANS = chans,1,1;
+      ch0,ch1,dch = chans,chans,1;
+#      CHANSTART,CHANSTEP,NUMCHANS = chans,1,1;
     elif len(chans) == 1:
-      CHANSTART,CHANSTEP,NUMCHANS = chans[0],1,1;
+      ch0,ch1,dch = chans[0],chans[0],1;
+#      CHANSTART,CHANSTEP,NUMCHANS = chans[0],1,1;
     elif len(chans) == 2:
-      CHANSTART,CHANSTEP,NUMCHANS = chans[0],1,(chans[1]-chans[0]+1);
+      ch0,ch1,dch = chans[0],chans[1],1;
+#      CHANSTART,CHANSTEP,NUMCHANS = chans[0],1,chans[1]-chans[0]+1;
     elif len(chans) == 3:
-      CHANSTART,CHANSTEP,NUMCHANS = chans[0],chans[2],(chans[1]-chans[0]+1);
-    CHAN_OWLCAT = "-L %d~%d:%d"%(CHANSTART,CHANSTAR+NUMCHANS-1,CHANSTEP);
-    CHAN_TDL = 'ms_sel.select_channels=1 ms_sel.ms_channel_start=%d ms_sel.ms_channel_end=%d ms_sel.ms_channel_step=%d'%chans;
+      ch0,ch1,dch = chans;
+    CHANSTART,CHANSTEP,NUMCHANS = ch0,dch,((ch1-ch0)//dch+1);
+    CHAN_OWLCAT = "-L %d~%d:%d"%(ch0,ch1,dch);
+    CHAN_TDL = 'ms_sel.select_channels=1 ms_sel.ms_channel_start=%d ms_sel.ms_channel_end=%d ms_sel.ms_channel_step=%d'%\
+               (ch0,ch1,dch);
   return CHANSTART,CHANSTEP,NUMCHANS;
 
 ## set this to zero to skip MS plots
@@ -122,11 +130,13 @@ def _make_destdir ():
   if not os.path.exists(DESTDIR):
     os.mkdir(DESTDIR);
 
-def make_image (msname="$MS",column="CORRECTED_DATA",dirty=True,restore=False,channelize=None,lsm="$LSM",config="",**kw0):
+def make_image (msname="$MS",column="CORRECTED_DATA",
+                dirty=True,restore=False,restore_lsm=True,
+                channelize=None,lsm="$LSM",config="",**kw0):
   """Makes image(s) from MS. Set dirty and restore to True or False to make the appropriate images. You can also
-  set either to a dict of options to be passed to the imager. If restore=True and 'lsm' is set, it will also make 
-  a full-restored image (i.e. will restore the LSM into the image) with tigger-restore. Use this when deconvolving 
-  residual images. Note that RESTORING_OPTIONS are passed to tigger-restore.
+  set either to a dict of options to be passed to the imager. If restore=True and restore_lsm is True and 'lsm' is set, 
+  it will also make a full-restored image (i.e. will restore the LSM into the image) with tigger-restore. Use this when 
+  deconvolving residual images. Note that RESTORING_OPTIONS are passed to tigger-restore.
   
   'config' specifies a config file for run-imager. If empty, the default imager.conf is used.
   
@@ -141,11 +151,13 @@ def make_image (msname="$MS",column="CORRECTED_DATA",dirty=True,restore=False,ch
   if channelize is None:
     channelize = IMAGE_CHANNELIZE;
   if channelize == 0:
-    kw0.update(img_nchan=1,img_chanstart=CHANSTART,img_chanstep=CHANSTEP);
+    kw0.update(img_nchan=1,img_chanstart=CHANSTART,img_chanstep=NUMCHANS);
   elif channelize > 0:
     kw0.update(img_nchan=NUMCHANS//channelize,img_chanstart=CHANSTART,img_chanstep=channelize);
     
   kw0.update(ms=msname,data=column);
+  if 'ifrs' not in kw0:
+    kw0['ifrs'] = IFRS;
 
   if dirty:
     info("Making dirty image DIRTY_IMAGE=$DIRTY_IMAGE");
@@ -162,35 +174,45 @@ def make_image (msname="$MS",column="CORRECTED_DATA",dirty=True,restore=False,ch
       kw.update(restore);
     imager.run(operation=CLEAN_ALGORITHM,restored=RESTORED_IMAGE,model=MODEL_IMAGE,residual=RESIDUAL_IMAGE,**kw)
     v.IMAGE = RESTORED_IMAGE;
-    if lsm:
+    if lsm and restore_lsm:
       info("Restoring LSM into FULLREST_IMAGE=$FULLREST_IMAGE");
       tigger_restore("$RESTORING_OPTIONS","-f",RESTORED_IMAGE,lsm,FULLREST_IMAGE);
       v.IMAGE = FULLREST_IMAGE;
 
 
-STEFCAL_SCRIPT  = "calico-stefcal.py"
-STEFCAL_SECTION = "stefcal"
-STEFCAL_JOBNAME = "_tdl_job_1_StefCal"
-STEFCAL_TDLOPTS = ""
-STEFCAL_IFRGAINS = "ifrgains.cp"
+STEFCAL_SCRIPT    = "calico-stefcal.py"
+STEFCAL_SECTION   = "stefcal"
+STEFCAL_JOBNAME   = "stefcal"
+STEFCAL_TDLOPTS   = ""
+STEFCAL_GAINS_Template = "$MS/gains.cp"
+STEFCAL_IFRGAINS_Template = "$MS/ifrgains.cp"
+STEFCAL_DIFFGAINS_Template = "$MS/diffgains.cp"
+STEFCAL_GAINS_SAVE_Template = "$OUTFILE.gains.cp"
+STEFCAL_DIFFGAINS_SAVE_Template = "$OUTFILE.diffgains.cp"
 STEFCAL_IFRGAINS_SAVE_Template = "$OUTFILE.ifrgains.cp"
       
 def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
-              reset_ifrgains=False,
+              apply_only=False,
               diffgains=None,
+              flag_threshold=None,
+              output="CORR_RES",
               plotvis="$PLOTVIS",
-              dirty=True,restore=False,
+              dirty=True,restore=False,restore_lsm=True,
               args=[],options={},
               **kws):
   """Generic function to run a stefcal job.
   
   'section'         is config file section
   'label'           will be assigned to the global LABEL for purposes of file naming
-  'reset_ifrgains'  reset IFR gain solutions before starting
+  'apply_only'      if true, will only apply saved solutions
   'diffgains'       set to a source subset string to solve for diffgains. Set to True to use "=dE"
-  'plotvis'	    plot output visibilities using plot-ms
+  'flag'            threshold flaging post-solutions. Give one threshold to flag with --above,
+                    or T1,T2 for --above T1 --fm-above T2
+  'output'          output visibilities ('CORR_DATA','CORR_RES', 'RES' are useful)
+  'plotvis'	     plot output visibilities using plot-ms
   'dirty','restore' image output visibilities (passed to make_image above as is)
   'args','options'  passed to the stefcal job as is, can be used to supply extra TDL options
+  kws:              passed to the stefcal job, as "stefcal_kw=value"
   """;
   msname,section,lsm,LABEL,plotvis = interpolate_locals("msname section lsm label plotvis");
   _make_destdir();
@@ -200,31 +222,55 @@ def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
   if type(STEP) is int:
     STEP += 1;
 
-  # remove saved gains if asked to 
-  if os.path.exists(STEFCAL_IFRGAINS) and reset_ifrgains:
-    remove(STEFCAL_IFRGAINS);
-    
   # setup stefcal options and run 
   info("Running stefcal ${step <STEP} ${(<LABEL>)}");
-  args = list(args);
-  args.append("$MS_TDL $CHAN_TDL $LSM_TDL $EXTRA_TDLOPTS de_subset.subset_enabled=%d"%(1 if diffgains else 0));
+  # setup args
+  args0 = [ "$MS_TDL $CHAN_TDL $LSM_TDL $EXTRA_TDLOPTS ms_sel.ms_ifr_subset_str=%s de_subset.subset_enabled=%d %s"%
+    (IFRS,(1 if diffgains else 0),STEFCAL_TDLOPTS) ];
   if diffgains:
     if diffgains is True:
       diffgains = "=dE";
-    args.append("de_subset.source_subset=$diffgains"); 
-  mqt.run(STEFCAL_SCRIPT,STEFCAL_JOBNAME,section=section,args=args,options=options);
+    args0.append("de_subset.source_subset=$diffgains"); 
+  opts = dict(
+    do_output=output,
+    stefcal_gain_mode="apply" if apply_only else "solve-save",
+    stefcal_ifr_gain_mode="apply" if apply_only else "solve-save",
+    stefcal_gain_table=STEFCAL_GAINS,
+    stefcal_diff_gain_table=STEFCAL_DIFFGAINS,
+    stefcal_ifr_gain_table=STEFCAL_IFRGAINS);
+
+  # add user-defined args
+  args0 += list(args);
+  opts.update(options);
+  opts.update(kws);
+  # run the job
+  mqt.run(STEFCAL_SCRIPT,STEFCAL_JOBNAME,section=section,args=args0,options=opts);
   
   # copy gains
-  if os.path.exists(STEFCAL_IFRGAINS):
-    copy(STEFCAL_IFRGAINS,STEFCAL_IFRGAINS_SAVE);
+  if not apply_only:
+    copy(STEFCAL_GAINS,STEFCAL_GAINS_SAVE);
+    if os.path.exists(STEFCAL_DIFFGAINS):
+      copy(STEFCAL_DIFFGAINS,STEFCAL_DIFFGAINS_SAVE);
+    if os.path.exists(STEFCAL_IFRGAINS):
+      copy(STEFCAL_IFRGAINS,STEFCAL_IFRGAINS_SAVE);
+    
+  # post-calibration flagging
+  if flag_threshold:
+    if isinstance(flag_threshold,(list,tuple)):
+      t0,t1 = flag_threshold;
+    else:
+      t0,t1 = flag_threshold,None;
+    flagms(MS,CHAN_OWLCAT,"--above %g"%t0,"-f threshold -c");
+    if t1:
+      flagms(MS,CHAN_OWLCAT,"--fm-above %g"%t1,"-f fmthreshold -c");
 
   # plot residuals
   if plotvis:
     info("Plotting visibilities ($plotvis)");
-    ms.plotms(msname,plotvis,CHAN_OWLCAT,"-o ${OUTFILE}_residuals${_s<step}${_<label}.png");
+    ms.plotms(msname,plotvis,"-I",IFRS,CHAN_OWLCAT,"-o ${OUTFILE}_residuals${_s<step}${_<label}.png");
     
   # make images
-  make_image(msname,dirty=dirty,restore=restore);
+  make_image(msname,dirty=dirty,restore=restore,restore_lsm=restore_lsm);
   
 
 PYBDSM_OUTPUT_Template = "${OUTFILE}_pybdsm.lsm.html"    
@@ -235,20 +281,18 @@ def pybdsm_search (image="$RESTORED_IMAGE",threshold=None,output="$PYBDSM_OUTPUT
   image,output = interpolate_locals("image output");
   # setup parameters
   script = II("${output:BASE}.pybdsm");
-  srl = II("${output:BASE}.srl");
+  gaul = II("${output:BASE}.gaul");
   if threshold:
     kw['thresh_isl'] = kw['thresh_pix'] = threshold;
   kw['polarisation_do'] = pol = bool(PYBDSM_POLARIZED if pol is None else pol);
   # join args into one string which can be passed to process_image(), and run the program
   args = ",".join([ "%s=%s"%kv for kv in kw.iteritems() ]);
   file(script,"w").write(II("""process_image(filename='$image',$args)\n"""+
-     "write_catalog(outfile='$srl',clobber=True)\nquit"));
+     "write_catalog(outfile='$gaul',catalog_type='gaul',clobber=True)\nquit"));
   _pybdsm(stdin=file(script));
-  tigger_convert(srl,output,"-t","ASCII","--format",
-    "name Isl_id ra_d E_RA dec_d E_DEC i E_Total_flux Peak_flux E_Peak_flux "+
-    "RA_max E_RA_max DEC_max E_DEC_max Maj E_Maj Min E_Min PA E_PA "+
-    "emaj_d E_DC_Maj emin_d E_DC_Min pa_d E_DC_PA Isl_Total_flux E_Isl_Total_flux "+
-    "Isl_rms Isl_mean Resid_Isl_rms Resid_Isl_mean S_Code " +
+  tigger_convert(gaul,output,"-t","ASCII","--format",
+      "name Isl_id Source_id Wave_id ra_d E_RA dec_d E_DEC i E_Total_flux Peak_flux E_Peak_flux Xposn E_Xposn Yposn E_Yposn Maj E_Maj Min E_Min PA E_PA emaj_d E_DC_Maj emin_d E_DC_Min pa_d E_DC_PA Isl_Total_flux E_Isl_Total_flux Isl_rms Isl_mean Resid_Isl_rms Resid_Isl_mean S_Code"
+     +
     ("q E_Total_Q u E_Total_U v E_Total_V Linear_Pol_frac Elow_Linear_Pol_frac Ehigh_Linear_Pol_frac "+
      "Circ_Pol_Frac Elow_Circ_Pol_Frac Ehigh_Circ_Pol_Frac Total_Pol_Frac Elow_Total_Pol_Frac Ehigh_Total_Pol_Frac Linear_Pol_Ang E_Linear_Pol_Ang"
     if pol else ""),

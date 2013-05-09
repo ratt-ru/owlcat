@@ -1,6 +1,10 @@
 from Pyxis import *
-
 import os.path
+
+## find the Cattery
+import Timba
+_cattery_path = Timba.packages()['Cattery'][0]
+sys.path.append(_cattery_path);
 
 ## default multithread setting
 MULTITHREAD = 2

@@ -205,3 +205,8 @@ def per (varname,*commands):
 def per_ms (*commands):
   _per("MS",*commands);
 
+def per_ddid (*commands):
+  _per("DDID",*commands);
+
+def per_band (*commands):
+  _per("BAND",*commands);
