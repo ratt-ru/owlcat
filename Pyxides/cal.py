@@ -4,6 +4,8 @@ import ms
 import mqt
 import imager
 
+import pyfits
+
 # register ourselves with Pyxis, and define what superglobals we use
 register_pyxis_module(superglobals="MS DDID LSM FIELD BAND");
 
@@ -38,7 +40,8 @@ MS_TDL_Template = 'ms_sel.msname=$MS ms_sel.ddid_index=$DDID ms_sel.field_index=
 LSM_TDL_Template='tiggerlsm.filename=$LSM'
 
 # destination directory for plots, images, etc.
-DESTDIR_Template = 'plots-spw${DDID}${-stage<STAGE}'
+# note how this is typically based off the OUTPUTDIR set in the global context
+DESTDIR_Template = '${OUTDIR>/}plots-{$MS:BASE}-spw${DDID}${-stage<STAGE}'
 # base filename for these files
 OUTFILE_Template = '${DESTDIR>/}${MS:BASE}${_spw<DDID}${_s<STEP}${_<LABEL}'
 
@@ -126,10 +129,6 @@ RESTORING_OPTIONS = ""
 # default clean algorithm
 CLEAN_ALGORITHM="clark";
 
-def _make_destdir ():
-  if not os.path.exists(DESTDIR):
-    os.mkdir(DESTDIR);
-
 def make_image (msname="$MS",column="CORRECTED_DATA",
                 dirty=True,restore=False,restore_lsm=True,
                 channelize=None,lsm="$LSM",config="",**kw0):
@@ -144,7 +143,7 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
   
   Image names are determined by the globals DIRTY_IMAGE, RESTORED_IMAGE, RESIDUAL_IMAGE, MODEL_IMAGE and FULLREST_IMAGE"""
   msname,column,lsm = interpolate_locals("msname column lsm"); 
-  _make_destdir();
+  makedir(DESTDIR);
   
   # setup imager options
   kw0.update(dict(chanstart=CHANSTART,chanstep=CHANSTEP,nchan=NUMCHANS));
@@ -215,7 +214,7 @@ def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
   kws:              passed to the stefcal job, as "stefcal_kw=value"
   """;
   msname,section,lsm,LABEL,plotvis = interpolate_locals("msname section lsm label plotvis");
-  _make_destdir();
+  makedir(DESTDIR);
   
   # increment step counter
   global STEP
@@ -280,8 +279,8 @@ _pybdsm = x.pybdsm;
 def pybdsm_search (image="$RESTORED_IMAGE",threshold=None,output="$PYBDSM_OUTPUT",pol=None,**kw):
   image,output = interpolate_locals("image output");
   # setup parameters
-  script = II("${output:BASE}.pybdsm");
-  gaul = II("${output:BASE}.gaul");
+  script = II("${output:FILE}.pybdsm");
+  gaul = II("${output:FILE}.gaul");
   if threshold:
     kw['thresh_isl'] = kw['thresh_pix'] = threshold;
   kw['polarisation_do'] = pol = bool(PYBDSM_POLARIZED if pol is None else pol);
@@ -297,7 +296,6 @@ def pybdsm_search (image="$RESTORED_IMAGE",threshold=None,output="$PYBDSM_OUTPUT
      "Circ_Pol_Frac Elow_Circ_Pol_Frac Ehigh_Circ_Pol_Frac Total_Pol_Frac Elow_Total_Pol_Frac Ehigh_Total_Pol_Frac Linear_Pol_Ang E_Linear_Pol_Ang"
     if pol else ""),
     "-f","--rename",split_args=False);
-
 
 def transfer_tags (fromlsm,lsm="$LSM",tags="dE",tolerance=60*ARCSEC):
   fromlsm,lsm,tags = interpolate_locals("fromlsm lsm tags");
@@ -317,4 +315,17 @@ def transfer_tags (fromlsm,lsm="$LSM",tags="dE",tolerance=60*ARCSEC):
           src.setTag("dE",True);
         info("setting tag %s on source %s (from reference source %s)"%(tag,src.name,src0.name))
   model.save(lsm)
-                                
+
+MODEL_CC_RESCALE = 1.  
+MODEL_CC_IMAGE_Template = "${OUTFILE}_ccmodel.fits"
+
+def add_ccs (lsm="$LSM",filename="$MODEL_IMAGE",cc_image="$MODEL_CC_IMAGE",srcname="ccmodel",output="$LSM",zeroneg=True,scale=None,pad=1):
+  lsm,filename,cc_image,srcname,output = interpolate_locals("lsm filename cc_image srcname output");
+  # rescale image
+  ff = pyfits.open(filename);
+  ff[0].data *= (scale if scale is not None else MODEL_CC_RESCALE);
+  if zeroneg:
+    ff[0].data[ff[0].data<0] = 0;
+  ff.writeto(cc_image,clobber=True);
+  info("adding clean components from $filename ($cc_image), resulting in model $output");
+  tigger_convert(lsm,output,"-f","--add-brick","$srcname:$cc_image:%f"%pad);

@@ -19,6 +19,8 @@ def init (context):
   global _verbose
   global _warn
   from PyxisImpl.Commands import _debug,_info,_abort,_verbose,_warn
+  # set default output dir
+  context.setdefault("OUTDIR",".");
   # set default verbosity to 1
   preset_verbosity = context.get("VERBOSE",None);
   context.setdefault("VERBOSE",1);
@@ -388,6 +390,21 @@ def assign_templates ():
   set_logfile(PyxisImpl.Context.get('LOG',None));
   _in_assign_templates = False;
 
+def makedir (dirname,no_interpolate=False):
+  """Makes sure the supplied directory exists, by creating parents as necessary. Interpolates the dirname.""";
+  if not no_interpolate:
+    dirname = interpolate(dirname,inspect.currentframe().f_back);
+  parent = dirname;
+  # go back and accumulate list of dirs to be created
+  parents = [];
+  while parent and not os.path.exists(parent):
+    parents.append(parent);
+    parent = os.path.dirname(parent);
+  # create in reverse
+  for parent in parents[::-1]:
+    _verbose(1,"creating directory %s"%parent);
+    os.mkdir(parent);
+  
 _current_logfile = None;
 _current_logobj = None;
 
@@ -404,6 +421,9 @@ def set_logfile (filename):
   if filename == "-" or not filename:
     filename = None;
   if filename != _current_logfile:
+    if PyxisImpl.Context.get('get_ipython'):
+      _warn("running inside ipython, forcing Pyxis output to console and ignoring LOG assignments");
+      return;
     _info("redirecting log output to %s"%(filename or "console"));
     if filename is None:
       sys.stdout,sys.stderr = sys.__stdout__,sys.__stderr__;
@@ -413,6 +433,7 @@ def set_logfile (filename):
       if filename[0] == '+':
         filename = filename[1:];
         mode = "a";
+      makedir(os.path.dirname(filename),no_interpolate=True);
       _current_logobj = sys.stdout = sys.stderr = open(filename,"w");
     if _current_logfile:
       _info("log continued from %s"%_current_logfile);
@@ -640,40 +661,45 @@ def run (*commands):
   # _debug("running",commands);
   frame = inspect.currentframe().f_back;
   for step,command in enumerate(commands):
-    # set step counter
-    # interpolate the command
-    command = command.strip();
-    _verbose(1,"executing command %s"%command);
-    # syntax 1: VAR=VALUE or VAR:=VALUE
-    match = _re_assign.match(command);
-    if match:
-      name,op,value = match.groups();
-      # assign variable -- note that templates are not interpolated
-      PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame);
-      continue;
-    # syntax 2: command(args) or command[args]. command can have a "?" prefix
-    match = _re_command1.match(command) or _re_command2.match(command);
-    if match:
-      comname,comargs = match.groups();
-      # split up arguments
-      args = [];
-      kws = {};
-      for arg in re.split(",," if comargs.find(",,") >=0 else ",",comargs):
-        arg = interpolate(arg,frame).strip();
-        match = re.match("^(\w+)=(.*)$",arg);
-        if match:
-          kws[match.group(1)] = _parse_cmdline_value(match.group(2));
-        else:
-          args.append(_parse_cmdline_value(arg));
-      # exec command
+    # if command is callable, call directly
+    if not callable(command):
+      # interpolate the command
+      command = command.strip();
+      _verbose(1,"executing command %s"%command);
+      # syntax 1: VAR=VALUE or VAR:=VALUE
+      match = _re_assign.match(command);
+      if match:
+        name,op,value = match.groups();
+        # assign variable -- note that templates are not interpolated
+        PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame);
+        continue;
+      # syntax 2: command(args) or command[args]. command can have a "?" prefix
+      match = _re_command1.match(command) or _re_command2.match(command);
+      if match:
+        comname,comargs = match.groups();
+        # split up arguments
+        args = [];
+        kws = {};
+        for arg in re.split(",," if comargs.find(",,") >=0 else ",",comargs):
+          arg = interpolate(arg,frame).strip();
+          match = re.match("^(\w+)=(.*)$",arg);
+          if match:
+            kws[match.group(1)] = _parse_cmdline_value(match.group(2));
+          else:
+            args.append(_parse_cmdline_value(arg));
+        # exec command
+        _initconf_done or initconf(force=True);  # make sure config is loaded
+        comcall = find_command(comname,inspect.currentframe().f_back);
+        comcall(*args,**kws);
+        assign_templates();
+        continue;
+      # syntax 3: standalone command. This better be found!
       _initconf_done or initconf(force=True);  # make sure config is loaded
-      comcall = find_command(comname,inspect.currentframe().f_back);
-      comcall(*args,**kws);
-      assign_templates();
-      continue;
-    # syntax 3: standalone command. This better be found!
-    _initconf_done or initconf(force=True);  # make sure config is loaded
-    comcall = find_command(command,inspect.currentframe().f_back);
+      comcall = find_command(command,inspect.currentframe().f_back);
+    # fall through here if command is callable
+    else:
+      comcall = command;
+      _verbose(1,"executing command %s"%command.__name__);
     comcall();
     assign_templates();
   

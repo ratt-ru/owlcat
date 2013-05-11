@@ -9,7 +9,7 @@ import math
 
 import PyxisImpl
 import PyxisImpl.Internals
-from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign,assign_templates,register_pyxis_module
+from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign,assign_templates,register_pyxis_module,makedir
 
 DEG = math.pi/180
 ARCMIN = DEG/60
@@ -176,19 +176,21 @@ def printvars ():
     if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
 
 def exists (filename):
+  """Returns True if filename exists, interpolating the filename""";
   return os.path.exists(_I(filename,2));
   
 def _per (varname,*commands):
   saveval = PyxisImpl.Context.get(varname,None);
   varlist = PyxisImpl.Context.get(varname+"_List",None);
+  cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
   if varlist is None:
-    _verbose(1,"per(%s,%s): %s_List is empty"%(varname,",".join(map(str,commands)),varname));
+    _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
     return;
   if type(varlist) is str:
     varlist = map(_int_or_str,varlist.split(","));
   elif not isinstance(varlist,(list,tuple)):
-    _abort("PYXIS: per(%s,%s): %s_List has invalid type %s"%(varname,",".join(map(str,commands)),varname,str(type(varlist))));
-  _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,",".join(map(str,commands)),varname," ".join(map(str,varlist))));
+    _abort("PYXIS: per(%s,%s): %s_List has invalid type %s"%(varname,cmdlist,str(type(varlist))));
+  _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
   # do the actual iteration
   for value in varlist:
     assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);

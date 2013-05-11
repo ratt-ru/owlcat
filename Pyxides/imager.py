@@ -12,7 +12,7 @@ register_pyxis_module(superglobals="MS DDID FIELD");
 
 
 # external tools  
-lwimager = x.lwimager;
+lwimager = x.time.args("lwimager");
 rm_fr = x.rm.args("-fr");
 
 # standard imaging options 
