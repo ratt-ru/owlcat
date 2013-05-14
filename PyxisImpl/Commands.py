@@ -178,6 +178,8 @@ def printvars ():
 def exists (filename):
   """Returns True if filename exists, interpolating the filename""";
   return os.path.exists(_I(filename,2));
+
+_in_subprocess = False;
   
 def _per (varname,*commands):
   saveval = PyxisImpl.Context.get(varname,None);
@@ -186,20 +188,57 @@ def _per (varname,*commands):
   if varlist is None:
     _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
     return;
-  if type(varlist) is str:
-    varlist = map(_int_or_str,varlist.split(","));
-  elif not isinstance(varlist,(list,tuple)):
-    _abort("PYXIS: per(%s,%s): %s_List has invalid type %s"%(varname,cmdlist,str(type(varlist))));
-  _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
-  # do the actual iteration
-  for value in varlist:
-    assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
-    PyxisImpl.Internals.run(*commands);
-  # assign old value
-  if saveval is not None:
-    assign(varname,saveval,namespace=PyxisImpl.Context,interpolate=False);
-    _verbose(1,"restoring %s=%s"%(varname,saveval));
-    PyxisImpl.Internals.assign_templates();
+  try:
+    if type(varlist) is str:
+      varlist = map(_int_or_str,varlist.split(","));
+    elif not isinstance(varlist,(list,tuple)):
+      _abort("PYXIS: per(%s,%s): %s_List has invalid type %s"%(varname,cmdlist,str(type(varlist))));
+    nforks = PyxisImpl.Context.get("PYXIS_FORKS",0);
+    stagger = PyxisImpl.Context.get("PYXIS_FORK_STAGGER",0);
+    # unforked case
+    _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
+    if nforks < 2 or len(varlist) < 2 or _in_subprocess:
+      # do the actual iteration
+      for value in varlist:
+        assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
+        PyxisImpl.Internals.run(*commands);
+    else:
+      # else split varlist into forked subprocesses
+      per_fork = max(len(varlist)//nforks,1);
+      _verbose(1,"splitting %d jobs per subprocess, staggered by %ds"%(per_fork,stagger));
+      forked_pids = set();
+      for i in range(0,len(varlist),per_fork):
+        if i and stagger:
+          time.sleep(stagger);
+        pid = os.fork();
+        if not pid:
+          # child fork: run commands
+          try:
+            for value in varlist[i:i+per_fork]:
+              assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
+              PyxisImpl.Internals.run(*commands);
+          except:
+            traceback.print_exc();
+            sys.exit(1);
+          sys.exit(0);
+        else: # parent pid: append to list
+          forked_pids.add(pid);
+      _verbose(1,"%d forked subprocesses launched, waiting for finish"%len(forked_pids));
+      while forked_pids:
+        pid,status = os.waitpid(-1,0);
+        if pid in forked_pids:
+          forked_pids.remove(pid);
+          status <<= 8;
+          if status:
+            _abort("subprocess %d exited with error status %d, aborting"%(pid,status));
+          else:
+            _verbose(1,"subprocess %d finished, waiting for %d more"%(pid,len(forked_pids)));
+  finally:
+    # assign old value
+    if saveval is not None:
+      assign(varname,saveval,namespace=PyxisImpl.Context,interpolate=False);
+      _verbose(1,"restoring %s=%s"%(varname,saveval));
+      PyxisImpl.Internals.assign_templates();
 
 def per (varname,*commands):
   _per(varname,*commands);

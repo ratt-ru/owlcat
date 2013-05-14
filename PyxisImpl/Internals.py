@@ -8,8 +8,35 @@ import os.path
 import inspect
 import sys
 import itertools
+import time
 
 import PyxisImpl
+
+_preset_doc = """The following global variables control Pyxis behaviour. These may be set from the command line 
+as VAR=VALUE, or specified in Pyxis recipes or config files or recipes (as v.VAR = VALUE).
+
+LOG: all output will be logged to this file (except for level-0 status messages, which are duplicated
+to the console). Can also be specified as a template (e.g. LOG_Template={$MS:BASE}.log) to make the log
+dependent on other variables.
+
+VERBOSE: Pyxis verbosity level, default is 0. Higher is more verbose.
+
+OUTDIR: output directory, for use in recipes and config files (note that Pyxis itself in no way enforces
+any output to this directory -- it is up to recipes and configs to use $OUTDIR consistently in its output 
+filenames).
+
+PYXIS_LOAD_CONFIG: pre-load recipes (pyxis-*.py) and config (pyxis-*.conf) files from current directory when
+Pyxis is initialized. Default is true.
+
+PYXIS_AUTO_IMPORT_MODULES: automatically import (into the global namespace) all top-level Pyxides modules 
+directly or indirectly invoked by the pre-loaded recipes. Useful for interactive sessions. Default is True.
+
+PYXIS_FORKS: split out up to this many subprocesses to work in parallel, when executing per() commands. 
+Default is 1.
+
+PYXIS_FORK_STAGGER: stagger launch of subprocesses by this many seconds. Can be useful to e.g. de-syncronize
+e.g. disk access in subprocesses. Default is 0.
+"""
 
 def init (context):
   """init internals, attach to the given context""";
@@ -21,6 +48,10 @@ def init (context):
   from PyxisImpl.Commands import _debug,_info,_abort,_verbose,_warn
   # set default output dir
   context.setdefault("OUTDIR",".");
+  context.setdefault("PYXIS_FORKS",0);
+  context.setdefault("PYXIS_FORK_STAGGER",10);
+  context.setdefault("PYXIS_LOAD_CONFIG",True);
+  context.setdefault("PYXIS_AUTO_IMPORT_MODULES",True);
   # set default verbosity to 1
   preset_verbosity = context.get("VERBOSE",None);
   context.setdefault("VERBOSE",1);
