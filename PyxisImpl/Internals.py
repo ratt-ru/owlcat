@@ -347,7 +347,7 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
     
-def assign (name,value,namespace=None,interpolate=True,frame=None,verbose_level=2):
+def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=False,verbose_level=2):
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
@@ -368,11 +368,14 @@ def assign (name,value,namespace=None,interpolate=True,frame=None,verbose_level=
     value1 = PyxisImpl.Internals.interpolate(value,frame) if interpolate else value;
     namespace[name] = value1;
     _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
+    if kill_template and namespace.pop(name+"_Template",None):
+      _verbose(verbose_level,"  and removing associated template %s_Template"%name);
   # if variable is superglobal, propagate across all namespaces defining that superglobal
   if name in superglobs:
     for ns in _namespaces.itervalues():
       if name in _superglobals.get(id(ns)):
         ns[name] = value;
+  # if there's a template for this variable, kill it
   # reprocess templates
   assign_templates();
 
@@ -446,9 +449,8 @@ def set_logfile (filename):
   """Starts logging to the specified file""";
   global _current_logfile;
   global _current_logobj;
-  if filename and not isinstance(filename,str):
-    _warn("invalid LOG variable of type %s, ignoring"%str(type(filename)));
-    return;
+  if filename is not None:
+    filename = str(filename);
   if filename == "-" or not filename:
     filename = None;
   if filename != _current_logfile:
@@ -702,7 +704,7 @@ def run (*commands):
       if match:
         name,op,value = match.groups();
         # assign variable -- note that templates are not interpolated
-        PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame);
+        PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True);
         continue;
       # syntax 2: command(args) or command[args]. command can have a "?" prefix
       match = _re_command1.match(command) or _re_command2.match(command);

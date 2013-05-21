@@ -38,9 +38,6 @@ PYXIS_LOAD_CONFIG = False
 # disable auto-import -- meant for interactive sessions only
 PYXIS_AUTO_IMPORT_MODULES = False
 
-import Pyxis
-import PyxisImpl.Internals
-
 if __name__ == "__main__":
 
   # setup some standard command-line option parsing
@@ -48,6 +45,8 @@ if __name__ == "__main__":
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] a=value command_x b=value c=value command_y ...""",
     description="Runs a sequence of reduction commands");
+  parser.add_option("-v","--verbose",type="int",default=1,
+                    help="verbosity level, default is %default");
   parser.add_option("--log",type="string",metavar="FILENAME",
                     help="log output to file");
   parser.add_option("-l",dest="default_log",action="store_true",
@@ -55,15 +54,27 @@ if __name__ == "__main__":
 
   (options,args) = parser.parse_args();
 
-  if options.log:
-    v.LOG = options.log;
-  elif options.default_log:
-    v.LOG = "pyxis.log";
+  # set verbosity BEFORE we import Pyxis
+  VERBOSE = options.verbose
+  
+  import Pyxis
+  import PyxisImpl.Internals
+
+  # init configuration. This preloads pyxis-*.
+  PYXIS_LOAD_CONFIG = True
+  PyxisImpl.Internals.initconf();
     
-  # if options
   # sort arguments into commands and MSs
-  mslist = [];
+  mslist = []
   commands = []
+  
+  # add log command as first in list
+  if options.log:
+    commands.append("LOG="+options.log);
+  elif options.default_log:
+    commands.append("LOG="+pyxis.log);
+  
+  # add other commands
   for arg in args:
     if not PyxisImpl.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)$",arg):
       assign("MS",arg);
