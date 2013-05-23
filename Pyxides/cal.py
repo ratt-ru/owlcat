@@ -41,7 +41,7 @@ LSM_TDL_Template='tiggerlsm.filename=$LSM'
 
 # destination directory for plots, images, etc.
 # note how this is typically based off the OUTPUTDIR set in the global context
-DESTDIR_Template = '${OUTDIR>/}plots-{$MS:BASE}-spw${DDID}${-stage<STAGE}'
+DESTDIR_Template = '${OUTDIR>/}plots-${MS:BASE}-spw${DDID}${-stage<STAGE}'
 # base filename for these files
 OUTFILE_Template = '${DESTDIR>/}${MS:BASE}${_spw<DDID}${_s<STEP}${_<LABEL}'
 
