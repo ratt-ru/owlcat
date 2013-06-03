@@ -565,7 +565,7 @@ def is_superglobal (globs,sym):
 def report_symbols (pkgname,superglobs,syms):
   if Pyxis.Context['VERBOSE'] >= 2:
     # remove modules from symbols
-    syms = [ (name,obj) for name,obj in syms if not inspect.ismodule(sym) ];
+    syms = [ (name,obj) for name,obj in syms if not inspect.ismodule(obj) ];
     varibs = sorted([name for name,obj in syms if not callable(obj) and not name.endswith("_Template") ]);
     funcs = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and not isinstance(obj,ShellExecutor) ]);
     shtools = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and isinstance(obj,ShellExecutor) ]);

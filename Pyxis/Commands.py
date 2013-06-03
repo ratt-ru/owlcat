@@ -70,11 +70,15 @@ II = _II;
 def _timestamp ():
   return time.strftime("%Y/%m/%d %H:%M:%S");
   
-def _message (*msg):
+def _message (*msg,**kw):
   output = " ".join(map(str,msg));
-  print output;
-  if sys.stdout is not sys.__stdout__ and not Pyxis.Context.get('QUIET'):
-    sys.__stdout__.write(output+"\n");
+  if sys.stdout is not sys.__stdout__:
+    print output;
+    if ( kw.get('critical') or not Pyxis.Context.get('QUIET') ):
+      sys.__stdout__.write(output+"\n");
+  else:
+    if not Pyxis.Context.get('QUIET'):
+      print output;
   
 def _debug (*msg):
   """Prints debug message(s) without interpolation""";
@@ -103,7 +107,7 @@ def _error (*msg):
 
 def _abort (*msg):
   """Prints error message(s) without interpolation and aborts""";
-  _message(_timestamp(),"ABORT:",*msg);
+  _message(_timestamp(),"ABORT:",critical=True,*msg);
   Pyxis.Internals.flush_log();
   sys.exit(1);
   
@@ -184,6 +188,7 @@ def _per (varname,*commands):
     stagger = Pyxis.Context.get("JOB_STAGGER",0);
     # unforked case
     _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
+    global _in_subprocess;
     if nforks < 2 or len(varlist) < 2 or _in_subprocess:
       # do the actual iteration
       for value in varlist:
@@ -200,7 +205,6 @@ def _per (varname,*commands):
         pid = os.fork();
         if not pid:
           # child fork: run commands
-          global _in_subprocess;
           _in_subprocess = True;
           try:
             for value in varlist[i:i+per_fork]:
