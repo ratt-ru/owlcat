@@ -192,7 +192,7 @@ def _per (varname,*commands):
     else:
       # else split varlist into forked subprocesses
       per_fork = max(len(varlist)//nforks,1);
-      _verbose(1,"splitting %d jobs per subprocess, staggered by %ds"%(per_fork,stagger));
+      _verbose(1,"splitting into %d jobs, %d %s's per job, staggered by %ds"%(min(nforks,len(varlist)),per_fork,varname,stagger));
       forked_pids = set();
       for i in range(0,len(varlist),per_fork):
         if i and stagger:
