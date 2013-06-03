@@ -1,5 +1,8 @@
-from Pyxis import *
 import os.path
+
+# register ourselves with Pyxis
+from Pyxis.ModSupport import *
+register_pyxis_module();
 
 ## find the Cattery
 import Timba
@@ -10,7 +13,6 @@ sys.path.append(_cattery_path);
 MULTITHREAD = 2
 
 ## default TDL config file
-TDLCONFIG = "tdlconf.profiles"
 
 ## extra TDL options applied to all scripts
 EXTRA_TDLOPTS = ""
@@ -18,9 +20,17 @@ EXTRA_TDLOPTS = ""
 ## pipeliner tool
 pipeliner = x.time.args("meqtree-pipeliner.py");
 
-def run (script,job,config="$TDLCONFIG",section=None,args=[],options={}):
-  """compiles the specified script and runs the specified job""";
-  script,config,section = interpolate_locals("script config section");
+SCRIPT = ""
+JOB = ""
+SECTION = ""
+TDLCONFIG = "tdlconf.profiles"
+
+def run (script="$SCRIPT",job="$JOB",config="$TDLCONFIG",section="$SECTION",args=[],options={}):
+  """Uses meqtree-pipeliner to compile the specified MeqTrees 'script', using 'config' file and config 'section',
+  then runs the specified 'job'.
+  Use a list of 'args' to pass extra arguments to meqtree-pipeliner. Use a dict of 'options' to
+  pass extra arguments as key=value.""";
+  script,job,config,section = interpolate_locals("script job config section");
   section = section or os.path.splitext(os.path.basename(script))[0];
   # run pipeliner
   pipeliner(*(
@@ -30,5 +40,3 @@ def run (script,job,config="$TDLCONFIG",section=None,args=[],options={}):
   ));
 
   
-# register ourselves with Pyxis
-register_pyxis_module();

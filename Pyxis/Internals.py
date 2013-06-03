@@ -1,3 +1,5 @@
+"""Pyxis.Internals: various internal machinery of Pyxis"""
+
 import glob
 import traceback
 import subprocess
@@ -10,7 +12,7 @@ import sys
 import itertools
 import time
 
-import PyxisImpl
+import Pyxis
 
 _preset_doc = """The following global variables control Pyxis behaviour. These may be set from the command line 
 as VAR=VALUE, or specified in Pyxis recipes or config files or recipes (as v.VAR = VALUE).
@@ -22,8 +24,8 @@ dependent on other variables.
 VERBOSE: Pyxis verbosity level, default is 0. Higher is more verbose.
 
 OUTDIR: output directory, for use in recipes and config files (note that Pyxis itself in no way enforces
-any output to this directory -- it is up to recipes and configs to use $OUTDIR consistently in its output 
-filenames).
+any output to this directory -- it is up to recipes and configs to use $OUTDIR consistently in their naming
+schemes filenames).
 
 PYXIS_LOAD_CONFIG: pre-load recipes (pyxis-*.py) and config (pyxis-*.conf) files from current directory when
 Pyxis is initialized. Default is true.
@@ -31,11 +33,11 @@ Pyxis is initialized. Default is true.
 PYXIS_AUTO_IMPORT_MODULES: automatically import (into the global namespace) all top-level Pyxides modules 
 directly or indirectly invoked by the pre-loaded recipes. Useful for interactive sessions. Default is True.
 
-PYXIS_FORKS: split out up to this many subprocesses to work in parallel, when executing per() commands. 
+JOBS: split out up to this many subprocesses to work in parallel, when executing per() commands. 
 Default is 1.
 
-PYXIS_FORK_STAGGER: stagger launch of subprocesses by this many seconds. Can be useful to e.g. de-syncronize
-e.g. disk access in subprocesses. Default is 0.
+JOB_STAGGER: stagger launch of subprocesses by this many seconds. Can be useful to e.g. de-syncronize
+disk access in subprocesses. Default is 10.
 """
 
 def init (context):
@@ -45,20 +47,20 @@ def init (context):
   global _abort
   global _verbose
   global _warn
-  from PyxisImpl.Commands import _debug,_info,_abort,_verbose,_warn
+  from Pyxis.Commands import _debug,_info,_abort,_verbose,_warn
   # set default output dir
   context.setdefault("OUTDIR",".");
-  context.setdefault("PYXIS_FORKS",0);
-  context.setdefault("PYXIS_FORK_STAGGER",10);
+  context.setdefault("JOBS",0);
+  context.setdefault("JOB_STAGGER",10);
   context.setdefault("PYXIS_LOAD_CONFIG",True);
   context.setdefault("PYXIS_AUTO_IMPORT_MODULES",True);
   # set default verbosity to 1
   preset_verbosity = context.get("VERBOSE",None);
   context.setdefault("VERBOSE",1);
   # set context and init stuff
-  PyxisImpl.Context = context;
-  PyxisImpl._predefined_names = set(context.iterkeys());
-  PyxisImpl.Commands._init(context);
+  Pyxis.Context = context;
+  Pyxis._predefined_names = set(context.iterkeys());
+  Pyxis.Commands._init(context);
   # loaded modules
   global _namespaces,_superglobals,_modules;
   _namespaces = dict();
@@ -81,8 +83,8 @@ def _int_or_str (x):
   except:
     return str(x);
     
-def _interpolate_args (args,kws,frame): 
-  """Helper function to interpolate argument list and keywords using the local dictionary, plus PyxisImpl.Context globals""";
+def interpolate_args (args,kws,frame): 
+  """Helper function to interpolate argument list and keywords using the local dictionary, plus Pyxis.Context globals""";
   return [ interpolate(arg,frame) for arg in args ], \
          dict([ (kw,interpolate(arg,frame)) for kw,arg in kws.iteritems() ]);
   
@@ -107,7 +109,7 @@ typically created via the Pyxis x, xo or xz built-ins, e.g. as
     
   def args (self,*args,**kws):
     """Creates instance of executor with additional args. Local variables of caller are interpolated."""
-    args0,kws0 = _interpolate_args(self._add_args,self._add_kws,self.argframe);
+    args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe);
     kws0.update(kws);
     return ShellExecutor(self.name,self.path,inspect.currentframe().f_back,self.allow_fail,self.bg,*(args0+list(args)),**kws0);
     
@@ -125,8 +127,8 @@ typically created via the Pyxis x, xo or xz built-ins, e.g. as
         _abort("PYXIS: shell command '%s' not found"%self.name);
       _warn("PYXIS: shell command '%s' not found"%self.name);
     else:
-      args0,kws0 = _interpolate_args(self._add_args,self._add_kws,self.argframe);
-      args,kws = _interpolate_args(args,kws,inspect.currentframe().f_back);
+      args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe);
+      args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
       kws0.update(kws);
       return _call_exec(self.path,allow_fail=self.allow_fail,bg=self.bg,*(args0+args),**kws0);
 
@@ -161,14 +163,14 @@ Executors created via 'xz' are optional, and run commands in the background.
   def __call__ (self,*args,**kws):
     """An alternative way to make ShellExecutors, e.g. as x("command arg1 arg2").
     Useful when the command contains e.g. dots or slashes, thus making the x.command syntax unsuitable."""
-    args,kws = _interpolate_args(args,kws,inspect.currentframe().f_back);
+    args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
     if len(args) == 1:
       args = args[0].split(" ");
     return ShellExecutor(args[0],args[0],None,allow_fail=self.allow_fail,bg=self.bg,*args[1:],**kws);
     
   def sh (self,*args,**kws):
     """Directly invokes the shell with a command and arguments"""
-    commands,kws = _interpolate_args(args,kws,inspect.currentframe().f_back);
+    commands,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
     # run command
     _verbose(1,"executing '%s':"%(" ".join(commands)));
     flush_log();
@@ -215,9 +217,14 @@ class GlobalVariableSpace (_DictAccessor):
   v.VARNAME=value assigns to a global variable, and also causes templates to be re-evaluated, and 
     other implicit variable-related actions to be taken. In particular, v.LOG="logfile" will set a 
     new log destination.
+    
+  v.define('VARNAME',value,doctext): assigns to variable VARNAME, and sets a documentation string
+  v.doc('VARNAME'): returns the documentation string for a variable, or '' if none
+  v.doc('VARNAME',doctext): sets the documentation string for a variable
   """;
   
   def __init__ (self,namespace):
+#    object.__setattr__(self,'_docs',{});
     _DictAccessor.__init__(self,namespace);
     
   def __setattr__ (self,attr,value):
@@ -226,6 +233,24 @@ class GlobalVariableSpace (_DictAccessor):
   def __repr__ (self):
     name = object.__getattribute__(self,'__name__');
     return "Pyxis built-in %s: global variable space. Try %s.VARNAME, or help(%s)."%(name,name,name);
+  
+  def define (self,name,value,doc=None):
+    """Defines a variable, with an optional documentation string.""";
+    frame = inspect.currentframe().f_back;
+    register_superglobal(frame,name);
+    ns = object.__getattribute__(self,'namespace');
+    assign(name,value,namespace=ns,frame=frame); 
+    ns.setdefault('_symdocs',{})[name] = doc;
+  
+  def doc (self,name,text=None):
+    """doc(name) gets the documentation string for a variable, or '' if none is set.
+    doc(name,text) sets the documentation string for the variable.""";
+    ns = object.__getattribute__(self,'namespace');
+    docs = ns.get('_symdocs',{});
+    if text is None:
+      return docs.get(name,'');
+    docs[name] = text;
+    return text;
     
 class ShellVariableSpace (_DictAccessor):
   """This object provides quick access to environment (i.e. shell) variables. Use e.g.
@@ -258,14 +283,14 @@ def interpolate (arg,frame,depth=1,ignore=set(),skip=set()):
   """;
   # setup lookup dictionaries based on frame and depth
   if isinstance(frame,dict):
-    lookups = [ frame,PyxisImpl.Context ];
+    lookups = [ frame,Pyxis.Context ];
   else:
     lookups = [];
     while depth>=0 and frame:
       lookups += [ frame.f_locals,frame.f_globals ];
       frame = frame.f_back
       depth -= 1
-    lookups.append(PyxisImpl.Context);
+    lookups.append(Pyxis.Context);
   # interpolate either a single string, or a dict recursively
   if isinstance(arg,dict):
     arg,arg0 = arg.copy(),arg;
@@ -365,7 +390,7 @@ def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=
     _verbose(verbose_level,"setting %s=%s"%(name,value));
     namespace[name] = value;
   else:
-    value1 = PyxisImpl.Internals.interpolate(value,frame) if interpolate else value;
+    value1 = Pyxis.Internals.interpolate(value,frame) if interpolate else value;
     namespace[name] = value1;
     _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
     if kill_template and namespace.pop(name+"_Template",None):
@@ -382,7 +407,7 @@ def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=
 _in_assign_templates = False;
 
 def assign_templates ():
-  """For every variable in PyxisImpl.Context that ends with "_Template", assigns value to it by interpolating the template.""";
+  """For every variable in Pyxis.Context that ends with "_Template", assigns value to it by interpolating the template.""";
   ## non-reentrant, otherwise any call to Pyxis methods from within a template is liable to cause recursion
   global _in_assign_templates;
   if _in_assign_templates:
@@ -390,7 +415,7 @@ def assign_templates ():
   _in_assign_templates = True;
   for count in range(100):
     updated = False;
-    for modname,context in list(_namespaces.iteritems())+[ ("",PyxisImpl.Context) ]:
+    for modname,context in list(_namespaces.iteritems())+[ ("",Pyxis.Context) ]:
       superglobs = _superglobals[id(context)];
       newvalues = {};
       # interpolate new values for each variable that has a _Template equivalent
@@ -421,41 +446,29 @@ def assign_templates ():
       break;
   else:
     _abort("Too many template assignment steps. This can be caused by templates that cross-reference each other");
-  set_logfile(PyxisImpl.Context.get('LOG',None));
+  set_logfile(Pyxis.Context.get('LOG',None));
   _in_assign_templates = False;
 
-def makedir (dirname,no_interpolate=False):
-  """Makes sure the supplied directory exists, by creating parents as necessary. Interpolates the dirname.""";
-  if not no_interpolate:
-    dirname = interpolate(dirname,inspect.currentframe().f_back);
-  parent = dirname;
-  # go back and accumulate list of dirs to be created
-  parents = [];
-  while parent and not os.path.exists(parent):
-    parents.append(parent);
-    parent = os.path.dirname(parent);
-  # create in reverse
-  for parent in parents[::-1]:
-    _verbose(1,"creating directory %s"%parent);
-    os.mkdir(parent);
-  
 _current_logfile = None;
 _current_logobj = None;
+_warned_log_ipython = None;
 
 def flush_log ():
   _current_logobj and _current_logobj.flush();
 
 def set_logfile (filename):
   """Starts logging to the specified file""";
-  global _current_logfile;
-  global _current_logobj;
+  import Pyxis.ModSupport
+  global _current_logfile,_current_logobj,_warned_log_ipython;
   if filename is not None:
     filename = str(filename);
   if filename == "-" or not filename:
     filename = None;
   if filename != _current_logfile:
-    if PyxisImpl.Context.get('get_ipython'):
-      _warn("running inside ipython, forcing Pyxis output to console and ignoring LOG assignments");
+    if Pyxis.Context.get('get_ipython'):
+      if not _warned_log_ipython:
+        _warn("running inside ipython, forcing Pyxis output to console and ignoring LOG assignments");
+        _warned_log_ipython = True;
       return;
     _info("redirecting log output to %s"%(filename or "console"));
     if filename is None:
@@ -466,7 +479,7 @@ def set_logfile (filename):
       if filename[0] == '+':
         filename = filename[1:];
         mode = "a";
-      makedir(os.path.dirname(filename),no_interpolate=True);
+      Pyxis.ModSupport.makedir(os.path.dirname(filename),no_interpolate=True);
       _current_logobj = sys.stdout = sys.stderr = open(filename,"w");
     if _current_logfile:
       _info("log continued from %s"%_current_logfile);
@@ -477,31 +490,35 @@ def set_logfile (filename):
 _initconf_done = False;        
 def initconf (force=False,*files):
   """Loads configuration from specified files, or from default file""";
-#  print "initconf",force,PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True);
-  if not force and not PyxisImpl.Context.get("PYXIS_LOAD_CONFIG",True):
+#  print "initconf",force,Pyxis.Context.get("PYXIS_LOAD_CONFIG",True);
+  if not force and not Pyxis.Context.get("PYXIS_LOAD_CONFIG",True):
     return;
   global _initconf_done;
   if not _initconf_done:
     _initconf_done = True;
   if not files:
     files = glob.glob("pyxis*.py") + glob.glob("pyxis*.conf");
-  # load config files -- all variable assignments go into the PyxisImpl.Context scope
+  # remember current set of globals
+  oldsyms = frozenset(Pyxis.Context.iterkeys());
+  # load config files -- all variable assignments go into the Pyxis.Context scope
   if files:
     if force:
       _verbose(1,"auto-loading config files and scripts from 'pyxis*.{py,conf}'");
     else:
       _verbose(1,"auto-loading config files and scripts from 'pyxis*.{py,conf}'. Preset PYXIS_LOAD_CONFIG=False to disable.");
   for filename in files:
-    PyxisImpl.Commands.loadconf(filename,inspect.currentframe().f_back);
+    Pyxis.Commands.loadconf(filename,inspect.currentframe().f_back);
   assign_templates();
-  _report_symbols("global",[],
-      [ (name,obj) for name,obj in PyxisImpl.Context.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ ]);
+  # report on global symbols
+  report_symbols("global",[],
+      [ (name,obj) for name,obj in Pyxis.Context.iteritems() 
+        if name not in oldsyms and not name.startswith("_") and name not in ("In","Out") and name not in Pyxis.Commands.__dict__ ]);
   # make all auto-imported Pyxides modules available to global context
   toplevel = [ m for m in _modules if not '.' in m and (m in sys.modules or "Pyxides."+m in sys.modules) ];
-  if PyxisImpl.Context.get("PYXIS_AUTO_IMPORT_MODULES",True) and toplevel:
+  if Pyxis.Context.get("PYXIS_AUTO_IMPORT_MODULES",True) and toplevel:
     _verbose(1,"importing top-level modules (%s) for you. Preset PYXIS_AUTO_IMPORT_MODULES=False to disable."%", ".join(toplevel));
     for mod in toplevel:
-      PyxisImpl.Context[mod] = sys.modules.get(mod,sys.modules.get("Pyxides."+m));
+      Pyxis.Context[mod] = sys.modules.get(mod,sys.modules.get("Pyxides."+m));
   
 def loadconf (filename,frame=None):
   """Loads config file""";
@@ -511,54 +528,40 @@ def loadconf (filename,frame=None):
 
 def load_package (pkgname,filename,report=True):
   """Loads 'package' file into the Context namespace and reports on new global symbols"""
-#  oldstuff = PyxisImpl.Context.copy();
+#  oldstuff = Pyxis.Context.copy();
   try:
-    exec(file(filename),PyxisImpl.Context);
+    exec(file(filename),Pyxis.Context);
   except:
     traceback.print_exc();
     _abort("PYXIS: error parsing %s, see output above and/or log for details"%filename);
-#  newnames =  [ (name,obj) for name,obj in PyxisImpl.Context.iteritems() 
+#  newnames =  [ (name,obj) for name,obj in Pyxis.Context.iteritems() 
 #                 if not name.startswith("_") and not name in oldstuff ];
-#  _report_symbols(pkgname,newnames);
+#  report_symbols(pkgname,newnames);
   
-def register_pyxis_module (superglobals=""):
-  """Registers a module (the callee) as part of the Pyxis environment""";
-  import PyxisImpl.Commands
-  frame = inspect.currentframe().f_back;
+def register_superglobal (frame,sym):
+  """Helper function. Registers the given symbol as a superglobal for the module given by 'frame'.
+  If this is not a registered Pyxis module, does nothing.""";
   globs = frame.f_globals;
-  # check for double registration
-  if id(globs) in _superglobals:
-    raise RuntimeError,"module '%s' is already registered"%modname;
   modname = globs['__name__'];
-  _modules.add(modname);
-  if modname.startswith("Pyxides."):
-    modname = modname.split(".",1)[-1];
-  # build list of superglobals
-  if isinstance(superglobals,str):
-    superglobs = superglobals.split();
+  _sgs = _superglobals.get(id(globs));
+  if _sgs is not None:
+    if sym in _sgs:
+      _verbose(3,"%s already registered as a superglobal for module '%s'"%(sym,modname));
+      return;
+    _verbose(2,"defining superglobal %s in module '%s'"%(sym,modname));
+    _sgs.add(sym);
   else:
-    superglobs = itertools.chain(*[ x.split() for x in superglobals ]);
-  superglobs = frozenset(superglobs);
-  _verbose(1,"registered module '%s'"%modname);
-  _namespaces[modname] = globs;
-  _superglobals[id(globs)] = superglobs;
-  # add superglobals
-  for sym in superglobs:
-    # if superglobal is already defined, copy its value to the new module
-    # if superglobal was not yet defined, get its value form the module (or use None),
-    # and propagate this value super-globally via assign
-    if sym in PyxisImpl.Context:
-      globs[sym] = PyxisImpl.Context[sym];
-    else:
-      assign(sym,globs.get(sym,None),namespace=PyxisImpl.Context,frame=frame)
-  # report 
-  _report_symbols(modname,superglobs,
-      [ (name,obj) for name,obj in globs.iteritems() if not name.startswith("_") and name not in PyxisImpl.Commands.__dict__ and name not in superglobs ]);
+    _verbose(3,"'%s' is not a registered module, ignoring superglobal '%s'"%(modname,sym));
   
-def _report_symbols (pkgname,superglobs,syms):
-  if PyxisImpl.Context['VERBOSE'] >= 2:
-    varibs = sorted([name for name,obj in syms if not callable(obj) and not inspect.ismodule(obj) 
-                                                              and not name.endswith("_Template") ]);
+def is_superglobal (globs,sym):
+  """Returns True if symbol is registered as a superglobal in the module whose globals are glob"""
+  return sym in _superglobals.get(id(globs),{});
+  
+def report_symbols (pkgname,superglobs,syms):
+  if Pyxis.Context['VERBOSE'] >= 2:
+    # remove modules from symbols
+    syms = [ (name,obj) for name,obj in syms if not inspect.ismodule(sym) ];
+    varibs = sorted([name for name,obj in syms if not callable(obj) and not name.endswith("_Template") ]);
     funcs = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and not isinstance(obj,ShellExecutor) ]);
     shtools = sorted([name for name,obj in syms if callable(obj) and not name.endswith("_Template") and isinstance(obj,ShellExecutor) ]);
     temps = sorted([name[:-9] for name,obj in syms if name.endswith("_Template") ]);
@@ -606,6 +609,8 @@ def _call_exec (path,*args,**kws):
     args1 += map(str,args);
   # eliminate empty strings when splitting
   args = args1+["%s=%s"%(a,b) for a,b in kws.iteritems()];
+  # if command is 'time', then actual command is second argument
+  cmdname = args[1] if args[0] == "time" or args[0] == "/usr/bin/time" else args[0];
   # run command
   args = [ x for x in args if x ];
   flush_log();
@@ -627,12 +632,12 @@ def _call_exec (path,*args,**kws):
     po.wait();
     if po.returncode:
       if allow_fail:
-        _warn("PYXIS: '%s' returns error code %d"%(path,po.returncode));
+        _warn("%s returned error code %d"%(cmdname,po.returncode));
         return;
       else:
-        _abort("PYXIS: '%s' returns error code %d"%(path,po.returncode));
+        _abort("%s returned error code %d"%(cmdname,po.returncode));
     else:
-      _verbose(2,"'%s' succeeded"%path);
+      _verbose(2,"%s succeeded"%path);
 
 
 ## Function to ensure that child processes are killed when Pyxis is killed, see subprocess.Popen calls above
@@ -655,12 +660,12 @@ def _on_parent_exit(signame):
     
 
 def find_command (comname,frame=None):
-  """Locates command by name. If command is present (as a callable) in PyxisImpl.Context, returns that.
+  """Locates command by name. If command is present (as a callable) in Pyxis.Context, returns that.
   Otherwise checks the path for a binary by that name, and returns a callable to call that.
   Else aborts.""";
   comname = interpolate(comname,frame or inspect.currentframe().f_back);
   # look for a predefined command
-  comcall = PyxisImpl.Context.get(comname);
+  comcall = Pyxis.Context.get(comname);
   if callable(comcall):
     return comcall;
   # else look for a shell command
@@ -671,7 +676,7 @@ def find_command (comname,frame=None):
     allow_fail = False;
   path = find_exec(comname);
   if path is None:
-    _abort("PYXIS: undefined command '%s'"%comname);
+    _abort("undefined command '%s'"%comname);
   # make callable for this shell command
   return lambda *args:_call_exec(path,allow_fail=allow_fail,*args);
 
@@ -689,7 +694,7 @@ def _parse_cmdline_value (value):
   
 def run (*commands):
   """Runs list of commands""";
-  import PyxisImpl.Commands
+  import Pyxis.Commands
   assign_templates();
   # _debug("running",commands);
   frame = inspect.currentframe().f_back;
@@ -698,13 +703,13 @@ def run (*commands):
     if not callable(command):
       # interpolate the command
       command = command.strip();
-      _verbose(1,"executing command %s"%command);
+      _verbose(1,"running command %s"%command);
       # syntax 1: VAR=VALUE or VAR:=VALUE
       match = _re_assign.match(command);
       if match:
         name,op,value = match.groups();
         # assign variable -- note that templates are not interpolated
-        PyxisImpl.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True);
+        Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True);
         continue;
       # syntax 2: command(args) or command[args]. command can have a "?" prefix
       match = _re_command1.match(command) or _re_command2.match(command);
@@ -732,7 +737,7 @@ def run (*commands):
     # fall through here if command is callable
     else:
       comcall = command;
-      _verbose(1,"executing command %s"%command.__name__);
+      _verbose(1,"running command %s"%command.__name__);
     comcall();
     assign_templates();
   

@@ -1,14 +1,18 @@
 """Pyxis module for MS-related operations""";
-import numpy as np
 import math
 from pyrap.tables import table
 import os.path
 import pyfits
 
-from Pyxis import *
+from Pyxis.ModSupport import *
 
 # register ourselves with Pyxis, and define the superglobals
-register_pyxis_module(superglobals="MS MSDIR MSBASENAME DDID FIELD IMAGE");
+register_pyxis_module();
+
+v.define("MS","","current measurement set");
+v.define("DDID",0,"current DATA_DESC_ID value");
+v.define("FIELD",0,"current FIELD value");
+v.define("IMAGE","","current image");
 
 # external tools  
 lwimager = x.lwimager;

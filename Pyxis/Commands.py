@@ -1,3 +1,5 @@
+"""Pyxis.Commands: implements commands, etc. for interactive use, as well as for Pyxides modules"""
+
 import sys
 import traceback
 import inspect
@@ -7,9 +9,11 @@ import time
 import itertools
 import math
 
-import PyxisImpl
-import PyxisImpl.Internals
-from PyxisImpl.Internals import _int_or_str,interpolate,run,loadconf,assign,assign_templates,register_pyxis_module,makedir
+import Pyxis
+import Pyxis.Internals
+from Pyxis.Internals import _int_or_str,interpolate,loadconf,assign,assign_templates
+
+import numpy as np
 
 DEG = math.pi/180
 ARCMIN = DEG/60
@@ -24,19 +28,19 @@ def _init (context):
   # add some standard objects
   # the 'x' object is a shortcut for executing shell commands. E.g. x.ls('.')
   # the 'xo' object is a shortcut for executing shell commands that are allowed to fail. E.g. x.ls('.')
-  x = PyxisImpl.Internals.ShellExecutorFactory(allow_fail=False);
+  x = Pyxis.Internals.ShellExecutorFactory(allow_fail=False);
   x.__name__ = 'x';
 
-  xo = PyxisImpl.Internals.ShellExecutorFactory(allow_fail=True);
+  xo = Pyxis.Internals.ShellExecutorFactory(allow_fail=True);
   xo.__name__ = 'xo';
   
-  xz = PyxisImpl.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
+  xz = Pyxis.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
   xz.__name__ = 'xz';
 
-  v = PyxisImpl.Internals.GlobalVariableSpace(context);
+  v = Pyxis.Internals.GlobalVariableSpace(context);
   object.__setattr__(v,'__name__','v');
   
-  E = PyxisImpl.Internals.ShellVariableSpace();
+  E = Pyxis.Internals.ShellVariableSpace();
   object.__setattr__(E,'__name__','E');
 
 
@@ -44,7 +48,7 @@ def _I (string,level=1):
   """_I(string): interpolates (i.e. replaces by value) $VAR and ${VAR} occurrences of local and 
   global variables. Local variables are interpreted as those in the context of the caller (i.e. 1 level away).
   
-  _i(string,level): change the number of caller levels for lookup of locals, e.g. 2 means caller or caller
+  _i(string,level): change the number of caller levels for lookup of locals, e.g. 2 means caller of caller
   _i(string,-1): interpolate across all callers
   """;
   frame = inspect.currentframe();
@@ -56,37 +60,20 @@ def _II (*strings):
   """_II(string): interpolates multiple strings. Does an implicit assign_templates call beforehand. Useful as
   the opening line of a function, as e.g. arg1,arg2 = _II(arg1,arg2);
   """;
-  PyxisImpl.Internals.assign_templates();
+  Pyxis.Internals.assign_templates();
   frame = inspect.currentframe().f_back;
   ret = [ x and interpolate(x,frame) for x in strings ];
   return ret[0] if len(strings)<2 else ret;
 
 II = _II;  
   
-def interpolate_locals (*varnames):
-  """interpolates the variable names (from the local context) given by its argument(s).
-  Returns new values in the order given. Useful as the opening line of a function, for example:
-  
-  def f(a="$A",b="$a.1"):
-    a,b = interpolate_locals("a","b")   # or "a", "b"
-    
-  will assign the global variable A to a, and the value of a (in this case, the value of A) plus ".1" to b.
-  """;
-  PyxisImpl.Internals.assign_templates();
-  # interpolate the whole locals() dict
-  frame = inspect.currentframe().f_back;
-  locs = interpolate(frame.f_locals,frame,depth=2);
-  # return variables in the order listed
-  ret = [ locs.get(name) for name in itertools.chain(*[ v.split(" ") for v in varnames ]) ];
-  return ret if len(ret) != 1 else ret[0];
-    
 def _timestamp ():
   return time.strftime("%Y/%m/%d %H:%M:%S");
   
 def _message (*msg):
   output = " ".join(map(str,msg));
   print output;
-  if sys.stdout is not sys.__stdout__ and not PyxisImpl.Context.get('QUIET'):
+  if sys.stdout is not sys.__stdout__ and not Pyxis.Context.get('QUIET'):
     sys.__stdout__.write(output+"\n");
   
 def _debug (*msg):
@@ -96,7 +83,7 @@ def _debug (*msg):
 def _verbose (level,*msg):
   """Prints verbosity message(s), if verbosity level is >= Context.pyxis_verbosity""";
   try:
-    verb = int(PyxisImpl.Context['VERBOSE']);
+    verb = int(Pyxis.Context['VERBOSE']);
   except:
     verb = 1;
   if level <= verb:
@@ -116,8 +103,8 @@ def _error (*msg):
 
 def _abort (*msg):
   """Prints error message(s) without interpolation and aborts""";
-  _message(_timestamp(),"ERROR:",*msg);
-  PyxisImpl.Internals.flush_log();
+  _message(_timestamp(),"ABORT:",*msg);
+  Pyxis.Internals.flush_log();
   sys.exit(1);
   
 def debug (*msg):
@@ -147,8 +134,8 @@ def abort (*msg):
 def printvars ():
   """Prints the current variable settings in Context""";
   # make sorted list of globals (excepting those starting with underscore)
-  globs = [ (name,value) for name,value in sorted(PyxisImpl.Context.iteritems()) 
-            if name[0]!="_" and name not in PyxisImpl._predefined_names ];
+  globs = [ (name,value) for name,value in sorted(Pyxis.Context.iteritems()) 
+            if name[0]!="_" and name not in Pyxis._predefined_names ];
   # from this, extract the non-callables
   varlist = [ (name,value) for name,value in globs if not callable(value)  ];
   print "Ordinary variables:";
@@ -166,14 +153,14 @@ def printvars ():
   # now deal with the callables
   print "Functions:";
   print " ",", ".join([ name for name,value in globs 
-    if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
+    if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
   print "External tools:";
   for name,value in globs:
-    if isinstance(value,PyxisImpl.Internals.ShellExecutor):
+    if isinstance(value,Pyxis.Internals.ShellExecutor):
       print "  %s=%s"%(name,value.path);
   print "Pyxis built-ins:";
   print " ",", ".join([ name for name,value in globs 
-    if callable(value) and not isinstance(value,PyxisImpl.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
+    if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
 
 def exists (filename):
   """Returns True if filename exists, interpolating the filename""";
@@ -182,8 +169,8 @@ def exists (filename):
 _in_subprocess = False;
   
 def _per (varname,*commands):
-  saveval = PyxisImpl.Context.get(varname,None);
-  varlist = PyxisImpl.Context.get(varname+"_List",None);
+  saveval = Pyxis.Context.get(varname,None);
+  varlist = Pyxis.Context.get(varname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
   if varlist is None:
     _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
@@ -193,15 +180,15 @@ def _per (varname,*commands):
       varlist = map(_int_or_str,varlist.split(","));
     elif not isinstance(varlist,(list,tuple)):
       _abort("PYXIS: per(%s,%s): %s_List has invalid type %s"%(varname,cmdlist,str(type(varlist))));
-    nforks = PyxisImpl.Context.get("PYXIS_FORKS",0);
-    stagger = PyxisImpl.Context.get("PYXIS_FORK_STAGGER",0);
+    nforks = Pyxis.Context.get("JOBS",0);
+    stagger = Pyxis.Context.get("JOB_STAGGER",0);
     # unforked case
     _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
     if nforks < 2 or len(varlist) < 2 or _in_subprocess:
       # do the actual iteration
       for value in varlist:
-        assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
-        PyxisImpl.Internals.run(*commands);
+        assign(varname,value,namespace=Pyxis.Context,interpolate=False);
+        Pyxis.Internals.run(*commands);
     else:
       # else split varlist into forked subprocesses
       per_fork = max(len(varlist)//nforks,1);
@@ -215,8 +202,8 @@ def _per (varname,*commands):
           # child fork: run commands
           try:
             for value in varlist[i:i+per_fork]:
-              assign(varname,value,namespace=PyxisImpl.Context,interpolate=False);
-              PyxisImpl.Internals.run(*commands);
+              assign(varname,value,namespace=Pyxis.Context,interpolate=False);
+              Pyxis.Internals.run(*commands);
           except:
             traceback.print_exc();
             sys.exit(1);
@@ -236,18 +223,84 @@ def _per (varname,*commands):
   finally:
     # assign old value
     if saveval is not None:
-      assign(varname,saveval,namespace=PyxisImpl.Context,interpolate=False);
+      assign(varname,saveval,namespace=Pyxis.Context,interpolate=False);
       _verbose(1,"restoring %s=%s"%(varname,saveval));
-      PyxisImpl.Internals.assign_templates();
+      Pyxis.Internals.assign_templates();
 
 def per (varname,*commands):
+  """Iterates over variable 'varname', and executes commands. That is, for every value
+  in varname_List, sets varname to that value, then calls the commands."""
   _per(varname,*commands);
 
 def per_ms (*commands):
+  """Iterates over variable 'MS', and executes commands. That is, for every value
+  in MS_List, sets MS to that value, then calls the commands."""
   _per("MS",*commands);
 
 def per_ddid (*commands):
+  """Iterates over variable 'DDID', and executes commands. That is, for every value
+  in DDID_List, sets MS to that value, then calls the commands."""
   _per("DDID",*commands);
 
-def per_band (*commands):
-  _per("BAND",*commands);
+def is_true (arg):
+  """Returns True if argument evaluates to boolean truth, possibly as a string.
+  is_true('False') == is_true('0') == is_true(0) == False
+  is_true('True') == is_true('1') == is_true(1) == True
+  """;
+  if isinstance(arg,str):
+    try:
+      return bool(eval(arg));
+    except:
+      raise TypeError,"is_true('%s'): invalid string argument"%arg;
+  try:
+    return bool(arg);
+  except:
+    raise TypeError,"is_true(%s): invalid argument %s"%(str(arg),str(type(arg)));
+
+import tempfile   
+import cPickle
+import fcntl
+    
+class Safelist (object):
+  """A Safelist provides a list of objects that is shared among parallel processes. Multiple jobs launched
+  by pyxis can append to a Safelist in a multiprocess-safe manner: write locks are enforced""";
+  def __init__ (self,filename=None):
+    """Creates a safelist, associated with the given filename. If not supplied, a filename is
+    chosen randomly"""
+    if filename:
+      filename = _I(filename,2);
+      if os.path.exists(filename):
+        os.remove(filename);
+      self.filename = filename;
+    else:
+      self.filename = tempfile.NamedTemporaryFile(delete=False).name;
+
+  def reset (self):
+    """Resets safelist to empty (by deleting the associated file)""";
+    if os.path.exists(self.filename):
+      os.remove(self.filename);
+      
+  def add (self,obj):
+    """Adds an object to the safelist, in an MP-safe manner""";
+    ff = file(self.filename,"ab");
+    fcntl.flock(ff,fcntl.LOCK_EX);
+    try:
+      cPickle.dump(obj,ff);
+    finally:
+      fcntl.flock(ff,fcntl.LOCK_UN);
+    
+  def read (self):
+    """Reads all objects accumulated in the safelist, in an MP-safe manner""";
+    ret = [];
+    if os.path.exists(self.filename):
+      ff = file(self.filename);
+      fcntl.flock(ff,fcntl.LOCK_EX);
+      try:
+        while True:
+          ret.append(cPickle.load(ff));
+      except EOFError:
+        pass;
+      finally:
+        fcntl.flock(ff,fcntl.LOCK_UN);
+    return ret;
+    

@@ -1,5 +1,6 @@
 """Pyxis module for MS-related operations""";
-from Pyxis import *
+from Pyxis.ModSupport import *
+
 import pyrap.images
 import os
 import subprocess
@@ -8,7 +9,11 @@ import subprocess
 import mqt
 
 # register ourselves with Pyxis and define the superglobals
-register_pyxis_module(superglobals="MS DDID FIELD");
+register_pyxis_module(superglobals="");
+
+v.define("MS","","current measurement set");
+v.define("DDID",0,"current DATA_DESC_ID value");
+v.define("FIELD",0,"current FIELD value");
 
 
 # external tools  
