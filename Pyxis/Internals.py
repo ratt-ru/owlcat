@@ -452,6 +452,7 @@ def assign_templates ():
 _current_logfile = None;
 _current_logobj = None;
 _warned_log_ipython = None;
+_visited_logfiles = set();
 
 def flush_log ():
   _current_logobj and _current_logobj.flush();
@@ -476,11 +477,15 @@ def set_logfile (filename):
       _current_logobj = None;
     else:
       mode = "w";
+      # append to file if name starts with +, or if file has already been used as a log this session
       if filename[0] == '+':
         filename = filename[1:];
         mode = "a";
+      if filename in _visited_logfiles:
+        mode = "a";
       Pyxis.ModSupport.makedir(os.path.dirname(filename),no_interpolate=True);
-      _current_logobj = sys.stdout = sys.stderr = open(filename,"w");
+      _current_logobj = sys.stdout = sys.stderr = open(filename,mode);
+      _visited_logfiles.add(filename);
     if _current_logfile:
       _info("log continued from %s"%_current_logfile);
     else:
@@ -575,8 +580,6 @@ def report_symbols (pkgname,superglobs,syms):
       _verbose(2,"%s variables:"%pkgname," ".join(varibs));
     if temps:
       _verbose(2,"%s templates for:"%pkgname," ".join(temps));
-  
-  
     
 def find_exec (cmd):
   """Finds shell executable in PATH"""
@@ -691,7 +694,7 @@ def _parse_cmdline_value (value):
     return a;
   except:
     return value;
-  
+
 def run (*commands):
   """Runs list of commands""";
   import Pyxis.Commands

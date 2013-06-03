@@ -68,6 +68,7 @@ if __name__ == "__main__":
   
   import Pyxis
   import Pyxis.Internals
+  import Pyxis.Commands
 
   # init configuration. This preloads pyxis-*.
   PYXIS_LOAD_CONFIG = True
@@ -123,9 +124,9 @@ if __name__ == "__main__":
     except SystemExit,exc:
       retcode = exc.code;
  
-  report_elapsed(ts0);
+  if not Pyxis.Commands._in_subprocess:
+    report_elapsed(ts0);
   
-  if retcode:
-    sys.exit(retcode);
+  sys.exit(retcode);
       
       

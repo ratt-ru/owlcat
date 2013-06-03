@@ -200,6 +200,8 @@ def _per (varname,*commands):
         pid = os.fork();
         if not pid:
           # child fork: run commands
+          global _in_subprocess;
+          _in_subprocess = True;
           try:
             for value in varlist[i:i+per_fork]:
               assign(varname,value,namespace=Pyxis.Context,interpolate=False);
