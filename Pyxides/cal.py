@@ -331,7 +331,7 @@ def transfer_tags (fromlsm="$LSMREF",lsm="$LSM",output="$LSM",tags="dE",toleranc
   these tags to all nearby sources in 'lsm' (within a radius of 'tolerance'). 
   Saves the result to an LSM file given by 'output'.
   """
-  fromlsm,lsm,tags = interpolate_locals("fromlsm lsm tags");
+  fromlsm,lsm,output,tags = interpolate_locals("fromlsm lsm output tags");
   # now, set dE tags on sources
   import Tigger
   refmodel = Tigger.load(fromlsm);
