@@ -67,9 +67,14 @@ def _II (*strings):
 
 II = _II;  
   
-def _timestamp ():
-  return time.strftime("%Y/%m/%d %H:%M:%S");
+_subprocess_id = None;  
   
+def _timestamp ():
+  ts = time.strftime("%Y/%m/%d %H:%M:%S");
+  if _subprocess_id is not None:
+    ts += " [%d]"%_subprocess_id;
+  return ts;
+
 def _message (*msg,**kw):
   output = " ".join(map(str,msg));
   if sys.stdout is not sys.__stdout__:
@@ -91,7 +96,7 @@ def _verbose (level,*msg):
   except:
     verb = 1;
   if level <= verb:
-    _message("PYXIS:",*msg);
+    _message("PYXIS%s:"%((" [%d]"%_subprocess_id) if _subprocess_id is not None else ""),*msg);
 
 def _info (*msg):
   """Prints info message(s) without interpolation""";
@@ -170,8 +175,6 @@ def exists (filename):
   """Returns True if filename exists, interpolating the filename""";
   return os.path.exists(_I(filename,2));
 
-_in_subprocess = False;
-  
 def _per (varname,*commands):
   saveval = Pyxis.Context.get(varname,None);
   varlist = Pyxis.Context.get(varname+"_List",None);
@@ -188,8 +191,8 @@ def _per (varname,*commands):
     stagger = Pyxis.Context.get("JOB_STAGGER",0);
     # unforked case
     _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
-    global _in_subprocess;
-    if nforks < 2 or len(varlist) < 2 or _in_subprocess:
+    global _subprocess_id;
+    if nforks < 2 or len(varlist) < 2 or _subprocess_id is not None:
       # do the actual iteration
       for value in varlist:
         assign(varname,value,namespace=Pyxis.Context,interpolate=False);
@@ -205,7 +208,7 @@ def _per (varname,*commands):
         pid = os.fork();
         if not pid:
           # child fork: run commands
-          _in_subprocess = True;
+          _subprocess_id = i//per_fork;
           try:
             for value in varlist[i:i+per_fork]:
               assign(varname,value,namespace=Pyxis.Context,interpolate=False);

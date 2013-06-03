@@ -487,7 +487,8 @@ def set_logfile (filename):
       _current_logobj = sys.stdout = sys.stderr = open(filename,mode);
       _visited_logfiles.add(filename);
     if _current_logfile:
-      _info("log continued from %s"%_current_logfile);
+      pass;
+#      _info("log continued from %s"%_current_logfile);
     else:
       _info("log started");
     _current_logfile = filename;
