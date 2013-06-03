@@ -291,6 +291,8 @@ class Safelist (object):
       
   def add (self,obj):
     """Adds an object to the safelist, in an MP-safe manner""";
+    if isinstance(obj,str):
+      obj = _I(obj,2);
     ff = file(self.filename,"ab");
     fcntl.flock(ff,fcntl.LOCK_EX);
     try:
