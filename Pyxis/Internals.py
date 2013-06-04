@@ -83,10 +83,10 @@ def _int_or_str (x):
   except:
     return str(x);
     
-def interpolate_args (args,kws,frame): 
+def interpolate_args (args,kws,frame,convert_lists=False): 
   """Helper function to interpolate argument list and keywords using the local dictionary, plus Pyxis.Context globals""";
-  return [ interpolate(arg,frame) for arg in args ], \
-         dict([ (kw,interpolate(arg,frame)) for kw,arg in kws.iteritems() ]);
+  return [ interpolate(arg,frame,convert_lists=convert_lists) for arg in args ], \
+         dict([ (kw,interpolate(arg,frame,convert_lists=convert_lists)) for kw,arg in kws.iteritems() ]);
   
 class ShellExecutor (object):    
   """This is a ShellExecutor object, which can be used to execute a particular shell command. 
@@ -127,8 +127,8 @@ typically created via the Pyxis x, xo or xz built-ins, e.g. as
         _abort("PYXIS: shell command '%s' not found"%self.name);
       _warn("PYXIS: shell command '%s' not found"%self.name);
     else:
-      args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe);
-      args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
+      args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe,convert_lists=True);
+      args,kws = interpolate_args(args,kws,inspect.currentframe().f_back,convert_lists=True);
       kws0.update(kws);
       return _call_exec(self.path,allow_fail=self.allow_fail,bg=self.bg,*(args0+args),**kws0);
 
@@ -170,7 +170,7 @@ Executors created via 'xz' are optional, and run commands in the background.
     
   def sh (self,*args,**kws):
     """Directly invokes the shell with a command and arguments"""
-    commands,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
+    commands,kws = interpolate_args(args,kws,inspect.currentframe().f_back,convert_lists=True);
     # run command
     _verbose(1,"executing '%s':"%(" ".join(commands)));
     flush_log();
@@ -264,7 +264,7 @@ class ShellVariableSpace (_DictAccessor):
     name = object.__getattribute__(self,'__name__');
     return "Pyxis built-in %s: quick access to shell variables. Try %s.VARNAME, or help(%s)."%(name,name,name);
 
-def interpolate (arg,frame,depth=1,ignore=set(),skip=set()):
+def interpolate (arg,frame,depth=1,ignore=set(),skip=set(),convert_lists=False):
   """Interpolates strings: substitutes $var and ${var} with the corresponding variable value from 
   (in order of lookup):
   
@@ -291,6 +291,9 @@ def interpolate (arg,frame,depth=1,ignore=set(),skip=set()):
       frame = frame.f_back
       depth -= 1
     lookups.append(Pyxis.Context);
+  # convert lists to strings
+  if isinstance(arg,(list,tuple)) and convert_lists:
+    arg = ",".join(map(str,arg));
   # interpolate either a single string, or a dict recursively
   if isinstance(arg,dict):
     arg,arg0 = arg.copy(),arg;
