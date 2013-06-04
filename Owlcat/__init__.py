@@ -34,10 +34,10 @@ Kittens.utils.import_pyfits();
 
 # import table class
 try:
-  from pyrap_tables import table,tablecopy,tableexists,tabledelete
+  from pyrap_tables import table,tablecopy,tableexists,tabledelete,addImagingColumns
 except:
   try:
-    from pyrap.tables import table,tablecopy,tableexists,tabledelete
+    from pyrap.tables import table,tablecopy,tableexists,tabledelete,addImagingColumns
   except:
     print "Failed to import pyrap_tables or pyrap.tables. Please install the pyrap "
     "package from http://code.google.com/p/pyrap/, or from a MeqTrees binary repository "

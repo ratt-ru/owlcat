@@ -33,7 +33,7 @@ import time
 
 time_start = time.time();
 
-from Owlcat import table,tablecopy,tableexists,tabledelete
+from Owlcat import table,tablecopy,tableexists,tabledelete,addImagingColumns
 import Owlcat.Console;
 
 progress = Owlcat.Console.Reporter(timestamp=True);
