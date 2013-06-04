@@ -120,7 +120,7 @@ if __name__ == "__main__":
     nr0 = tab0.nrows();
     # in spw renumbering mode, because of the ugliness explained above,
     # we need to re-copy the data from the first MS
-    if options.renumber:
+    if options.renumber and not num_ms:
       nr0 = 0;
     # else, insert more rows to accommodate added MS
     else:
@@ -143,8 +143,8 @@ if __name__ == "__main__":
           data += ddid_tab0.nrows();
         overprint("Writing column %s, shape %s"%(col,data.shape));
         tab0.putcol(col,data,nr0);
-    # if renumbering, need to concatenate the DDID and SPW tables
-    if options.renumber:
+    # if renumbering, need to concatenate the DDID and SPW tables, starting from 1+
+    if options.renumber and num_ms:
       overprint("Updating DATA_DESCRIPTION subtable");
       # append content of the DATA_DESCRIPTION table, while renumbering spectral window IDs
       ddid_tab = table(tab.getkeyword("DATA_DESCRIPTION"),readonly=False);
