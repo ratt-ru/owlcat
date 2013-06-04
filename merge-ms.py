@@ -95,7 +95,15 @@ if __name__ == "__main__":
     # copy first MS to output as-is
     progress("Copying %s to %s"%(msins[0],msout));
     tablecopy(msins[0],msout,deep=True);
-    msins = msins[1:];
+    # when renumbering spectral windows, need to have an addImagingColumns() call
+    # unfortunately, this wipes CORRECTED_DATA! I see no way around this (copynorows=True is no help,
+    # as then it fails to copy subtables) apart from the ugly: copy first MS deeply,
+    # add imaging columns, then re-copy columns
+    if options.renumber:
+      addImagingColumns(msout);
+    # otherwise, first MS is already copied, so remove it from list
+    else:
+      msins = msins[1:];
 
   # open output for writing
   tab0 = table(msout,readonly=False);
@@ -107,12 +115,18 @@ if __name__ == "__main__":
 
   overprint = progress if options.verbose else progress.overprint;
 
-  for msname in msins:
+  for num_ms,msname in enumerate(msins):
     tab = table(msname);
     nr0 = tab0.nrows();
+    # in spw renumbering mode, because of the ugliness explained above,
+    # we need to re-copy the data from the first MS
+    if options.renumber:
+      nr0 = 0;
+    # else, insert more rows to accommodate added MS
+    else:
+      tab0.addrows(tab.nrows());
     progress("Current row count: %d"%nr0);
     progress("Merging in %d rows from %s"%(tab.nrows(),msname));
-    tab0.addrows(tab.nrows());
     for col in tab.colnames():
       if col not in SKIP_COLUMNS:
         overprint("Reading column %s"%col);
