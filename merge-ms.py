@@ -109,9 +109,37 @@ if __name__ == "__main__":
   tab0 = table(msout,readonly=False);
 
   # get the number of DDIDs and SPWIDs
+  ddid_offsets = [0]*len(msins);
   if options.renumber:
     ddid_tab0 = table(tab0.getkeyword("DATA_DESCRIPTION"),readonly=False);
     spw_tab0 = table(tab0.getkeyword("SPECTRAL_WINDOW"),readonly=False);
+    # now, somehow lwimager will still try to re-init MODEL_DATA and CORRECTED_DATA when dealing with merged
+    # MSs. The only way around it that I can see is to fill up the ddid and spw tabs first
+    progress("Filling new DATA_DESCRIPTION and SPECTRAL_WINDOW table");
+    for num_ms,ms in enumerate(msins[1:]):
+      tab = table(ms);
+      ddid_tab = table(tab.getkeyword("DATA_DESCRIPTION"),readonly=False);
+      nr0 = ddid_tab0.nrows();
+      ddid_offsets[num_ms+1] = nr0;
+      ddid_tab0.addrows(ddid_tab.nrows());
+      for col in ddid_tab.colnames():
+        data = ddid_tab.getcol(col);
+        if col == "SPECTRAL_WINDOW_ID":
+          data += spw_tab0.nrows();
+        ddid_tab0.putcol(col,data,nr0);
+      # append content of the SPECTRAL_WINDOW
+      spw_tab = table(tab.getkeyword("SPECTRAL_WINDOW"),readonly=False);
+      nr0 = spw_tab0.nrows();
+      spw_tab0.addrows(spw_tab.nrows());
+      for col in spw_tab.colnames():
+        data = spw_tab.getcol(col);
+        spw_tab0.putcol(col,data,nr0);
+    num_spws,num_ddids = spw_tab0.nrows(),ddid_tab0.nrows();
+    ddid_tab0.close();
+    spw_tab0.close();
+    tab0.close();
+    addImagingColumns(msout);
+    tab0 = table(msout,readonly=False);
 
   overprint = progress if options.verbose else progress.overprint;
 
@@ -139,39 +167,15 @@ if __name__ == "__main__":
         # if renumbering DDIDs, increment the DDID column by the # of rows in the DDID table --
         # this ensures uniqueness of DDIDs
         if options.renumber and col == "DATA_DESC_ID":
-          progress("Adding %d to DATA_DESC_ID"%ddid_tab0.nrows());
-          data += ddid_tab0.nrows();
+          progress("Adding %d to DATA_DESC_ID"%ddid_offsets[num_ms]);
+          data += ddid_offsets[num_ms];
         overprint("Writing column %s, shape %s"%(col,data.shape));
         tab0.putcol(col,data,nr0);
-    # if renumbering, need to concatenate the DDID and SPW tables, starting from 1+
-    if options.renumber and num_ms:
-      overprint("Updating DATA_DESCRIPTION subtable");
-      # append content of the DATA_DESCRIPTION table, while renumbering spectral window IDs
-      ddid_tab = table(tab.getkeyword("DATA_DESCRIPTION"),readonly=False);
-      nr0 = ddid_tab0.nrows();
-      ddid_tab0.addrows(ddid_tab.nrows());
-      for col in ddid_tab.colnames():
-        data = ddid_tab.getcol(col);
-        if col == "SPECTRAL_WINDOW_ID":
-          data += spw_tab0.nrows();
-        overprint("Writing column %s, shape %s"%(col,data.shape));
-        ddid_tab0.putcol(col,data,nr0);
-      # append content of the SPECTRAL_WINDOW
-      overprint("Updating SPECTRAL_WINDOW subtable");
-      spw_tab = table(tab.getkeyword("SPECTRAL_WINDOW"),readonly=False);
-      nr0 = spw_tab0.nrows();
-      spw_tab0.addrows(spw_tab.nrows());
-      for col in spw_tab.colnames():
-        data = spw_tab.getcol(col);
-        spw_tab0.putcol(col,data,nr0);
 
 
   overprint("Closing output MS %s\n"%msout);
   nr0 = tab0.nrows();
-  tab0.close();
   progress("Wrote %d rows to output MS"%nr0);
   if options.renumber:
-    progress("Output MS contains %d spectral windows and %d DDIDs"%
-      (spw_tab0.nrows(),ddid_tab0.nrows()));
-    ddid_tab0.close();
-    spw_tab0.close();
+    progress("Output MS contains %d spectral windows and %d DDIDs"%(num_spws,num_ddids));
+  tab0.close();
