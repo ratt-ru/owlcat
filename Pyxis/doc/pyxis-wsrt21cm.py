@@ -47,6 +47,7 @@ IMAGELIST = Safelist("$OUTDIR/image.list");
 def reset_ms ():
   """reset_ms: make a clean start. Removes the measurement set given by the MS variable,
   untars a fresh copy from the data dir, and does various WSRT-specific initialization."""
+  
   if exists(MS):
     x.sh("rm -fr $MS")
   # extract tarball. Note how variables are interpolated here. More on this
@@ -66,6 +67,7 @@ def reset_ms ():
 
 def cal_ms ():
   """cal_ms: runs a calibration loop over the current MS"""
+  
   # initialize the calibration "step" counter and "label". These are used 
   # to auto-generate output filenames; cal.stefcal() below automatically increments 
   # cal.STEP

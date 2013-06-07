@@ -139,37 +139,50 @@ def error (*msg):
 def abort (*msg):
   """Prints error message(s) and aborts""";
   _abort(*[ _I(x,2) for x in msg ]);
-  
-def printvars ():
-  """Prints the current variable settings in Context""";
+
+def pyxlf (mod=None):
+  """Prints all functions defined by module""";
+  pyxls(mod,what="F");
+
+def pyxlv (mod=None):
+  """Prints all global variables defined by module""";
+  pyxls(mod,what="V");
+
+def pyxls (mod=None,what="FVTB"):
+  """Prints symbols defined by module. 'what' is a combination of characters specifying what to print.""";
   # make sorted list of globals (excepting those starting with underscore)
-  globs = [ (name,value) for name,value in sorted(Pyxis.Context.iteritems()) 
+  globs = Pyxis.Context if mod is None else vars(mod);
+  globs = [ (name,value) for name,value in sorted(globs.iteritems()) 
             if name[0]!="_" and name not in Pyxis._predefined_names ];
   # from this, extract the non-callables
   varlist = [ (name,value) for name,value in globs if not callable(value)  ];
-  print "Ordinary variables:";
-  for var,val in varlist:
-    if not var.endswith("_List") and not var.endswith("_Template") and isinstance(val,(str,int)):
-      print "  %s=%s"%(var,val);
-  print "Lists:";
-  for var,val in varlist:
-    if var.endswith("_List"):
-      print "  %s=%s"%(var,val);
-  print "Templates:";
-  for var,val in globs:
-    if var.endswith("_Template"):
-      print "  %s=%s"%(var,val);
+  if "V" in what:
+    print "Globals:";
+    for var,val in varlist:
+      if not var.endswith("_List") and not var.endswith("_Template") and isinstance(val,(str,int)):
+        print "  %s=%s"%(var,val);
+    print "Lists:";
+    for var,val in varlist:
+      if var.endswith("_List"):
+        print "  %s=%s"%(var,val);
+    print "Templates:";
+    for var,val in globs:
+      if var.endswith("_Template"):
+        print "  %s=%s"%(var,val);
   # now deal with the callables
-  print "Functions:";
-  print " ",", ".join([ name for name,value in globs 
-    if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
-  print "External tools:";
-  for name,value in globs:
-    if isinstance(value,Pyxis.Internals.ShellExecutor):
-      print "  %s=%s"%(name,value.path);
-  print "Pyxis built-ins:";
-  print " ",", ".join([ name for name,value in globs 
-    if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
+  if "F" in what:
+    print "Functions:";
+    print " ",", ".join([ name for name,value in globs 
+      if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
+  if "T" in what:
+    print "External tools:";
+    for name,value in globs:
+      if isinstance(value,Pyxis.Internals.ShellExecutor):
+        print "  %s=%s"%(name,value.path);
+  if "B" in what:
+    print "Pyxis built-ins:";
+    print " ",", ".join([ name for name,value in globs 
+      if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and name in globals() ]);
 
 def exists (filename):
   """Returns True if filename exists, interpolating the filename""";

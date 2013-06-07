@@ -110,7 +110,7 @@ if __name__ == "__main__":
   retcode = 0;
   # run commands
   if not commands:
-    info("no commands to rn");
+    info("no commands given");
   else:
     try:
       Pyxis.Internals.run(*commands);
