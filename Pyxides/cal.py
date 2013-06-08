@@ -309,11 +309,9 @@ def pybdsm_search (image="$RESTORED_IMAGE",output="$PYBDSM_OUTPUT",pol='$PYBDSM_
   if threshold:
     kw['thresh_isl'] = kw['thresh_pix'] = threshold;
   kw['polarisation_do'] = is_true(pol);
-  # join args into one string which can be passed to process_image(), and run the program
-  args = ",".join([ "%s=%s"%kv for kv in kw.iteritems() ]);
-  file(script,"w").write(II("""broadcast=False;\nprocess_image(filename='$image',$args)\n"""+
-     "write_catalog(outfile='$gaul',format='ascii',catalog_type='gaul',clobber=True)\nquit"));
-  _pybdsm(stdin=file(script));
+  from lofar import bdsm
+  img = bdsm.process_image(image,**kw);
+  img.write_catalog(outfile=gaul,format='ascii',catalog_type='gaul',clobber=True);
   tigger_convert(gaul,output,"-t","ASCII","--format",
       "name Isl_id Source_id Wave_id ra_d E_RA dec_d E_DEC i E_Total_flux Peak_flux E_Peak_flux Xposn E_Xposn Yposn E_Yposn Maj E_Maj Min E_Min PA E_PA emaj_d E_DC_Maj emin_d E_DC_Min pa_d E_DC_PA Isl_Total_flux E_Isl_Total_flux Isl_rms Isl_mean Resid_Isl_rms Resid_Isl_mean S_Code"
      +
