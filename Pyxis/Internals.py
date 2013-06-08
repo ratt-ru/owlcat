@@ -359,7 +359,7 @@ class DictProxy (object):
         value = dd.get(name);
         if value is not None:
           break;
-    if value is None:
+    if value is None or value == '':
       value = defval;
     # check for commands
     if isinstance(value,str) and command:
@@ -474,7 +474,7 @@ def set_logfile (filename):
         _warn("running inside ipython, forcing Pyxis output to console and ignoring LOG assignments");
         _warned_log_ipython = True;
       return;
-    _info("redirecting log output to %s"%(filename or "console"));
+    _info("redirecting log output to %s"%(filename or "console"),console=True);
     if filename is None:
       sys.stdout,sys.stderr = sys.__stdout__,sys.__stderr__;
       _current_logobj = None;

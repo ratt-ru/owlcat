@@ -32,7 +32,7 @@ class TableDump (object):
     kws = tab.getcolkeywords(colname);
     # dump in <.5Gb chunks, so figure out size of one row
     row0 = tab.getcol(colname,0,1);
-    maxrows = (2**29)//(row0.size*row0.itemsize);
+    maxrows = (2**27)//(row0.size*row0.itemsize);
     rng = range(0,nrows,maxrows);
     # dump name,keywords,num_chunks
     for obj in colname,kws,len(rng):

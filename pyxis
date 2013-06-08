@@ -94,16 +94,19 @@ if __name__ == "__main__":
   # add other commands
   for arg in args:
     if not Pyxis.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)$",arg):
-      assign("MS",arg);
+#      assign("MS",arg);
       mslist.append(arg);
     else:
       commands.append(arg);
       
   # MS list from command line overrides defaults
   if mslist:
-    info("setting MS list with",mslist);
+    info("setting MS list to",*mslist);
     globals().pop("MS_List_Template",None);
     assign('MS_List',mslist);
+    if len(mslist) == 1:
+      info("setting MS=%"%mslist[0]);
+      assign('MS',mslist[0]);
     
   ts0 = time.time();
   
@@ -129,6 +132,10 @@ if __name__ == "__main__":
       retcode = exc.code;
  
   if Pyxis.Commands._subprocess_id is None:
+    if not retcode:
+      info("all commands have executed successfully");
+    else:
+      error("exiting with error code %d"%retcode);
     report_elapsed(ts0);
   
   sys.exit(retcode);

@@ -77,42 +77,43 @@ def _timestamp ():
 
 def _message (*msg,**kw):
   output = " ".join(map(str,msg));
+  quiet = Pyxis.Context.get('QUIET') and not kw.get('critical'); 
   if sys.stdout is not sys.__stdout__:
     print output;
-    if ( kw.get('critical') or not Pyxis.Context.get('QUIET') ):
+    if not quiet:
       sys.__stdout__.write(output+"\n");
   else:
-    if not Pyxis.Context.get('QUIET'):
+    if not quiet:
       print output;
   
-def _debug (*msg):
+def _debug (*msg,**kw):
   """Prints debug message(s) without interpolation""";
-  _message(_timestamp(),"DEBUG:",*msg);
+  _message(_timestamp(),"DEBUG:",*msg,**kw);
 
-def _verbose (level,*msg):
+def _verbose (level,*msg,**kw):
   """Prints verbosity message(s), if verbosity level is >= Context.pyxis_verbosity""";
   try:
     verb = int(Pyxis.Context['VERBOSE']);
   except:
     verb = 1;
   if level <= verb:
-    _message("PYXIS%s:"%((" [%d]"%_subprocess_id) if _subprocess_id is not None else ""),*msg);
+    _message(_timestamp(),"PYXIS:",*msg,**kw);
 
-def _info (*msg):
+def _info (*msg,**kw):
   """Prints info message(s) without interpolation""";
-  _message(_timestamp(),"INFO:",*msg);
+  _message(_timestamp(),"INFO:",*msg,**kw);
 
-def _warn (*msg):
+def _warn (*msg,**kw):
   """Prints warning message(s) without interpolation""";
-  _message(_timestamp(),"WARNING:",*msg);
+  _message(_timestamp(),"WARNING:",*msg,**kw);
 
-def _error (*msg):
+def _error (*msg,**kw):
   """Prints error message(s) without interpolation""";
-  _message(_timestamp(),"ERROR:",*msg);
+  _message(_timestamp(),"ERROR:",*msg,**kw);
 
-def _abort (*msg):
+def _abort (*msg,**kw):
   """Prints error message(s) without interpolation and aborts""";
-  _message(_timestamp(),"ABORT:",critical=True,*msg);
+  _message(_timestamp(),"ABORT:",console=True,critical=True,*msg,**kw);
   Pyxis.Internals.flush_log();
   sys.exit(1);
   
@@ -214,40 +215,57 @@ def _per (varname,*commands):
       # else split varlist into forked subprocesses
       per_fork = max(len(varlist)//nforks,1);
       _verbose(1,"splitting into %d jobs, %d %s's per job, staggered by %ds"%(min(nforks,len(varlist)),per_fork,varname,stagger));
-      forked_pids = set();
+      forked_pids = {};
       for i in range(0,len(varlist),per_fork):
         if i and stagger:
           time.sleep(stagger);
+        # subvals is range of values to be iterated over by this subjob
+        subvals = varlist[i:i+per_fork];
+        subval_str = ",".join(map(str,subvals));
         pid = os.fork();
+        job_id = i//per_fork;
         if not pid:
           # child fork: run commands
-          _subprocess_id = i//per_fork;
+          _subprocess_id = job_id;
           try:
-            for value in varlist[i:i+per_fork]:
+            for value in subvals:
               assign(varname,value,namespace=Pyxis.Context,interpolate=False);
               Pyxis.Internals.run(*commands);
           except:
             traceback.print_exc();
+            _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value));
             sys.exit(1);
+          _verbose(2,"job #%d (pid %d) exiting normally"%(_subprocess_id,os.getpid()));
           sys.exit(0);
         else: # parent pid: append to list
-          forked_pids.add(pid);
-      _verbose(1,"%d forked subprocesses launched, waiting for finish"%len(forked_pids));
+          _verbose(2,"launched job #%d (%s=%s) with pid %d"%(job_id,varname,subval_str,pid));
+          forked_pids[pid] = job_id,subval_str;
+      njobs = len(forked_pids);
+      _verbose(1,"%d jobs launched, waiting for finish"%len(forked_pids));
+      failed = [];
       while forked_pids:
         pid,status = os.waitpid(-1,0);
         if pid in forked_pids:
-          forked_pids.remove(pid);
-          status <<= 8;
+          job_id,subval_str = forked_pids.pop(pid);
+          status >>= 8;
           if status:
-            _abort("subprocess %d exited with error status %d, aborting"%(pid,status));
+            failed.append((job_id,subval_str));
+#            success = False;
+            _error("job #%d (%s=%s) exited with error status %d, waiting for %d more jobs to complete"%(job_id,varname,subval_str,status,len(forked_pids)));
           else:
-            _verbose(1,"subprocess %d finished, waiting for %d more"%(pid,len(forked_pids)));
+            _verbose(1,"job #%d (%s=%s) finished, waiting for %d more jobs to complete"%(job_id,varname,subval_str,len(forked_pids)));
+      if failed:
+        _abort("%d of %d jobs (MS=%s) have failed"%(len(failed),njobs,",".join([x[1] for x in failed])));
+      else:     
+        _verbose(1,"all jobs finished ok");
   finally:
-    # assign old value
-    if saveval is not None:
-      assign(varname,saveval,namespace=Pyxis.Context,interpolate=False);
-      _verbose(1,"restoring %s=%s"%(varname,saveval));
-      Pyxis.Internals.assign_templates();
+    # note that children also execute this block with sys.exit()
+    if _subprocess_id is None:
+      # assign old value
+      if saveval is not None:
+        _verbose(2,"restoring %s=%s"%(varname,saveval));
+        assign(varname,saveval,namespace=Pyxis.Context,interpolate=False);
+        Pyxis.Internals.assign_templates();
 
 def per (varname,*commands):
   """Iterates over variable 'varname', and executes commands. That is, for every value
