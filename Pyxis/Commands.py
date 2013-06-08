@@ -216,48 +216,61 @@ def _per (varname,*commands):
       per_fork = max(len(varlist)//nforks,1);
       _verbose(1,"splitting into %d jobs, %d %s's per job, staggered by %ds"%(min(nforks,len(varlist)),per_fork,varname,stagger));
       forked_pids = {};
-      for i in range(0,len(varlist),per_fork):
-        if i and stagger:
-          time.sleep(stagger);
-        # subvals is range of values to be iterated over by this subjob
-        subvals = varlist[i:i+per_fork];
-        subval_str = ",".join(map(str,subvals));
-        pid = os.fork();
-        job_id = i//per_fork;
-        if not pid:
-          # child fork: run commands
-          _subprocess_id = job_id;
-          try:
-            for value in subvals:
-              assign(varname,value,namespace=Pyxis.Context,interpolate=False);
-              Pyxis.Internals.run(*commands);
-          except:
-            traceback.print_exc();
-            _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value));
-            sys.exit(1);
-          _verbose(2,"job #%d (pid %d) exiting normally"%(_subprocess_id,os.getpid()));
-          sys.exit(0);
-        else: # parent pid: append to list
-          _verbose(2,"launched job #%d (%s=%s) with pid %d"%(job_id,varname,subval_str,pid));
-          forked_pids[pid] = job_id,subval_str;
-      njobs = len(forked_pids);
-      _verbose(1,"%d jobs launched, waiting for finish"%len(forked_pids));
-      failed = [];
-      while forked_pids:
-        pid,status = os.waitpid(-1,0);
-        if pid in forked_pids:
-          job_id,subval_str = forked_pids.pop(pid);
-          status >>= 8;
-          if status:
-            failed.append((job_id,subval_str));
-#            success = False;
-            _error("job #%d (%s=%s) exited with error status %d, waiting for %d more jobs to complete"%(job_id,varname,subval_str,status,len(forked_pids)));
-          else:
-            _verbose(1,"job #%d (%s=%s) finished, waiting for %d more jobs to complete"%(job_id,varname,subval_str,len(forked_pids)));
-      if failed:
-        _abort("%d of %d jobs (MS=%s) have failed"%(len(failed),njobs,",".join([x[1] for x in failed])));
-      else:     
-        _verbose(1,"all jobs finished ok");
+      try:
+        for i in range(0,len(varlist),per_fork):
+          if i and stagger:
+            time.sleep(stagger);
+          # subvals is range of values to be iterated over by this subjob
+          subvals = varlist[i:i+per_fork];
+          subval_str = ",".join(map(str,subvals));
+          pid = os.fork();
+          job_id = i//per_fork;
+          if not pid:
+            # child fork: run commands
+            _subprocess_id = job_id;
+            try:
+              for value in subvals:
+                assign(varname,value,namespace=Pyxis.Context,interpolate=False);
+                Pyxis.Internals.run(*commands);
+            except:
+              traceback.print_exc();
+              _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value));
+              sys.exit(1);
+            _verbose(2,"job #%d (pid %d) exiting normally"%(_subprocess_id,os.getpid()));
+            sys.exit(0);
+          else: # parent pid: append to list
+            _verbose(2,"launched job #%d (%s=%s) with pid %d"%(job_id,varname,subval_str,pid));
+            forked_pids[pid] = job_id,subval_str;
+        njobs = len(forked_pids);
+        _verbose(1,"%d jobs launched, waiting for finish"%len(forked_pids));
+        failed = [];
+        while forked_pids:
+          pid,status = os.waitpid(-1,0);
+          if pid in forked_pids:
+            job_id,subval_str = forked_pids.pop(pid);
+            status >>= 8;
+            if status:
+              failed.append((job_id,subval_str));
+  #            success = False;
+              _error("job #%d (%s=%s) exited with error status %d, waiting for %d more jobs to complete"%(job_id,varname,subval_str,status,len(forked_pids)));
+            else:
+              _verbose(1,"job #%d (%s=%s) finished, waiting for %d more jobs to complete"%(job_id,varname,subval_str,len(forked_pids)));
+        if failed:
+          _abort("%d of %d jobs (MS=%s) have failed"%(len(failed),njobs,",".join([x[1] for x in failed])));
+        else:     
+          _verbose(1,"all jobs finished ok");
+      except KeyboardInterrupt:
+        if _subprocess_id is None:
+          _error("Caught Ctrl+C, waiting for %d jobs to exit"%len(forked_pids));
+          import signal;
+          for pid in forked_pids.keys():
+            os.kill(pid,signal.SIGINT);
+          while forked_pids:
+            pid,status = os.waitpid(-1,0);
+            if pid in forked_pids:
+              job_id,subval_str = forked_pids.pop(pid);
+              _verbose(1,"job #%d (%s=%s) exited, waiting for %d more"%(job_id,varname,subval_str,len(forked_pids)));
+        raise;
   finally:
     # note that children also execute this block with sys.exit()
     if _subprocess_id is None:

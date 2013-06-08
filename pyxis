@@ -130,6 +130,10 @@ if __name__ == "__main__":
       retcode = 1;
     except SystemExit,exc:
       retcode = exc.code;
+    except KeyboardInterrupt:
+      if Pyxis.Commands._subprocess_id is None:
+        error("Aborted with Ctrl+C");
+      retcode = 1;
  
   if Pyxis.Commands._subprocess_id is None:
     if not retcode:
