@@ -132,8 +132,8 @@ if __name__ == "__main__":
       retcode = exc.code;
     except KeyboardInterrupt:
       if Pyxis.Commands._subprocess_id is None:
-        error("Aborted with Ctrl+C");
-      retcode = 1;
+        error("aborted with Ctrl+C");
+      retcode = 130;
  
   if Pyxis.Commands._subprocess_id is None:
     if not retcode:

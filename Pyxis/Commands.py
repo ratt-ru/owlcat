@@ -269,7 +269,8 @@ def _per (varname,*commands):
             pid,status = os.waitpid(-1,0);
             if pid in forked_pids:
               job_id,subval_str = forked_pids.pop(pid);
-              _verbose(1,"job #%d (%s=%s) exited, waiting for %d more"%(job_id,varname,subval_str,len(forked_pids)));
+              _verbose(1,"job #%d (%s=%s) exited with error status %d, waiting for %d more"%
+                  (job_id,varname,subval_str,status>>8,len(forked_pids)));
         raise;
   finally:
     # note that children also execute this block with sys.exit()
