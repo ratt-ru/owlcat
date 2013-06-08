@@ -370,9 +370,10 @@ if __name__ == "__main__":
         except:
           names_not_found.append(name);
       if not names_found:
-        if names_not_found:
-          error("No such flagset(s): %s"%",".join(names_not_found));
-        error("No flagsets to remove");
+        #if names_not_found:
+        # error("No such flagset(s): %s"%",".join(names_not_found));
+        print "===> WARNING: no flagsets to remove, exiting";
+        sys.exit(0);
       # unflag flagsets
       if names_not_found:
         print "===> WARNING: flagset(s) not found, ignoring: %s"%",".join(names_not_found);
