@@ -135,7 +135,7 @@ if __name__ == "__main__":
     if not retcode:
       info("all commands have executed successfully");
     else:
-      error("exiting with error code %d"%retcode);
+      error("exiting with error code %d, check the logs for errors"%retcode);
     report_elapsed(ts0);
   
   sys.exit(retcode);
