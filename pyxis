@@ -105,7 +105,7 @@ if __name__ == "__main__":
     globals().pop("MS_List_Template",None);
     assign('MS_List',mslist);
     if len(mslist) == 1:
-      info("setting MS=%"%mslist[0]);
+      info("setting MS=%s"%mslist[0]);
       assign('MS',mslist[0]);
     
   ts0 = time.time();

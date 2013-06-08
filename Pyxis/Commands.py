@@ -287,7 +287,10 @@ def is_true (arg):
   is_true('False') == is_true('0') == is_true(0) == False
   is_true('True') == is_true('1') == is_true(1) == True
   """;
+  arg = _I(arg,2);
   if isinstance(arg,str):
+    if not arg:
+      return False;
     try:
       return bool(eval(arg));
     except:
