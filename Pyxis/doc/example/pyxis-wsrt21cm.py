@@ -146,5 +146,5 @@ def runall ():
   # make a mean image from every filename accumulated in IMAGE_LIST
   images = IMAGE_LIST.read();
   if images:
-    cal.fitstool("-m -o ${OUTDIR>/}mean-fullrest%d.fits"%len(images),*images)
+    cal.fitstool("-m -f -o ${OUTDIR>/}mean-fullrest%d.fits"%len(images),*images)
   
