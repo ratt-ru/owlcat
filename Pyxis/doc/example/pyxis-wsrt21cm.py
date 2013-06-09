@@ -55,7 +55,10 @@ def reset_ms ():
   If FULL_RESET is not set, then simply clears out flagsets raised during calibration."""
   if is_true("$FULL_RESET") or not exists(MS):
     if exists(MS):
+      info("$MS exists but FULL_RESET=1, removing and unpacking fresh MS from tarball");
       x.sh("rm -fr $MS")
+    else:
+      info("$MS does not exist, unpacking fresh MS from tarball");
     x.sh("cd ${MS:DIR}; tar zxvf ${MS_TARBALL_DIR}/${MS:FILE}.tgz")
     # init MODEL_DATA/CORRECTED_DATA/etc. columns
     pyrap.tables.addImagingColumns(MS)
@@ -69,6 +72,7 @@ def reset_ms ():
     # use the flag-ms.py tool to copy the FLAG column to the "legacy" bitflag
     cal.flagms(MS,"-Y +L -f legacy -c")
   else:
+    info("$MS exists, reusing (but clearing calibration-related flags). Use FULL_RESET=1 to unpack fresh MS from tarball");
     cal.flagms(MS,"-r threshold,fmthreshold,aoflagger");
 
 def cal_ms ():

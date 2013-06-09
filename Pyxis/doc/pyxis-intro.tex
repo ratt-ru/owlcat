@@ -135,7 +135,7 @@ Most of these are Pyxis features designed to make scripts and recipes easier and
 Though already mentioned above, this is a key concept that deserves further explanation. When you start up Pyxis 
 (whether via the {\tt pyxis} executable, or via an {\tt import Pyxis} statement in your own script or interactive python
 session), {\em some of your local files loaded automatically}. Specifically, all the {\tt pyxis-*.py} and {\tt pyxis-*.conf}
-files in your local directory are loaded and parsed\footnote{There is also an option to disable this behaviour, see Sect.~\ref{sec:pyxis-loading}.}. 
+files in your local directory are loaded and parsed\footnote{There is also an option to disable this behaviour, see Sect.~\ref{sec:pyxis-special-vars}.}. 
 
 This philosophy here is that your Pyxis processing environment is completely determined by the recipes and configs actually
 present in your current working directory. 
@@ -183,6 +183,7 @@ The {\tt \$\{MS:DIR\}} construct substitutes the directory part of the pathname 
 somewhat harder to look through.
 
 \subsection{``Superglobal'' variables}
+\label{sec:superglobals}
 
 In plain Python, variables that are not explicitly scoped\footnote{``{\tt foo.a}'' is explicitly scoped; ``{\tt a}'' is not.} can be either local (only visible within a function) or global (visible to all functions in a particular module). For scripting, it can
 also be quite useful to have a special set of ``superglobal'' variables that are shared across all modules (e.g. {\tt MS}, {\tt LSM}, {\tt DDID}, {\tt LOG} in the examples above). In Pyxis, some of these variables have special meaning (e.g. {\tt LOG}). 
@@ -288,7 +289,7 @@ The {\tt -jN} option (or {\tt JOBS=N} variable assignment) tells Pyxis that it i
 
 \section{Understanding Pyxis recipes}
 
-Pyxis recipes are meant to be modified (and ultimately generated) by you, the end-user! This section therefore provides a more in-depth looks at what recipes are.
+Pyxis recipes are meant to be modified (and ultimately generated) by you, the end-user! This section therefore provides a more in-depth looks at what recipes are and how they're written.
 
 A Pyxis recipe is, in the end, just a Python script for doing something or other. A minimalistic recipe could consist of just one Python function with a name like {\tt run()}. When you start Pyxis, the recipe is automatically loaded (provided it's in the current directory), and the {\tt run()} function becomes available. It can then be invoked from the command line as
 
@@ -304,9 +305,11 @@ or interactively, as
   In [2]: run()
 \end{verbatim}
 
-A real-life recipe, as in the example of Appendix~\ref{app:recipe}, defines functions for a number of simple tasks ({\tt reset\_ms()}, {\tt cal\_ms()}, and perhaps one or more ``super-task'' functions that call several tasks in sequence (as e.g. {\tt runall()} in the example.) 
+Note that in both cases, you must be in the directory containing the Pyxis recipe file for this to work!
 
-If you've running Pyxis interactively, the {\tt printvars()} function will provide a summary of currently defined functions (among other things)
+A real-life recipe, as in the example of Appendix~\ref{app:recipe}, defines functions for a number of simple tasks ({\tt reset\_ms()}, {\tt cal\_ms()}, and perhaps one or more ``super-task'' functions that call several tasks in sequence ({\tt runall()}). 
+
+If you've running Pyxis interactively, the {\tt printvars()} function will provide a summary of currently defined functions (among other things).
 
 
 \subsection{Passing parameters}
@@ -324,13 +327,152 @@ Contrast this to an argument-based interface:
  >>> process_image(filename='foo.fits')
 \end{verbatim}
 
-The first approach simplifies interactive use; the second approach makes for cleaner programming and more flexible interfaces. Since scripting occupies somewhat of a middle ground, Pyxis encourages one to use a mixed approach. Pyxis ``tasks'' are nothing but Python functions, and must be called as functions with arguments. However, many of their parameters (e.g. current MS, current LSM) can typically be specified by setting global variables, which gives the overall interface a more task-based feel. Functions at the recipe level (at least in my recipes) tend to rely on globals almost exclusively, while functions within Pyxides have proper lists of arguments. 
+The first approach simplifies interactive use; the second approach makes for cleaner programming and more flexible interfaces. Since scripting occupies somewhat of a middle ground, Pyxis encourages one to use a mixed approach. Pyxis ``tasks'' are nothing but Python functions, and must be called as functions with arguments. Typically, many (or all) of their parameters (e.g. current MS, current LSM) can be specified by setting global variables, which gives the overall interface a more task-based feel. Functions at the recipe level (at least in my recipes) tend to rely on globals almost exclusively (see {\tt reset\_ms()} and {\tt cal\_ms()} in the example), while functions within Pyxides (e.g. {\tt cal.stefcal()}) use proper arguments. However, many of these arguments have default values that are defined in terms of globals, and so may be omitted from the call. For example, here's the documentation for the {\tt cal.stefcal()} function (note that this documentation may be accessed from an interactive session by calling {\tt help(cal.stefcal)}, or in ipython as simply ``{\tt cal.stefcal?}''):
+
+{\scriptsize
+\begin{verbatim}
+>>> import Pyxis  # remember to do this in the example directory!
+...
+>>> help(cal.stefcal)
+
+  Help on function stefcal in module cal:
+
+stefcal(msname='$MS', section='$STEFCAL_SECTION', label='G', apply_only=False, diffgains=None, 
+    flag_threshold=None, output='CORR_RES', plotvis='$PLOTVIS', 
+    dirty=True, restore=False, restore_lsm=True, args=[], options={}, **kws)
+
+    Generic function to run a stefcal job.
+      
+      'section'         TDL config file section
+      'label'           will be assigned to the global LABEL for purposes of file naming
+      'apply_only'      if true, will only apply saved solutions
+      'diffgains'       set to a source subset string to solve for diffgains. Set to True to use "=dE"
+      'flag_threshold'  threshold flaging post-solutions. Give one threshold to flag with --above,
+                        or T1,T2 for --above T1 --fm-above T2
+      'output'          output visibilities ('CORR_DATA','CORR_RES', 'RES' are useful)
+      'plotvis'         if not empty, specifies which output visibilities to plot using plot-ms (see plot.ms.py --help) 
+      'dirty','restore' image output visibilities (passed to make_image above as is)
+      'args','options'  passed to the stefcal job as is (as a list of arguments and kw=value pairs), 
+                        can be used to supply extra TDL options
+      extra keywords:   passed to the stefcal job as kw=value, can be used to supply extra TDL options, thus
+                        overriding settings in the TDL config file. Useful arguments of this kind are e.g.:
+                        stefcal_reset_all=True to remove prior gains solutions.
+      
+    The following variables also apply:
+    
+      mqt.TDLCONFIG        default TDL config file
+      cal.STEFCAL_DIFFGAINS current file for diffgain solutions
+      ...
+      v.MS                 current measurement set
+      ...
+\end{verbatim}
+}
+
+The above means the following: the first argument to {\tt stefcal} is an MS name, and the second is a TDL config section (see Sect.~\ref{sec:tdlconfig}); if not given, these default to the global {\tt MS} and {\tt STEFCAL\_SECTION} variables. Note that the former is a ``superglobal'' variable shared across modules (see Sect.~\ref{sec:superglobals}, \ref{sec:variables}), while the latter is a variable specific to the {\tt cal} module, as the documentation clearly indicates. The {\tt stefcal} function can therefore be equivalently invoked as either
+
+\begin{verbatim}
+>>> cal.stefcal("my.MS","myconfig_section") 
+\end{verbatim}
+
+or
+
+\begin{verbatim}
+>>> v.MS = "my.MS"
+>>> cal.STEFCAL_SECTION = "myconfig_section"
+>>> cal.stefcal() 
+\end{verbatim}
 
 
-\subsection{Configuration}
+\subsection{Configuration and global variables}
+\label{sec:variables}
 
+Pyxis configuration is simple in principle, as it is entirely based on Python global variables. Python imposes a separate
+``global scope'' on each module it loads: that is, each module has its own set of globals. This makes for good programming practice, but for scripting applications, one usually needs an easy way to share variables across modules. Pyxis provides such a way via a
+common ``superglobals'' scope, which may be accessed via the built-in {\tt v} object:
 
+\begin{verbatim}
+# sets global variable in the cal module
+>>> cal.STEFCAL_SECTION = "mysection"   
+# sets "superglobal" variable
+>>> v.MS = "my.ms" 
+\end{verbatim}
 
+Within recipes and interactive sessions (as opposed to within modules), the global scope and the superglobals scope is one and the same\footnote{Technically speaking, the superglobals scope is the same thing as the {\tt \_\_main\_\_} namespace, and all recipes are
+executed in this namespace.}. However, proper superglobals require special treatment, in that they must be assigned to via the {\tt v} object:
+
+\begin{verbatim}
+>>> v.MS = "my.ms" 
+>>> print MS,v.MS,MS is v.MS   
+my.ms my.MS True
+>>>
+\end{verbatim}
+
+A simple assignment statement like
+
+\begin{verbatim}
+>>> MS = "my.ms" 
+\end{verbatim}
+
+is technically correct, but breaks the updating of templates and other Pyxis internals (see below), so it is best avoided where
+shared variables defined by Pyxides modules ({\tt MS}, {\tt LSM}, etc.) are concerned. Ordinary variables (i.e. specific to a recipe, 
+and not shared across modules) do not need special treatment.
+
+Given that Pyxis loads things in a specific order, that order imposes a logical hierarchy on configuration (i.e. variable assignments), from the most generic to the most specific:
+
+\begin{itemize}
+  \item All recipes ({\tt pyxis-*.py}) in the current directory are loaded and parsed in alphabetical order. 
+  \item A recipe will usually import one or more Pyxides modules first thing. Pyxides modules define their own globals (and some superglobals), and initialize them with default values.
+  \item Subsequent statements in the recipe can then change the values of superglobals and module-level globals (see example in Appendix~\ref{app:recipe}).
+  \item Once all recipes have been loaded, Pyxis will load and parse all config files ({\tt pyxis-*.conf}), also in alphabetical 
+  order. Config files will typically change even more variables.
+  \item Finally, command-line arguments to the {\tt pyxis} utility can be used to refine the configuration even further:
+\begin{verbatim}
+$ pyxis MS=my.ms cal.STEFCAL_SECTION=mysection runall
+\end{verbatim}
+  \item Alternatively, variables can also be changed in an interactive session (see above).\
+\end{itemize}
+
+\subsubsection{MeqTrees scripts and TDL configs}
+
+Python variables are not the whole story, since external tools called by recipes and modules can have their own specialized configuration files. In particular this concerns MeqTrees. A MeqTrees script typically needs at least two files: a TDL script (e.g. {\tt calico-stefcal.py}), and a TDL config file (typically, {\tt tdlconf.profiles}). The four steps to running a MeqTrees script are:
+
+\begin{enumerate}
+  \item Load TDL options from a specific {\em section} of the TDL config file.
+  \item Override some of the loaded options, if necessary.
+  \item Compile the TDL {\em script} with these options, resulting in some sort of specialized tree being set up.
+  \item Run a TDL {\em job} defined by the script.
+\end{enumerate}
+
+A general interface to this is provided by {\tt mqt.run()} in the {\tt mqt} Pyxides module. More specialized functions such as {\tt cal.stefcal()} wrap this in an application-specific interface. Behind the scenes, such functions implement logic of their own at step 2 of the above, by overriding some TDL options in accordance with their input parameters. Normally this behaviour is hidden from view, but a typical interface pattern is to use of keyword arguments and global variables to override even more TDL options. Take as an example this line in our example recipe:
+
+\begin{verbatim}
+  cal.stefcal(stefcal_reset_all=True,output="CORR_RES",restore=False,flag_threshold=(1,.5))
+\end{verbatim}
+
+Here, the {\tt stefcal\_reset\_all} keyword argument is passed from {\tt cal.stefcal()} directly to the underlying MeqTrees script, thus overriding whatever setting is specified in the {\tt tdlconf.profiles} file. Likewise, the statement
+
+\begin{verbatim}
+cal.STEFCAL_TDLOPTS = "calibrate_ifrs=-<144 stefcal_verbose=3"
+\end{verbatim}
+
+also causes the specified TDL options to be overridden when {\tt cal.stefcal()} invokes MeqTrees.
+
+In practice, this means that you need to be aware of a few things:
+
+\begin{itemize}
+\item MeqTrees scripts and TDL configs should be bundled with the Pyxis recipes that use them, as in the {\tt example} directory here.
+\item TDL configs can contain some ``deep'' options of the script that a recipe does not change directly, but na\"ive users should not normally need to worry about this.
+\item Power users can always manipulate TDL configs by using the meqbrowser, and loading/running scripts interactively.
+\end{itemize}
+
+\subsection{Variable substitution}
+\label{sec:varsubst}
+
+\subsection{Variable templates}
+
+\subsection{Special variables}
+
+\subsection{Built-in Pyxis functions}
 
 
 \section{Pyxides modules}
@@ -341,17 +483,19 @@ The first approach simplifies interactive use; the second approach makes for cle
 \section{Example Pyxis recipe}
 \label{app:recipe}
 
-A copy of this file can be found under {\tt Pyxis/doc/pyxis-wsrt21cm.py}.
+A copy of this file can be found under {\tt Pyxis/doc/example/pyxis-wsrt21cm.py}.
 
-\verbatiminput{pyxis-wsrt21cm.py}
-
+{\scriptsize
+\verbatiminput{example/pyxis-wsrt21cm.py}
+}
 \section{Example Pyxis config}
 \label{app:config}
 
-A copy of this file can be found under {\tt Pyxis/doc/pyxis-a773.conf}.
+A copy of this file can be found under {\tt Pyxis/doc/example/pyxis-a773.conf}.
 
-\verbatiminput{pyxis-a773.conf}
-
+{\scriptsize
+\verbatiminput{example/pyxis-a773.conf}
+}
 
 
 
