@@ -131,7 +131,7 @@ def document_globals (obj,*patterns):
     text = "\nThe following variables also apply:\n\n"
     for sym,doc in doclist:
       text += "  %-20s %s\n"%(sym,doc);
-    obj.__doc__ = obj.__doc__ + text;
+    obj.__doc__ = (obj.__doc__ or "")+ text;
   
 def interpolate_locals (*varnames):
   """interpolates the variable names (from the local context) given by its argument(s).
