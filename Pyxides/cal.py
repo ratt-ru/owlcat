@@ -195,8 +195,8 @@ document_globals(make_image,"*_IMAGE","IMAGE_CHANNELIZE","RESTORING_OPTIONS","CL
   "MS","LSM","DDID","CHANRANGE");      
 
 def_global("STEFCAL_SCRIPT","calico-stefcal.py","stefcal TDL script (usually calico-stefcal.py)")
-def_global("STEFCAL_SECTION","stefcal","TDL config section")
-def_global("STEFCAL_JOBNAME","stefcal","TDL job name")
+def_global("STEFCAL_SECTION","stefcal","default TDL config section")
+def_global("STEFCAL_JOBNAME","stefcal","default TDL job name")
 def_global("STEFCAL_TDLOPTS","","extra TDL options for stefcal")
 def_global("STEFCAL_GAINS_Template","$MS/gains.cp","current file for gain solutions")
 def_global("STEFCAL_IFRGAINS_Template","$MS/ifrgains.cp","current file for IFR gain solutions")
@@ -216,17 +216,20 @@ def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
               **kws):
   """Generic function to run a stefcal job.
   
-  'section'         config file section
+  'section'         TDL config file section
   'label'           will be assigned to the global LABEL for purposes of file naming
   'apply_only'      if true, will only apply saved solutions
   'diffgains'       set to a source subset string to solve for diffgains. Set to True to use "=dE"
   'flag_threshold'  threshold flaging post-solutions. Give one threshold to flag with --above,
                     or T1,T2 for --above T1 --fm-above T2
   'output'          output visibilities ('CORR_DATA','CORR_RES', 'RES' are useful)
-  'plotvis'	     plot output visibilities using plot-ms
+  'plotvis'         if not empty, specifies which output visibilities to plot using plot-ms (see plot.ms.py --help) 
   'dirty','restore' image output visibilities (passed to make_image above as is)
-  'args','options'  passed to the stefcal job as is, can be used to supply extra TDL options
-  extra keywords:   passed to the stefcal job as kw=value
+  'args','options'  passed to the stefcal job as is (as a list of arguments and kw=value pairs), 
+                    can be used to supply extra TDL options
+  extra keywords:   passed to the stefcal job as kw=value, can be used to supply extra TDL options, thus
+                    overriding settings in the TDL config file. Useful arguments of this kind are e.g.:
+                    stefcal_reset_all=True to remove prior gains solutions.
   """
   msname,section,lsm,LABEL,plotvis = interpolate_locals("msname section lsm label plotvis");
   
@@ -288,7 +291,7 @@ def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
   make_image(msname,dirty=dirty,restore=restore,restore_lsm=restore_lsm);
 
 # document global options for stefcal()
-document_globals(stefcal,"STEFCAL_*","IFRS","STEP","LABEL","STAGE","PLOTVIS","MS","LSM","DDID","CHANRANGE");
+document_globals(stefcal,"mqt.TDLCONFIG","STEFCAL_*","IFRS","STEP","LABEL","STAGE","PLOTVIS","MS","LSM","DDID","CHANRANGE");
   
 
 def_global('PYBDSM_OUTPUT_Template',"${OUTFILE}_pybdsm.lsm.html","output LSM file");    
@@ -334,7 +337,7 @@ def transfer_tags (fromlsm="$LSMREF",lsm="$LSM",output="$LSM",tags="dE",toleranc
   import Tigger
   refmodel = Tigger.load(fromlsm);
   model = Tigger.load(lsm);
-  tagset = frozenset(tags.split(" "));
+  tagset = frozenset(tags.split());
   info("Transferring tags %s from %s to %s"%(",".join(tagset),fromlsm,lsm));
   # for each dE-tagged source in the reference model, find all nearby sources
   # in our LSM, and tag them
@@ -343,7 +346,7 @@ def transfer_tags (fromlsm="$LSMREF",lsm="$LSM",output="$LSM",tags="dE",toleranc
       for tag in tagset:
         tagval = src0.getTag(tag,None);
         if tagval is not None:
-          if src.getTag(tag,None) is not None:
+          if src.getTag(tag,None) != tagval:
             src.setTag(tag,tagval);
             info("setting tag %s=%s on source %s (from reference source %s)"%(tag,tagval,src.name,src0.name))
   model.save(output);
