@@ -375,7 +375,8 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
     
-def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=False,verbose_level=2):
+def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=False,append=False,verbose_level=2):
+  """Internal function to assign variables"""
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
@@ -386,24 +387,27 @@ def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=
         raise ValueError,"invalid namespace %s"%nsname;
     else:
       namespace = frame.f_globals;
-  # get superglobals associated with this namespace
-  superglobs = _superglobals.get(id(namespace),[]);
-  # templates are not interpolated, all others are
-  if name.endswith("_Template"):
-    _verbose(verbose_level,"setting %s=%s"%(name,value));
-    namespace[name] = value;
+  # interpolate if asked to, unless this is a template, which are never interpolated
+  if interpolate and not name.endswith("_Template"):
+    value1 = Pyxis.Internals.interpolate(value,frame);
   else:
-    value1 = Pyxis.Internals.interpolate(value,frame) if interpolate else value;
-    namespace[name] = value1;
-    _verbose(verbose_level,"setting %s=%s%s"%(name,value1,(" (%s)"%value) if str(value) != str(value1) else ""));
-    if kill_template and namespace.pop(name+"_Template",None):
-      _verbose(verbose_level,"  and removing associated template %s_Template"%name);
-  # if variable is superglobal, propagate across all namespaces defining that superglobal
+    value1 = value;
+  # append if asked to
+  if append:
+    value0 = str(namespace.get(name,""));
+    if value0:
+      value1 = "%s %s"%(value0,value1);
+  namespace[name] = value1;
+  _verbose(verbose_level,"setting %s=%s"%(name,value1));
+  if kill_template and not name.endswith("_Template") and namespace.pop(name+"_Template",None):
+    _verbose(verbose_level,"  and removing associated template %s_Template"%name);
+  # get superglobals associated with this namespace: if the variable is one of them, then propagate the new value
+  # across all other namespaces using that superglobal
+  superglobs = _superglobals.get(id(namespace),[]);
   if name in superglobs:
     for ns in _namespaces.itervalues():
       if name in _superglobals.get(id(ns)):
-        ns[name] = value;
-  # if there's a template for this variable, kill it
+        ns[name] = value1;
   # reprocess templates
   assign_templates();
 
@@ -687,15 +691,28 @@ def find_command (comname,frame=None):
   # make callable for this shell command
   return lambda *args:_call_exec(path,allow_fail=allow_fail,*args);
 
-_re_assign = re.compile("^([\w.]+)(=)(.*)$");
+_re_assign = re.compile("^([\w.]+)(\\+?=)(.*)$");
 _re_command1 = re.compile("^(\\??\w+)\\[(.*)\\]$");
 _re_command2 = re.compile("^(\\??\w+)\\((.*)\\)$");
   
 def _parse_cmdline_value (value):
-  """Helper function. Parses value as a python expression. If not successful, uses a string directly"""
+  """Helper function to parse the VALUE portion of VAR=VALUE commands.
+  Evaluates the value string as a Python expression, using eval() with superglobals.
+  If this fails, then returns the value directly as a string.
+  
+  This implies that command-line arguments will work as follows:
+  
+  Argument:              Corresponding Python code:
+  ---------              --------------------------
+  VAR=x                  VAR = "x" if superglobal x is undefined, else VAR=x
+  "VAR='x'"              VAR = "x"    note that shell will swallow the outer quotes
+  VAR=1                  VAR = 1
+  VAR=complex(1)         VAR = 1+0j
+  "VAR=dict(x='y')"      VAR = dict(x='y')
+  VAR=x=1                VAR = "x=1"
+  """
   try:
-    exec("a=%s"%value);
-    return a;
+    return eval(value,Pyxis.Context);
   except:
     return value;
 
@@ -716,7 +733,7 @@ def run (*commands):
       if match:
         name,op,value = match.groups();
         # assign variable -- note that templates are not interpolated
-        Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True);
+        Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True,append=(op=="+="));
         continue;
       # syntax 2: command(args) or command[args]. command can have a "?" prefix
       match = _re_command1.match(command) or _re_command2.match(command);

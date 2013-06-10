@@ -72,9 +72,11 @@ def def_global (name,default,doc=None):
     name = name[:-9];
   globs.setdefault("_symdocs",{})[name] = doc;
 
-    
+import itertools
+  
 def document_globals (obj,*patterns):
   """Updates an object's documentation string with a list of globals that match the specified patterns.
+  Can take multiple pattern arguments; each argument will be split at whitespace.
   Mainly useful in Pyxides modules, to form documentation strings for functions, e.g.:
   
     def_global(FOO_A,"1","option A for function foo");
@@ -87,29 +89,43 @@ def document_globals (obj,*patterns):
     
   This results in foo.__doc__ being extended with documentation for FOO_A and FOO_B
   """
-  globs = inspect.currentframe().f_back.f_globals;
-  modname = globs['__name__'];
-  moddocs = globs.get('_symdocs',{});
+  patterns = list(itertools.chain(*[ patt.split() for patt in patterns ]));
+  globs0 = inspect.currentframe().f_back.f_globals;
+  modname0 = globs0['__name__'];
   globdocs = Pyxis.Context.get('_symdocs',{});
-  # make set of all global symbols, plus symbols that may not yet be defined, but already have documentation,
-  # plus superglobals
-  allsyms = set(globs.iterkeys());
-  allsyms.update(moddocs.iterkeys());
+  # for each module, make a set of all global symbols, plus symbols that may not yet be defined, but already have documentation
+  # (i.e. have entries in _symdocs)
+  # each entry in allsyms is a pair of set_of_symbols,dict_of_docs
+  allsyms = {}
+  for modname,globs in _namespaces.iteritems():
+    docs = globs.get('_symdocs',{});
+    allsyms[modname] = set(itertools.chain(globs.iterkeys(),docs.iterkeys())),docs;
+  if modname0 not in allsyms:
+    docs = globs0.get('_symdocs',{});
+    allsyms[modname0] = set(itertools.chain(globs0.iterkeys(),docs.iterkeys())),docs;
   # keep track of what's been documented, to avoid duplicates
   documented = set();
   doclist = [];
   for patt in patterns:
-    # if patt matches a superglobal exactly, add to list
-    if Pyxis.Internals.is_superglobal(globs,patt):
+    # if patt matches a superglobal defined in calling module, add to list as a superglobal
+    if Pyxis.Internals.is_superglobal(globs0,patt):
       doclist += [ ("v."+patt,globdocs.get(patt,'')) ];
     # else look for matching module-level globals
     else:
-      # make sorted list of matching module globals for each pattern
-      syms = sorted([ sym for sym in allsyms if fnmatch.fnmatch(sym,patt) and not sym.endswith("_Template") ]);
-      # add them to doclist
-      doclist += [ ("%s.%s"%(modname,sym),moddocs.get(sym,'')) for sym in syms if sym not in documented ];
-      # add them to set of already documented syms
-      documented.update(syms);
+      if '.' in patt:
+        modname,patt = patt.split('.',1);
+        if modname not in allsyms:
+          raise ValueError,"document_globals(\"%s.%s\"): module '%s' not registered"%(modname,patt,modname);
+      else:
+        modname = modname0;
+      modsyms,moddocs = allsyms[modname];
+      # make sorted list of matching module globals for the pattern, and loop over them
+      for sym in sorted([ sym for sym in modsyms if fnmatch.fnmatch(sym,patt) and not sym.endswith("_Template") ]):
+        fqsym = "%s.%s"%(modname,sym);
+        # add to doclist, unless already documented
+        if fqsym not in documented:
+          doclist.append((fqsym,moddocs.get(sym,'')));
+        documented.add(fqsym);
   # now generate documentation string
   if doclist:
     text = "\nThe following variables also apply:\n\n"
