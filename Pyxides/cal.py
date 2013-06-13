@@ -234,14 +234,15 @@ def stefcal ( msname="$MS",section="$STEFCAL_SECTION",label="G",
                     overriding settings in the TDL config file. Useful arguments of this kind are e.g.:
                     stefcal_reset_all=True to remove prior gains solutions.
   """
-  msname,section,lsm,LABEL,plotvis = interpolate_locals("msname section lsm label plotvis");
+  msname,section,lsm,label,plotvis = interpolate_locals("msname section lsm label plotvis");
   
   makedir(DESTDIR);
   
   # increment step counter
-  global STEP
+  global STEP,LABEL
   if type(STEP) is int:
     STEP += 1;
+  LABEL = str(label);
 
   # setup stefcal options and run 
   info("Running stefcal ${step <STEP} ${(<LABEL>)}");
