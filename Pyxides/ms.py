@@ -38,6 +38,13 @@ def _filename (base,newext):
   while base and base[-1] == "/":
     base = base[:-1];
   return os.path.splitext(base)[0]+"."+newext;
+
+def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
+  """Copies data from one column of MS to another""";
+  msname,fromcol,tocol = interpolate_locals("msname fromcol tocol");
+  tab = msw(msname)
+  tab.putcol(tocol,tab.getcol(fromcol))
+  tab.close()
   
 def uvcov (msname="$MS",save=None):
   """Makes uv-coverage plot
@@ -50,6 +57,7 @@ def uvcov (msname="$MS",save=None):
   pylab.plot(uv[:,0],uv[:,1],'.b');
   pylab.plot(-uv[:,0],-uv[:,1],'.r');
   pylab.savefig(save) if save else pylab.show();
+  
 
 def _strtodeg (arg):
   """Helper function, converts value+unit argument to degrees."""

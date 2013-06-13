@@ -671,15 +671,20 @@ def _on_parent_exit(signame):
     
 
 def find_command (comname,frame=None):
-  """Locates command by name. If command is present (as a callable) in Pyxis.Context, returns that.
+  """Locates command by name. 
+  If command is of form "module.command", attempts to resolve it to a callable.
+  Else if command is present (as a callable) in Pyxis.Context, returns that.
   Otherwise checks the path for a binary by that name, and returns a callable to call that.
   Else aborts.""";
   comname = interpolate(comname,frame or inspect.currentframe().f_back);
-  # look for a predefined command
-  comcall = Pyxis.Context.get(comname);
-  if callable(comcall):
-    return comcall;
-  # else look for a shell command
+  # first, try to evaluate to a callable function
+  try:
+    comcall = eval(comname,Pyxis.Context);
+    if callable(comcall):
+      return comcall;
+  except:
+    pass;
+  # failing that, look for a shell command
   if comname[0] == "?":
     comname = comname[1:];
     allow_fail = True;
@@ -691,9 +696,9 @@ def find_command (comname,frame=None):
   # make callable for this shell command
   return lambda *args:_call_exec(path,allow_fail=allow_fail,*args);
 
-_re_assign = re.compile("^([\w.]+)(\\+?=)(.*)$");
-_re_command1 = re.compile("^(\\??\w+)\\[(.*)\\]$");
-_re_command2 = re.compile("^(\\??\w+)\\((.*)\\)$");
+_re_assign = re.compile("^(\w[\w.]*)(\\+?=)(.*)$");
+_re_command1 = re.compile("^(\\??\w[\w.]*)\\[(.*)\\]$");
+_re_command2 = re.compile("^(\\??\w[\w.]*)\\((.*)\\)$");
   
 def _parse_cmdline_value (value):
   """Helper function to parse the VALUE portion of VAR=VALUE commands.
@@ -735,7 +740,7 @@ def run (*commands):
         # assign variable -- note that templates are not interpolated
         Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True,append=(op=="+="));
         continue;
-      # syntax 2: command(args) or command[args]. command can have a "?" prefix
+      # syntax 2: command(args) or command[args]. command can have a "?" prefix to make it optional
       match = _re_command1.match(command) or _re_command2.match(command);
       if match:
         comname,comargs = match.groups();

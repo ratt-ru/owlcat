@@ -158,6 +158,9 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
   msname,column,lsm = interpolate_locals("msname column lsm"); 
   makedir(DESTDIR);
   
+  if restore and column != "CORRECTED_DATA":
+    abort("Due to imager limitations, restored images can only be made from the CORRECTED_DATA column.");
+  
   # setup imager options
   kw0.update(dict(chanstart=CHANSTART,chanstep=CHANSTEP,nchan=NUMCHANS));
   if channelize is None:
