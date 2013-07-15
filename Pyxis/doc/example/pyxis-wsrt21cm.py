@@ -101,7 +101,7 @@ def cal_ms ():
   
   # apply previous stefcal solutions to produce a corrected data image.
   # Make a restored image with 2000 CLEAN iterations.
-  stefcal.stefcal(apply_only=True,output="CORR",plotvis=False,
+  stefcal.stefcal(apply_only=True,output="CORR_DATA",plotvis=False,
                   restore=dict(niter=2000),restore_lsm=False)
   
   ## now run pybdsm on the restored image, write output to a new LSM file
