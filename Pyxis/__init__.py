@@ -10,6 +10,7 @@ ARCMIN = DEG/60
 ARCSEC = DEG/3600
 
 #from Pyxis.Commands import *
+
 import Pyxis.Internals 
 
 _initialized = False;

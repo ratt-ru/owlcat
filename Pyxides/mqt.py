@@ -6,8 +6,15 @@ register_pyxis_module();
 
 ## find the Cattery
 import Timba
+import os.path
 _cattery_path = Timba.packages()['Cattery'][0]
 sys.path.append(_cattery_path);
+if v("ADD_PYXIDES_PATH",True):
+  path = os.path.join(_cattery_path,"Pyxides");
+  verbose(2,"adding %s to import path. Set ADD_PYXIDES_PATH=False to disable"%path);
+  sys.path.append(path);
+
+def_global('CATTERY',_cattery_path,"default path to Cattery scripts");
 
 ## default multithread setting
 def_global('MULTITHREAD',2,"max number of meqserver threads");

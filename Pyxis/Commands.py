@@ -11,7 +11,7 @@ import math
 
 import Pyxis
 import Pyxis.Internals
-from Pyxis.Internals import _int_or_str,interpolate,loadconf,assign,assign_templates
+from Pyxis.Internals import _int_or_str,interpolate,loadconf,assign,unset,assign_templates
 
 import numpy as np
 
@@ -30,12 +30,18 @@ def _init (context):
   # the 'xo' object is a shortcut for executing shell commands that are allowed to fail. E.g. x.ls('.')
   x = Pyxis.Internals.ShellExecutorFactory(allow_fail=False);
   x.__name__ = 'x';
+  x.__doc__ = x.doc_proto%dict(name='x') + """Shell commands launched via 'x' must succeed for the script 
+to continue. Upon error, the current script is aborted.""";
 
   xo = Pyxis.Internals.ShellExecutorFactory(allow_fail=True);
   xo.__name__ = 'xo';
+  xo.__doc__ = xo.doc_proto%dict(name='xo') + """Shell commands launched via 'xo' are allowed to fail, with
+the script continuing regardless.""";
   
   xz = Pyxis.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
   xz.__name__ = 'xz';
+  xz.__doc__ = xz.doc_proto%dict(name='xz') + """Shell commands launched via 'xz' are run in the background,
+in parallel with the rest of the script. They are allowed to fail, with the script continuing regardless.""";
 
   v = Pyxis.Internals.GlobalVariableSpace(context);
   object.__setattr__(v,'__name__','v');
@@ -140,6 +146,15 @@ def error (*msg):
 def abort (*msg):
   """Prints error message(s) and aborts""";
   _abort(*[ _I(x,2) for x in msg ]);
+  
+def pyxreload ():
+  from Pyxis.Internals import _modules
+  for m in 'Pyxis.Internals','Pyxis.Commands','Pyxis.ModSupport':
+    info("Reloading",m);
+    reload(sys.modules[m]);
+  for m in _modules.itervalues():
+    info("Reloading",m.__name__);
+    reload(m);
 
 def pyxlf (mod=None):
   """Prints all functions defined by module""";
@@ -314,6 +329,22 @@ def is_true (arg):
   except:
     raise TypeError,"is_true(%s): invalid argument %s"%(str(arg),str(type(arg)));
 
+def makedir (dirname,no_interpolate=False):
+  """Makes sure the supplied directory exists, by creating parents as necessary. Interpolates the dirname.""";
+  if not no_interpolate:
+    dirname = interpolate(dirname,inspect.currentframe().f_back);
+  parent = dirname;
+  # go back and accumulate list of dirs to be created
+  parents = [];
+  while parent and not os.path.exists(parent):
+    parents.append(parent);
+    parent = os.path.dirname(parent);
+  # create in reverse
+  for parent in parents[::-1]:
+    verbose(1,"creating directory %s"%parent);
+    os.mkdir(parent);
+    
+    
 import tempfile   
 import cPickle
 import fcntl

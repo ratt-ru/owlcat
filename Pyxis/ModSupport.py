@@ -5,23 +5,9 @@ import fnmatch
 import Pyxis
 from Pyxis import *
 
-from Pyxis.Commands import _verbose,_warn,_abort
+from Pyxis.Commands import _verbose,_warn,_abort,makedir
 from Pyxis.Internals import _superglobals,_namespaces,_modules
 
-def makedir (dirname,no_interpolate=False):
-  """Makes sure the supplied directory exists, by creating parents as necessary. Interpolates the dirname.""";
-  if not no_interpolate:
-    dirname = interpolate(dirname,inspect.currentframe().f_back);
-  parent = dirname;
-  # go back and accumulate list of dirs to be created
-  parents = [];
-  while parent and not os.path.exists(parent):
-    parents.append(parent);
-    parent = os.path.dirname(parent);
-  # create in reverse
-  for parent in parents[::-1]:
-    verbose(1,"creating directory %s"%parent);
-    os.mkdir(parent);
   
 def register_pyxis_module (superglobals=""):
   """Registers a module (the callee) as part of the Pyxis environment.
@@ -30,13 +16,15 @@ def register_pyxis_module (superglobals=""):
   It is also possible to generate them as v.define() instead.""";
   frame = inspect.currentframe().f_back;
   globs = frame.f_globals;
-  # check for double registration
-  if id(globs) in _superglobals:
-    raise RuntimeError,"module '%s' is already registered"%modname;
   modname = globs['__name__'];
-  _modules.add(modname);
+  module = sys.modules[modname];
   if modname.startswith("Pyxides."):
     modname = modname.split(".",1)[-1];
+  # check for double registration
+  if id(globs) in _superglobals:
+    if _modules[modname] is not module:
+      raise RuntimeError,"a different Pyxis module named '%s' is already registered"%modname;
+  _modules[modname] = module;
   # build list of superglobals
   if isinstance(superglobals,str):
     superglobs = superglobals.split();
@@ -59,6 +47,7 @@ def register_pyxis_module (superglobals=""):
   Pyxis.Internals.report_symbols(modname,superglobs,
       [ (name,obj) for name,obj in globs.iteritems() if not name.startswith("_") and name not in Pyxis.Commands.__dict__ and name not in superglobs ]);
       
+
 def def_global (name,default,doc=None):
   """Defines a module global with the given name, default value and documentation string.
   Mainly useful in Pyxides modules, to provide documentation on their globals.
@@ -71,6 +60,8 @@ def def_global (name,default,doc=None):
   if name.endswith("_Template"):
     name = name[:-9];
   globs.setdefault("_symdocs",{})[name] = doc;
+  
+define = def_global;
 
 import itertools
   

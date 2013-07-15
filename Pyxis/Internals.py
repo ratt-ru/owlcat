@@ -65,10 +65,10 @@ def init (context):
   global _namespaces,_superglobals,_modules;
   _namespaces = dict();
   _superglobals = dict();
-  _modules = set();
+  _modules = dict();
   # The "v" and "" namespaces correspond to the global context
   # All variables of that context are superglobals.
-  _namespaces[''] = _namespaces['v'] = context;
+  _namespaces['v'] = context;
   _superglobals[id(context)] = context;
   # report verbosity
   if preset_verbosity is None and context['VERBOSE'] == 1:
@@ -89,9 +89,9 @@ def interpolate_args (args,kws,frame,convert_lists=False):
          dict([ (kw,interpolate(arg,frame,convert_lists=convert_lists)) for kw,arg in kws.iteritems() ]);
   
 class ShellExecutor (object):    
-  """This is a ShellExecutor object, which can be used to execute a particular shell command. 
-The command (and any fixed arguments) are specified in the constructor of the object. ShellExecutors are
-typically created via the Pyxis x, xo or xz built-ins, e.g. as 
+  """This is a ShellExecutor object, which is associated with a particular shell command, and can be
+used to run that command. The command (and any fixed arguments) are specified in the constructor of 
+the object. ShellExecutors are typically created via the Pyxis x, xo or xz built-ins, e.g. as 
       ls = x.ls 
       lsl = x.ls("-l")
       ls()             # runs "ls"
@@ -105,7 +105,18 @@ typically created via the Pyxis x, xo or xz built-ins, e.g. as
     self.allow_fail = allow_fail;
     self.bg  = bg;
     self.argframe = frame;
+    doc = kws.pop('doc',None);
     self._add_args,self._add_kws = list(args),kws;
+    self.__doc__ = "(Shell command: %s)"%str(self);
+    if doc is not None:
+      self.doc(doc);
+      
+  def doc (self,doc,append=True):
+    """Sets doc string""";
+    if append:
+      self.__doc__ += "\n%s"%doc;
+    else:
+      self.__doc__ = doc;
     
   def args (self,*args,**kws):
     """Creates instance of executor with additional args. Local variables of caller are interpolated."""
@@ -133,19 +144,17 @@ typically created via the Pyxis x, xo or xz built-ins, e.g. as
       return _call_exec(self.path,allow_fail=self.allow_fail,bg=self.bg,*(args0+args),**kws0);
 
 class ShellExecutorFactory (object):
-  """The Pyxis "x", "xo" and "xz" built-ins can be used to create proxies for shell commands called
-ShellExecutors. For example:
-    ls = x.ls     # the ls object is now a ShellExecutor for the ls command
-    ls()          # executes ls
-    ls("-l")      # executes ls -l
-    ls = x("run-imager.sh")  # alternative syntax for creating a ShellExecutor, in this case for run-imager.sh
-Executors created with 'x' are mandatory, while those created with 'xo' are optional. A mandatory executor
-will terminate the Pyxis script if its command fails. An optional executor will report an error and continue.
-Executors created via 'xz' are optional, and run commands in the background.
-"""  
+  """This object can be used to create proxies for shell commands called ShellExecutors."""
   def __init__ (self,allow_fail=False,bg=False):
     self.allow_fail = allow_fail;
     self.bg = bg;
+    self.doc_proto = """The '%(name)s' built-in provides an interface for shell commands. Invoking
+%(name)s.sh("command") runs a command directly; invoking %(name)s.command returns a ShellExecutor for  
+"command", i.e. a Python object that can used to run the command later. For example:
+    ls = %(name)s.ls                   # creates a proxy for the ls command
+    ls()                        # executes ls
+    ls("-l")                    # executes ls -l
+    ls = %(name)s("ls")                # alternative syntax for creating a ShellExecutor.\n""";
     
   def __getattr__ (self,command,default=None):
     """Creates a ShellExecutor for a given shell command. For example,
@@ -163,7 +172,7 @@ Executors created via 'xz' are optional, and run commands in the background.
   def __call__ (self,*args,**kws):
     """An alternative way to make ShellExecutors, e.g. as x("command arg1 arg2").
     Useful when the command contains e.g. dots or slashes, thus making the x.command syntax unsuitable."""
-    args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
+#    args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
     if len(args) == 1:
       args = args[0].split(" ");
     return ShellExecutor(args[0],args[0],None,allow_fail=self.allow_fail,bg=self.bg,*args[1:],**kws);
@@ -205,6 +214,9 @@ class _DictAccessor (object):
     
   def __setattr__ (self,name,value):
     object.__getattribute__(self,'namespace')[name] = value;
+    
+  def __contains__ (self,name):
+    return name in object.__getattribute__(self,'namespace');
 
 class GlobalVariableSpace (_DictAccessor):
   """The "v" object provides access to global Pyxis variables. Global variables assigned with
@@ -234,13 +246,15 @@ class GlobalVariableSpace (_DictAccessor):
     name = object.__getattribute__(self,'__name__');
     return "Pyxis built-in %s: global variable space. Try %s.VARNAME, or help(%s)."%(name,name,name);
   
-  def define (self,name,value,doc=None):
+  def define (self,name,defvalue,doc=None):
     """Defines a variable, with an optional documentation string.""";
     frame = inspect.currentframe().f_back;
     register_superglobal(frame,name);
     ns = object.__getattribute__(self,'namespace');
-    assign(name,value,namespace=ns,frame=frame); 
-    ns.setdefault('_symdocs',{})[name] = doc;
+    if name not in ns:
+      assign(name,defvalue,namespace=ns,frame=frame); 
+    if doc:
+      ns.setdefault('_symdocs',{})[name] = doc;
   
   def doc (self,name,text=None):
     """doc(name) gets the documentation string for a variable, or '' if none is set.
@@ -375,18 +389,21 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
     
-def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=False,append=False,verbose_level=2):
-  """Internal function to assign variables"""
+def assign (name,value,namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
+  """Assigns value to variable, then reevaluates templates etc."""
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
     if '.' in name:
       nsname,name = name.rsplit(".",1);
+      if autoimport:
+        _autoimport(nsname);
       namespace = _namespaces.get(nsname);
       if namespace is None:
         raise ValueError,"invalid namespace %s"%nsname;
     else:
       namespace = frame.f_globals;
+  modname = namespace.get('__name__',"???") if namespace is not Pyxis.Context else "v";
   # interpolate if asked to, unless this is a template, which are never interpolated
   if interpolate and not name.endswith("_Template"):
     value1 = Pyxis.Internals.interpolate(value,frame);
@@ -397,24 +414,62 @@ def assign (name,value,namespace=None,interpolate=True,frame=None,kill_template=
     value0 = str(namespace.get(name,""));
     if value0:
       value1 = "%s %s"%(value0,value1);
-  namespace[name] = value1;
-  _verbose(verbose_level,"setting %s=%s"%(name,value1));
-  if kill_template and not name.endswith("_Template") and namespace.pop(name+"_Template",None):
-    _verbose(verbose_level,"  and removing associated template %s_Template"%name);
+  # get list of namespaces in which to set variable
+  namespaces = [ namespace ];
+#  namespace[name] = value1;
+#  _verbose(verbose_level,"setting %s.%s=%s"%(modname,name,value1));
   # get superglobals associated with this namespace: if the variable is one of them, then propagate the new value
   # across all other namespaces using that superglobal
   superglobs = _superglobals.get(id(namespace),[]);
   if name in superglobs:
-    for ns in _namespaces.itervalues():
-      if name in _superglobals.get(id(ns)):
-        ns[name] = value1;
+    namespaces += [ ns for ns in _namespaces.itervalues() if name in _superglobals.get(id(ns)) and ns is not namespace ];
+  # now assign
+  for ns in namespaces:
+    _verbose(verbose_level,"setting %s.%s=%s"%(ns['__name__'] if ns is not Pyxis.Context else "v",name,value1));
+    ns[name] = value1;
+    # if assigning a template, make sure the template is re-enabled
+    if name.endswith("_Template"):
+      ns.get('__pyxis_template_ids',{}).pop(name[:-len("_Template")],None);
   # reprocess templates
   assign_templates();
 
+def unset (name,namespace=None,frame=None,verbose_level=2):
+  """Unsets variable. Reactivates any templates associated with variable."""
+  frame = frame or inspect.currentframe().f_back;
+  # find namespace
+  if not namespace:
+    if '.' in name:
+      nsname,name = name.rsplit(".",1);
+      namespace = _namespaces.get(nsname);
+      if namespace is None:
+        raise ValueError,"invalid namespace %s"%nsname;
+    else:
+      namespace = frame.f_globals;
+  # get list of namespaces from which to unset
+  namespaces = [ namespace ];
+  # get superglobals associated with this namespace: if the variable is one of them, then propagate the un-setting
+  # across all other namespaces using that superglobal
+  superglobs = _superglobals.get(id(namespace),[]);
+  if name in superglobs:
+    namespaces += [ ns for ns in _namespaces.itervalues() if name in _superglobals.get(id(ns)) and ns is not namespace ];
+  # now loop over all namespaces in which to unset
+  for ns in namespaces:
+    modname = ns.get('__name__',"???") if ns is not Pyxis.Context else "v";
+    if name in ns:
+      _verbose(verbose_level,"unsetting %s.%s"%(modname,name,value1));
+      ns.pop(name);
+    tmpldict = ns.get('__pyxis_template_ids',{});
+    if name in tmpldict:
+      tmpldict.pop(name);
+      _verbose(verbose_level,"  and re-enabling associated template %s.%s_Template"%(modname,name));
+  # reprocess templates
+  assign_templates();
+  
 _in_assign_templates = False;
 
 def assign_templates ():
-  """For every variable in Pyxis.Context that ends with "_Template", assigns value to it by interpolating the template.""";
+  """For every variable in a Pyxis module (or the global context) that ends with "_Template", assigns value 
+  to it by interpolating the template.""";
   ## non-reentrant, otherwise any call to Pyxis methods from within a template is liable to cause recursion
   global _in_assign_templates;
   if _in_assign_templates:
@@ -422,37 +477,58 @@ def assign_templates ():
   _in_assign_templates = True;
   for count in range(100):
     updated = False;
-    for modname,context in list(_namespaces.iteritems())+[ ("",Pyxis.Context) ]:
+    for modname,context in list(_namespaces.iteritems()):
       superglobs = _superglobals[id(context)];
       newvalues = {};
+      templdict = context.setdefault("__pyxis_template_ids",{});
       # interpolate new values for each variable that has a _Template equivalent
       for var,value in list(context.iteritems()):
         if var.endswith("_Template"):
+          varname = var[:-len("_Template")];
+          # check if template is still active
+          if varname in templdict:
+            idvar = templdict[varname];
+            # check if template has been disabled by setting __pyxis_template_ids[var] = None
+            if idvar is None:
+              _verbose(3,"template for %s.%s has been disabled, ignoring"%(modname,var));
+              continue;
+            # check if variable has been explicitly assigned to since the last time the template
+            # got evaluated (i.e. if the id has changed). If so, disable template
+            if idvar != id(context.get(varname)):
+              _verbose(3,"value for %s.%s has been explicitly set, disabling template"%(modname,var));
+              templdict[varname] = None;
+              continue;
           # string templates are interpolated, callable ones are called
           if isinstance(value,str):
-            newvalues[var[:-len("_Template")]] = interpolate(value,context);
+            newvalues[varname] = interpolate(value,context);
           elif callable(value):
             try:
-              newvalues[var[:-len("_Template")]] = value();
+              newvalues[varname] = value();
             except:
               traceback.print_exc();
               _warn("PYXIS: error evaluating template %s"%var);
       # update dict
       for var,value in newvalues.iteritems():
-        oldval = context.get(var,None);
+        oldval = context.get(var);
         if oldval != value:
           updated = True;
+          # set value, and set id in templdict for later comparison
           context[var] = value;
-          # if variable is superglobal, propagate across all namespaces defining that superglobal
+          templdict[var] = id(value); 
+          # if variable is superglobal, propagate it to global context
           if var in superglobs:
-            for ns in _namespaces.itervalues():
-              if var in _superglobals.get(id(ns)):
-                ns[var] = value;
+            Pyxis.Context[var] = value;
           _verbose(3,"%s templated value %s.%s=%s"%("initialized" if oldval is None else "updated",modname,var,value));
     if not updated:
       break;
   else:
     _abort("Too many template assignment steps. This can be caused by templates that cross-reference each other");
+  # propagate superglobals
+  for ns in _namespaces.itervalues():
+    if ns is not Pyxis.Context:
+      for var in _superglobals.get(id(ns)):
+        ns[var] = Pyxis.Context[var];
+  # set logger, in case LOG value has changed
   set_logfile(Pyxis.Context.get('LOG',None));
   _in_assign_templates = False;
 
@@ -527,7 +603,7 @@ def initconf (force=False,*files):
       [ (name,obj) for name,obj in Pyxis.Context.iteritems() 
         if name not in oldsyms and not name.startswith("_") and name not in ("In","Out") and name not in Pyxis.Commands.__dict__ ]);
   # make all auto-imported Pyxides modules available to global context
-  toplevel = [ m for m in _modules if not '.' in m and (m in sys.modules or "Pyxides."+m in sys.modules) ];
+  toplevel = [ m for m in _modules.iterkeys() if not '.' in m and (m in sys.modules or "Pyxides."+m in sys.modules) ];
   if Pyxis.Context.get("PYXIS_AUTO_IMPORT_MODULES",True) and toplevel:
     _verbose(1,"importing top-level modules (%s) for you. Preset PYXIS_AUTO_IMPORT_MODULES=False to disable."%", ".join(toplevel));
     for mod in toplevel:
@@ -668,15 +744,27 @@ def _on_parent_exit(signame):
         if result != 0:
             raise RuntimeError('prctl failed with error code %s' % result)
     return set_parent_exit_signal
-    
 
-def find_command (comname,frame=None):
+def _autoimport (modname):
+  if modname not in _namespaces:
+    _verbose(1,"auto-importing module %s"%modname);
+    Pyxis.Context[modname] = __import__(modname,Pyxis.Context);
+    
+    
+_re_mod_command = re.compile("^(\w[\w.]+)\\.(\w+)$");
+    
+def find_command (comname,frame=None,autoimport=True):
   """Locates command by name. 
   If command is of form "module.command", attempts to resolve it to a callable.
+  Will import module if it is not found and autoimport=True.
   Else if command is present (as a callable) in Pyxis.Context, returns that.
   Otherwise checks the path for a binary by that name, and returns a callable to call that.
   Else aborts.""";
   comname = interpolate(comname,frame or inspect.currentframe().f_back);
+  # try auto-import
+  m = _re_mod_command.match(comname);
+  if m and autoimport:
+    _autoimport(m.group(1));
   # first, try to evaluate to a callable function
   try:
     comcall = eval(comname,Pyxis.Context);
@@ -733,12 +821,12 @@ def run (*commands):
       # interpolate the command
       command = command.strip();
       _verbose(1,"running command %s"%command);
-      # syntax 1: VAR=VALUE or VAR:=VALUE
+      # syntax 1: VAR=VALUE or VAR+=VALUE
       match = _re_assign.match(command);
       if match:
         name,op,value = match.groups();
         # assign variable -- note that templates are not interpolated
-        Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,kill_template=True,append=(op=="+="));
+        Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,append=(op=="+="),autoimport=True);
         continue;
       # syntax 2: command(args) or command[args]. command can have a "?" prefix to make it optional
       match = _re_command1.match(command) or _re_command2.match(command);
@@ -756,7 +844,7 @@ def run (*commands):
             args.append(_parse_cmdline_value(arg));
         # exec command
         _initconf_done or initconf(force=True);  # make sure config is loaded
-        comcall = find_command(comname,inspect.currentframe().f_back);
+        comcall = find_command(comname,inspect.currentframe().f_back,autoimport=True);
         comcall(*args,**kws);
         assign_templates();
         continue;
