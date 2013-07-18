@@ -125,7 +125,7 @@ the object. ShellExecutors are typically created via the Pyxis x, xo or xz built
     return ShellExecutor(self.name,self.path,inspect.currentframe().f_back,self.allow_fail,self.bg,*(args0+list(args)),**kws0);
     
   def __str__ (self):
-    return " ".join([self.path]+self._add_args+["%s=%s"%(a,b) for a,b in self._add_kws.iteritems()]);
+    return " ".join([self.path or ""]+self._add_args+["%s=%s"%(a,b) for a,b in self._add_kws.iteritems()]);
     
   def __repr__ (self):
     return "ShellExecutor: %s"%str(self);

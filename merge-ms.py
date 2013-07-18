@@ -56,8 +56,10 @@ if __name__ == "__main__":
                     help="append input MSs to output MS");
   parser.add_option("-f","--force",dest="force",action="store_true",
                     help="proceed without confirmation, and overwrite output MS if it already exists");
-  parser.add_option("-s","--renumber-spws",dest="renumber",action="store_true",
+  parser.add_option("-s","--renumber-spws",action="store_true",
                     help="treat each MS as a separate spectral window");
+  parser.add_option("--renumber-obs",action="store_true",
+                    help="renumber OBSERVATION_ID of each MS");
   parser.add_option("-v","--verbose",action="store_true",
                     help="be more verbose");
 
@@ -80,13 +82,17 @@ if __name__ == "__main__":
       print "Will create merged MS %s from %d input MSs:"%(msout,len(msins));
     for ms in msins:
       print "  ",ms;
-    if options.renumber:
+    if options.renumber_spws:
       print "Each input MS will be put into a separate spectral window, spws will be renumbered.";
     else:
       print "Spectral windows will not be renumbered.";
+    if options.renumber_obs:
+      print "OBSERVATION_ID will be incremented for each MS";
     if raw_input("Proceed (y/n)? ").strip().upper()[0] != "Y":
       print "Aborted by user.";
       sys.exit(1);
+      
+  obsid = 0;
 
   if not options.append:
     if tableexists(msout) and options.force:
@@ -99,10 +105,18 @@ if __name__ == "__main__":
     # unfortunately, this wipes CORRECTED_DATA! I see no way around this (copynorows=True is no help,
     # as then it fails to copy subtables) apart from the ugly: copy first MS deeply,
     # add imaging columns, then re-copy columns
-    if options.renumber:
+    if options.renumber_spws:
       addImagingColumns(msout);
     # otherwise, first MS is already copied, so remove it from list
+    # (but reset OBSERVATION_ID)
     else:
+      if options.renumber_obs:
+        tab = table(msout,readonly=False);
+        obs = tab.getcol("OBSERVATION_ID");
+        obs[:] = obsid;
+        obsid += 1;
+        tab.putcol("OBSERVATION_ID",obs);
+        tab.close();
       msins = msins[1:];
 
   # open output for writing
@@ -110,7 +124,7 @@ if __name__ == "__main__":
 
   # get the number of DDIDs and SPWIDs
   ddid_offsets = [0]*len(msins);
-  if options.renumber:
+  if options.renumber_spws:
     ddid_tab0 = table(tab0.getkeyword("DATA_DESCRIPTION"),readonly=False);
     spw_tab0 = table(tab0.getkeyword("SPECTRAL_WINDOW"),readonly=False);
     # now, somehow lwimager will still try to re-init MODEL_DATA and CORRECTED_DATA when dealing with merged
@@ -148,7 +162,7 @@ if __name__ == "__main__":
     nr0 = tab0.nrows();
     # in spw renumbering mode, because of the ugliness explained above,
     # we need to re-copy the data from the first MS
-    if options.renumber and not num_ms:
+    if options.renumber_spws and not num_ms:
       nr0 = 0;
     # else, insert more rows to accommodate added MS
     else:
@@ -164,9 +178,12 @@ if __name__ == "__main__":
           print "WARNING: MS %s does not appear to contain a valid %s column"%(msname,col);
           print "   This is not necessarily fatal, proceeding with the merge anyway."
           continue;
+        if options.renumber_obs and col == "OBSERVATION_ID":
+          data[:] = obsid;
+          obsid += 1;
         # if renumbering DDIDs, increment the DDID column by the # of rows in the DDID table --
         # this ensures uniqueness of DDIDs
-        if options.renumber and col == "DATA_DESC_ID":
+        if options.renumber_spws and col == "DATA_DESC_ID":
           progress("Adding %d to DATA_DESC_ID"%ddid_offsets[num_ms]);
           data += ddid_offsets[num_ms];
         overprint("Writing column %s, shape %s"%(col,data.shape));
@@ -176,6 +193,6 @@ if __name__ == "__main__":
   overprint("Closing output MS %s\n"%msout);
   nr0 = tab0.nrows();
   progress("Wrote %d rows to output MS"%nr0);
-  if options.renumber:
+  if options.renumber_spws:
     progress("Output MS contains %d spectral windows and %d DDIDs"%(num_spws,num_ddids));
   tab0.close();
