@@ -214,12 +214,14 @@ def _msddid_Template ():
   global SPWID,TOTAL_CHANNELS,_ms_ddid;
   if (MS,DDID) != _msddid and MS and DDID is not None:
     try:
-      SPWID = ms.ms(MS,"DATA_DESCRIPTION").getcol("SPECTRAL_WINDOW_ID",DDID,1)[0];
-      TOTAL_CHANNELS = ms.ms(MS,"SPECTRAL_WINDOW").getcol("NUM_CHAN",SPWID,1)[0];
+      SPWID = ms(MS,"DATA_DESCRIPTION").getcol("SPECTRAL_WINDOW_ID",DDID,1)[0];
+      TOTAL_CHANNELS = ms(MS,"SPECTRAL_WINDOW").getcol("NUM_CHAN",SPWID,1)[0];
       # make sure this is reevaluated
       _chanspec_Template();
       info("$MS ddid $DDID is spwid $SPWID with $TOTAL_CHANNELS channels"); 
     except:
+      warn("Error accessing $MS");
+      traceback.print_exc();
       return None;
   return MS,DDID;
 
