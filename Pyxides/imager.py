@@ -15,7 +15,9 @@ v.define("LSM","lsm.lsm.html",
   
 
 # external tools  
-lwimager = x.time.args("lwimager");
+define('LWIMAGER_PATH','lwimager','path to lwimager binary. Default is to look in the system PATH.');
+lwimager = x.time.args("$LWIMAGER_PATH");
+
 rm_fr = x.rm.args("-fr");
 tigger_restore = x("tigger-restore");
 
@@ -45,6 +47,7 @@ _lwimager_args = set(("ms spwid field prior image model restored residual data m
     "select operation niter gain threshold targetflux sigma fixed constrainflux prefervelocity mask maskblc masktrc uservector maskvalue").split(" "));
 
 def _run (**kw):
+  # look up lwimager
   # make dict of imager arguments that have been specified globally or locally
   args = dict([ (arg,globals()[arg]) for arg in _lwimager_args if arg in globals() and globals()[arg] is not None ]);
   args.update([ (arg,kw[arg]) for arg in _lwimager_args if arg in kw ]);
@@ -60,22 +63,22 @@ def _run (**kw):
     args['select'] = "(%s)&&(%s)"%(args['select'],subset) if 'select' in args else subset;
   # make image names
   fitsfiles = {};
-  for x in _fileargs:
-    if x in args:
-      fitsfiles[x] = args[x];
-      args[x] = args[x]+".img";
+  for arg in _fileargs:
+    if arg in args:
+      fitsfiles[arg] = args[arg];
+      args[arg] = args[arg]+".img";
   # run the imager
   lwimager(**args);
   # convert to FITS
   fs = kw.get('flux_rescale') or flux_rescale;
   velo = kw.get('velocity') or velocity;
-  for x in _fileargs:
-    if x in args:
-      im = pyrap.images.image(args[x]);
+  for arg in _fileargs:
+    if arg in args:
+      im = pyrap.images.image(args[arg]);
       if fs and fs != 1:
         im.putdata(fs*im.getdata());
-      im.tofits(fitsfiles[x],overwrite=True,velocity=velo);  
-      subprocess.call("rm -fr "+args[x],shell=True);
+      im.tofits(fitsfiles[arg],overwrite=True,velocity=velo);  
+      subprocess.call("rm -fr "+args[arg],shell=True);
 
 # filenames for images
 define("DIRTY_IMAGE_Template", "${OUTFILE}.dirty.fits","output filename for dirty image");

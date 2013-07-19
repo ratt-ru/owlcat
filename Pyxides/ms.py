@@ -146,6 +146,11 @@ def split_views (msname="$MS",output="${MS:DIR}/${MS:BASE}-%s.MS",column="OBSERV
     subset = output%val;
     taql("SELECT FROM $msname where $column == $val giving $subset",split_args=False);
 
+    
+def virtconcat (output="concat.MS",options=""):
+  """Virtually concatenates the MSs given by MS_List into an output MS."""
+  
+  pass;
   
 
 ##
