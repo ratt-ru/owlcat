@@ -165,6 +165,7 @@ def pyxlv (mod=None):
   pyxls(mod,what="V");
 
 def pyxls (mod=None,what="FVTB"):
+  import Pyxis.ModSupport
   """Prints symbols defined by module. 'what' is a combination of characters specifying what to print.""";
   # make sorted list of globals (excepting those starting with underscore)
   globs = Pyxis.Context if mod is None else vars(mod);
@@ -189,7 +190,10 @@ def pyxls (mod=None,what="FVTB"):
   if "F" in what:
     print "Functions:";
     print " ",", ".join([ name for name,value in globs 
-      if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") and not name in globals() ]);
+        if callable(value) and not isinstance(value,Pyxis.Internals.ShellExecutor) and not name.endswith("_Template") 
+          and not name in globals() 
+          and not name in Pyxis.ModSupport.__dict__
+      ]);
   if "T" in what:
     print "External tools:";
     for name,value in globs:

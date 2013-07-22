@@ -32,6 +32,7 @@ import time
 import subprocess
 import imp
 import traceback
+import shutil
 
 # defer config until later
 PYXIS_LOAD_CONFIG = False
@@ -63,15 +64,19 @@ if __name__ == "__main__":
                     help="log output to default log file pyxis.log");
   parser.add_option("-j","--jobs",type="int",metavar="N",default=1,
                     help="run up to N jobs in parallel. Equivalent to JOBS=N.");
+  parser.add_option("-o","--outdir",type="string",metavar="DIR",
+                    help="direct outputs to subdirectory. Equivalent to OUTDIR=N.");
 
   (options,args) = parser.parse_args();
 
   # set up variables from options before import
+  if options.outdir:
+    OUTDIR = options.outdir;
   if options.log:
     LOG = options.log;
 #    Pyxis.assign("LOG",options.log);
   elif options.default_log:
-    LOG = "pyxis.log";
+    LOG = os.path.join(OUTDIR,"default.log") if OUTDIR else "default.log";
   JOBS = options.jobs
   QUIET = options.quiet; 
   if options.verbose is None:
@@ -86,7 +91,13 @@ if __name__ == "__main__":
   # init configuration. This preloads pyxis-*.
   PYXIS_LOAD_CONFIG = True
   Pyxis.Internals.initconf();
-    
+  
+  # make output directory
+  if OUTDIR:
+    makedir(OUTDIR,no_interpolate=True);
+  file((OUTDIR or '.')+"/pyxis.log","a").write(" ".join(sys.argv)+"\n");
+  Pyxis.Internals.saveconf();
+ 
   # sort arguments into commands and MSs
   mslist = []
   commands = []

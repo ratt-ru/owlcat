@@ -48,20 +48,25 @@ def register_pyxis_module (superglobals=""):
       [ (name,obj) for name,obj in globs.iteritems() if not name.startswith("_") and name not in Pyxis.Commands.__dict__ and name not in superglobs ]);
       
 
-def def_global (name,default,doc=None):
+def def_global (name,default,doc=None,config=False):
   """Defines a module global with the given name, default value and documentation string.
   Mainly useful in Pyxides modules, to provide documentation on their globals.
   At module level, calling def_global('NAME',value,doc) is equivalent to
       NAME = value
       _doc_NAME = doc
+  Also, if config=True, then the global variable refers to a config file that will be automatically
+  backed up to OUTDIR.
   """;
   globs = inspect.currentframe().f_back.f_globals;
   globs[name] = default;
   if name.endswith("_Template"):
     name = name[:-9];
   globs.setdefault("_symdocs",{})[name] = doc;
+  if config:
+    globs.setdefault("_config_files",[]).append(name);
   
 define = def_global;
+
 
 import itertools
   

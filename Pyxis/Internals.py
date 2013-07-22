@@ -11,6 +11,8 @@ import inspect
 import sys
 import itertools
 import time
+import fnmatch
+import shutil
 
 import Pyxis
 
@@ -249,7 +251,7 @@ class GlobalVariableSpace (_DictAccessor):
   def define (self,name,defvalue,doc=None):
     """Defines a variable, with an optional documentation string.""";
     frame = inspect.currentframe().f_back;
-    register_superglobal(frame,name);
+    register_superglobal(frame,name if not name.endswith("_Template") else name[:-len("_Template")]);
     ns = object.__getattribute__(self,'namespace');
     if name not in ns:
       assign(name,defvalue,namespace=ns,frame=frame); 
@@ -388,21 +390,26 @@ class DictProxy (object):
     
   def __contains__ (self,item):
     return True;
+
+def _resolve_namespace (name,frame,autoimport=False):
+  if '.' in name:
+    nsname,name = name.rsplit(".",1);
+    if autoimport:
+      _autoimport(nsname);
+    namespace = _namespaces.get(nsname);
+    if namespace is None:
+      raise ValueError,"invalid namespace %s"%nsname;
+  else:
+    namespace = frame.f_globals;
+  return namespace,name;
+    
     
 def assign (name,value,namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
   """Assigns value to variable, then reevaluates templates etc."""
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
-    if '.' in name:
-      nsname,name = name.rsplit(".",1);
-      if autoimport:
-        _autoimport(nsname);
-      namespace = _namespaces.get(nsname);
-      if namespace is None:
-        raise ValueError,"invalid namespace %s"%nsname;
-    else:
-      namespace = frame.f_globals;
+    namespace,name = _resolve_namespace(name,frame,autoimport=autoimport);
   modname = namespace.get('__name__',"???") if namespace is not Pyxis.Context else "v";
   # interpolate if asked to, unless this is a template, which are never interpolated
   if interpolate and not name.endswith("_Template"):
@@ -438,13 +445,7 @@ def unset (name,namespace=None,frame=None,verbose_level=2):
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
-    if '.' in name:
-      nsname,name = name.rsplit(".",1);
-      namespace = _namespaces.get(nsname);
-      if namespace is None:
-        raise ValueError,"invalid namespace %s"%nsname;
-    else:
-      namespace = frame.f_globals;
+    namespace,name = _resolve_namespace(name,frame);
   # get list of namespaces from which to unset
   namespaces = [ namespace ];
   # get superglobals associated with this namespace: if the variable is one of them, then propagate the un-setting
@@ -464,7 +465,35 @@ def unset (name,namespace=None,frame=None,verbose_level=2):
       _verbose(verbose_level,"  and re-enabling associated template %s.%s_Template"%(modname,name));
   # reprocess templates
   assign_templates();
+
+
+class DependsHandler (object):
+  _handlers = {};
   
+  def __init__ (self,varname,vardepend,frame=None):
+    # resolve namespaces
+    frame = frame or inspect.currentframe().f_back;
+    self.namespace,self.name = _resolve_namespace(varname,frame);
+    self.depnamespace,self.depname = _resolve_namespace(vardepend,frame);
+    # add to list
+    self.patterns = [];
+    DependsHandler._handlers.setdefault((id(self.depnamespace),self.depname),[]).append(self);
+    
+  def __call__ (self,pattern,value):
+    self.patterns.append((pattern,value));
+    return self;
+    
+  def default (self,value):
+    self.defval = value;
+    return self;
+    
+  @staticmethod
+  def update (namespace,name,value):
+    result = False;
+    for hdl in DependsHandler._handlers.get((id(namespace),name),[]):
+      result |= hdl.check(value);
+    return result;
+    
 _in_assign_templates = False;
 
 def assign_templates ():
@@ -484,7 +513,14 @@ def assign_templates ():
       # interpolate new values for each variable that has a _Template equivalent
       for var,value in list(context.iteritems()):
         if var.endswith("_Template"):
+          # get old value of variable
           varname = var[:-len("_Template")];
+          oldvalue = varvalue = context.get(varname);
+          # check if template is defined in the wrong place, superglobal templates must be defined
+          # in the superglobal context
+          if varname in superglobs and context is not Pyxis.Context:
+            _abort("%s.%s defined for superglobal v.%s. Fix your scripts please: use v.%s instead"%
+                    (modname,var,varname,var));
           # check if template is still active
           if varname in templdict:
             idvar = templdict[varname];
@@ -494,19 +530,46 @@ def assign_templates ():
               continue;
             # check if variable has been explicitly assigned to since the last time the template
             # got evaluated (i.e. if the id has changed). If so, disable template
-            if idvar != id(context.get(varname)):
-              _verbose(3,"value for %s.%s has been explicitly set, disabling template"%(modname,var));
+            if idvar != id(oldvalue):
+              _verbose(3,"value for %s.%s has been explicitly set [%x, was %x], disabling template"%(modname,var,id(oldvalue),idvar));
               templdict[varname] = None;
               continue;
-          # string templates are interpolated, callable ones are called
-          if isinstance(value,str):
-            newvalues[varname] = interpolate(value,context);
-          elif callable(value):
-            try:
-              newvalues[varname] = value();
-            except:
-              traceback.print_exc();
-              _warn("PYXIS: error evaluating template %s"%var);
+          # catch all template errors below
+          try:
+            # string templates are simply interpolated 
+            if isinstance(value,str):
+              varvalue = interpolate(value,context);
+            # templates of the form
+            # SELECT_EXPR,{pattern:value,pattern:value,...}  [,ELSEVALUE]
+            # or SELECT_EXPR,[ (pattern,value),(pattern,value),... ]  [,ELSEVALUE]
+            elif isinstance(value,tuple):
+              if len(value) not in (2,3) or not isinstance(value[0],str) or not isinstance(value[1],(list,tuple,dict)):
+                raise TypeError,"invalid select clause";
+              select_expr = interpolate(value[0],context);
+              # loop through patterns, if one matches the select expression, return that value
+              for pair in ( value[1] if not isinstance(value[1],dict) else value[1].iteritems() ):
+                if len(pair) != 2 or not isinstance(pair[0],str):
+                  raise TypeError,"invalid element in select clause";
+                if fnmatch.fnmatch(select_expr,interpolate(pair[0],context)):
+                  varvalue = pair[1];
+                  break;
+              # no patterns match? Look for ELSEVALUE, if defined
+              else:
+                if len(value) == 3:
+                  varvalue = value[2];
+                elif isinstance(value[1],dict) and 'default' in value[1]:
+                  varvalue = value[1]['default'];
+            # list templates are interpolated per-element
+            elif isinstance(value,list):
+              varvalue = [ interpolate(val) for val in value ];
+            # callable templates are called directly
+            elif callable(value):
+              varvalue = value();
+          except:
+            traceback.print_exc();
+            _warn("PYXIS: error evaluating template %s"%var);
+          if varvalue is not oldvalue:
+            newvalues[varname] = varvalue;
       # update dict
       for var,value in newvalues.iteritems():
         oldval = context.get(var);
@@ -518,7 +581,7 @@ def assign_templates ():
           # if variable is superglobal, propagate it to global context
           if var in superglobs:
             Pyxis.Context[var] = value;
-          _verbose(3,"%s templated value %s.%s=%s"%("initialized" if oldval is None else "updated",modname,var,value));
+          _verbose(3,"%s templated value %s.%s=%s [%x]"%("initialized" if oldval is None else "updated",modname,var,value,id(value)));
     if not updated:
       break;
   else:
@@ -576,7 +639,9 @@ def set_logfile (filename):
       _info("log started");
     _current_logfile = filename;
 
-_initconf_done = False;        
+_initconf_done = False;  
+_config_files = [];
+
 def initconf (force=False,*files):
   """Loads configuration from specified files, or from default file""";
 #  print "initconf",force,Pyxis.Context.get("PYXIS_LOAD_CONFIG",True);
@@ -587,6 +652,8 @@ def initconf (force=False,*files):
     _initconf_done = True;
   if not files:
     files = glob.glob("pyxis*.py") + glob.glob("pyxis*.conf");
+  global _config_files;
+  _config_files = files;
   # remember current set of globals
   oldsyms = frozenset(Pyxis.Context.iterkeys());
   # load config files -- all variable assignments go into the Pyxis.Context scope
@@ -614,12 +681,36 @@ def loadconf (filename,frame=None):
   filename = interpolate(filename,frame or inspect.currentframe().f_back);
   _verbose(1,"loading %s"%filename);
   load_package(os.path.splitext(os.path.basename(filename))[0],filename);
+  
+  
+def saveconf ():
+  """Saves config files to OUTDIR""";
+  OUTDIR = Pyxis.Context['OUTDIR'] or '.';
+  # make set of all config files
+  configs = set(_config_files);
+  for m,globs in _namespaces.iteritems():
+    print m,globs.get('_config_files',[])
+    for fvar in globs.get('_config_files',[]):
+      if fvar in globs:
+        configs.add(globs[fvar]);
+  print configs;
+  # now back them up
+  for ff in configs:
+    dest = os.path.join(OUTDIR,os.path.basename(ff));
+    if not os.path.exists(dest) or os.path.getmtime(dest) < os.path.getmtime(ff):
+      _info("copying %s to %s"%(os.path.basename(ff),OUTDIR));
+      shutil.copyfile(ff,dest);
+  
 
 def load_package (pkgname,filename,report=True):
   """Loads 'package' file into the Context namespace and reports on new global symbols"""
 #  oldstuff = Pyxis.Context.copy();
   try:
     exec(file(filename),Pyxis.Context);
+  except SystemExit:
+    raise;
+  except KeyboardInterrupt:
+    raise;
   except:
     traceback.print_exc();
     _abort("PYXIS: error parsing %s, see output above and/or log for details"%filename);

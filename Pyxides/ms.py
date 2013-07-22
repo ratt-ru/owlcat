@@ -86,9 +86,8 @@ def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
   tab = msw(msname)
   tab.putcol(tocol,tab.getcol(fromcol))
   tab.close()
+
   
-
-
 def uvcov (msname="$MS",save=None):
   """Makes uv-coverage plot
   'msname' is superglobal MS by default.
@@ -100,6 +99,7 @@ def uvcov (msname="$MS",save=None):
   pylab.plot(uv[:,0],uv[:,1],'.b');
   pylab.plot(-uv[:,0],-uv[:,1],'.r');
   pylab.savefig(save) if save else pylab.show();
+  
 
 ##
 ## ARCHIVE/UNARCHIVE FUNCTIONS
@@ -160,6 +160,7 @@ def rebin_freq (msname="$MS",output="$MSOUT",step=1):
   """Resamples MS in frequency with the given step size""";
   msname,output = interpolate_locals("msname output");
   std.runcasapy("""ms.open("$msname"); ms.split(outputms='$output',step=$step);""");
+  
 
 
 

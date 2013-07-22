@@ -18,9 +18,10 @@ import pyrap.tables
 # Here we just set up some reasonable defaults; config files 
 # will almost certainly override them.
 # Set up destination directory for all plots, images, etc.
-std.DESTDIR_Template = 'plots-${MS:BASE}${-stage<STAGE}'
+DESTDIR_Template = 'plots-${MS:BASE}${-stage<STAGE}'
 # Set up base filename for these files
-std.OUTFILE_Template = '${DESTDIR>/}${MS:BASE}${_s<STEP}${_<LABEL}'
+OUTFILE_Template = '${DESTDIR>/}${MS:BASE}${_s<STEP}${_<LABEL}'
+
 # Extract unpolarized sky models by default
 lsm.PYBDSM_POLARIZED = False     
 # 0 means we make a single image from all channels. Use 1 to
