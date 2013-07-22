@@ -56,8 +56,8 @@ def ms (msname="$MS",subtable=None,write=False):
   if not msname:
     raise ValueError("'msname' or global MS variable must be set");
   if subtable:
-    msname = os.path.join(msname,subtable);
-  return table(msname,subtable,readonly=not write);
+    msname = table(msname).getkeyword(subtable);
+  return table(msname,readonly=not write);
 
 def _filename (base,newext):
   while base and base[-1] == "/":
