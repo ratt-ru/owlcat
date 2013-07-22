@@ -693,7 +693,6 @@ def saveconf ():
     for fvar in globs.get('_config_files',[]):
       if fvar in globs:
         configs.add(globs[fvar]);
-  print configs;
   # now back them up
   for ff in configs:
     dest = os.path.join(OUTDIR,os.path.basename(ff));
