@@ -20,11 +20,7 @@ ARCMIN = DEG/60
 ARCSEC = ARCMIN/60
 
 def _init (context):
-  global x;
-  global xo;
-  global xz;
-  global v;
-  global E;
+  global x,xo,xz,xr,v,E;
   # add some standard objects
   # the 'x' object is a shortcut for executing shell commands. E.g. x.ls('.')
   # the 'xo' object is a shortcut for executing shell commands that are allowed to fail. E.g. x.ls('.')
@@ -37,7 +33,12 @@ to continue. Upon error, the current script is aborted.""";
   xo.__name__ = 'xo';
   xo.__doc__ = xo.doc_proto%dict(name='xo') + """Shell commands launched via 'xo' are allowed to fail, with
 the script continuing regardless.""";
-  
+
+  xr = Pyxis.Internals.ShellExecutorFactory(get_output=True,verbose=3);
+  xr.__name__ = 'xr';
+  xr.__doc__ = xr.doc_proto%dict(name='xr') + """Shell commands launched via 'xr' return their output as
+a Python string.""";
+
   xz = Pyxis.Internals.ShellExecutorFactory(allow_fail=True,bg=True);
   xz.__name__ = 'xz';
   xz.__doc__ = xz.doc_proto%dict(name='xz') + """Shell commands launched via 'xz' are run in the background,
@@ -208,7 +209,7 @@ def exists (filename):
   """Returns True if filename exists, interpolating the filename""";
   return os.path.exists(_I(filename,2));
 
-def _per (varname,*commands):
+def _per (varname,parallel,*commands):
   saveval = Pyxis.Context.get(varname,None);
   varlist = Pyxis.Context.get(varname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
@@ -225,7 +226,7 @@ def _per (varname,*commands):
     # unforked case
     _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
     global _subprocess_id;
-    if nforks < 2 or len(varlist) < 2 or _subprocess_id is not None:
+    if not parallel or nforks < 2 or len(varlist) < 2 or _subprocess_id is not None:
       # do the actual iteration
       for value in varlist:
         assign(varname,value,namespace=Pyxis.Context,interpolate=False);
@@ -302,18 +303,25 @@ def _per (varname,*commands):
 
 def per (varname,*commands):
   """Iterates over variable 'varname', and executes commands. That is, for every value
-  in varname_List, sets varname to that value, then calls the commands."""
-  _per(varname,*commands);
+  in varname_List, sets varname to that value, then calls the commands.
+  Uses non-parallel mode."""
+  _per(varname,False,*commands);
+
+def pper (varname,*commands):
+  """Iterates over variable 'varname', and executes commands. That is, for every value
+  in varname_List, sets varname to that value, then calls the commands.
+  Uses parallel mode."""
+  _per(varname,True,*commands);
 
 def per_ms (*commands):
   """Iterates over variable 'MS', and executes commands. That is, for every value
-  in MS_List, sets MS to that value, then calls the commands."""
-  _per("MS",*commands);
+  in MS_List, sets MS to that value, then calls the commands. Default mode is parallel."""
+  _per("MS",True,*commands);
 
 def per_ddid (*commands):
   """Iterates over variable 'DDID', and executes commands. That is, for every value
-  in DDID_List, sets MS to that value, then calls the commands."""
-  _per("DDID",*commands);
+  in DDID_List, sets MS to that value, then calls the commands. Default mode is serial"""
+  _per("DDID",False,*commands);
 
 def is_true (arg):
   """Returns True if argument evaluates to boolean truth, possibly as a string.

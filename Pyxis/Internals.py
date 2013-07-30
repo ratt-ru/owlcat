@@ -102,11 +102,13 @@ the object. ShellExecutors are typically created via the Pyxis x, xo or xz built
       ls(x=1)          # runs "ls x=1"
   """;
   
-  def __init__ (self,name,path,frame,allow_fail=False,bg=False,*args,**kws):
+  def __init__ (self,name,path,frame,allow_fail=False,get_output=False,bg=False,verbose=1,*args,**kws):
     self.name,self.path = name,path;
     self.allow_fail = allow_fail;
     self.bg  = bg;
     self.argframe = frame;
+    self.get_output = get_output;
+    self.verbose = verbose;
     doc = kws.pop('doc',None);
     self._add_args,self._add_kws = list(args),kws;
     self.__doc__ = "(Shell command: %s)"%str(self);
@@ -124,7 +126,8 @@ the object. ShellExecutors are typically created via the Pyxis x, xo or xz built
     """Creates instance of executor with additional args. Local variables of caller are interpolated."""
     args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe);
     kws0.update(kws);
-    return ShellExecutor(self.name,self.path,inspect.currentframe().f_back,self.allow_fail,self.bg,*(args0+list(args)),**kws0);
+    return ShellExecutor(self.name,self.path,inspect.currentframe().f_back,self.allow_fail,
+        self.get_output,self.bg,self.verbose,*(args0+list(args)),**kws0);
     
   def __str__ (self):
     return " ".join([self.path or ""]+self._add_args+["%s=%s"%(a,b) for a,b in self._add_kws.iteritems()]);
@@ -143,13 +146,15 @@ the object. ShellExecutors are typically created via the Pyxis x, xo or xz built
       args0,kws0 = interpolate_args(self._add_args,self._add_kws,self.argframe,convert_lists=True);
       args,kws = interpolate_args(args,kws,inspect.currentframe().f_back,convert_lists=True);
       kws0.update(kws);
-      return _call_exec(self.path,allow_fail=self.allow_fail,bg=self.bg,*(args0+args),**kws0);
+      return _call_exec(self.path,get_output=self.get_output,allow_fail=self.allow_fail,bg=self.bg,verbose=self.verbose,*(args0+args),**kws0);
 
 class ShellExecutorFactory (object):
   """This object can be used to create proxies for shell commands called ShellExecutors."""
-  def __init__ (self,allow_fail=False,bg=False):
+  def __init__ (self,allow_fail=False,bg=False,get_output=False,verbose=0):
     self.allow_fail = allow_fail;
     self.bg = bg;
+    self.get_output = get_output;
+    self.verbose = verbose;
     self.doc_proto = """The '%(name)s' built-in provides an interface for shell commands. Invoking
 %(name)s.sh("command") runs a command directly; invoking %(name)s.command returns a ShellExecutor for  
 "command", i.e. a Python object that can used to run the command later. For example:
@@ -169,7 +174,7 @@ class ShellExecutorFactory (object):
       path = command if os.access(command,os.X_OK) else None;
     else:
       path = find_exec(command);
-    return ShellExecutor(command,path,None,self.allow_fail,self.bg);
+    return ShellExecutor(command,path,None,self.allow_fail,self.get_output,self.bg,self.verbose);
     
   def __call__ (self,*args,**kws):
     """An alternative way to make ShellExecutors, e.g. as x("command arg1 arg2").
@@ -177,23 +182,30 @@ class ShellExecutorFactory (object):
 #    args,kws = interpolate_args(args,kws,inspect.currentframe().f_back);
     if len(args) == 1:
       args = args[0].split(" ");
-    return ShellExecutor(args[0],args[0],None,allow_fail=self.allow_fail,bg=self.bg,*args[1:],**kws);
+    return ShellExecutor(args[0],args[0],None,allow_fail=self.allow_fail,bg=self.bg,
+                verbose=self.verbose,get_output=self.get_output,*args[1:],**kws);
     
   def sh (self,*args,**kws):
     """Directly invokes the shell with a command and arguments"""
     commands,kws = interpolate_args(args,kws,inspect.currentframe().f_back,convert_lists=True);
     # run command
-    _verbose(1,"executing '%s':"%(" ".join(commands)));
+    _verbose(self.verbose,"executing '%s':"%(" ".join(commands)));
     flush_log();
-    retcode = subprocess.call(*commands,shell=True,stdout=sys.stdout,stderr=sys.stderr);
-    if retcode:
+    po = subprocess.Popen(commands,preexec_fn=_on_parent_exit('SIGTERM'),shell=True,stdout=subprocess.PIPE if self.get_output else sys.stdout,stderr=sys.stderr);
+    if self.get_output:
+      (output,err_output) = po.communicate();
+    else:
+      po.wait();
+      output = None;
+    if po.returncode:
       if self.allow_fail:
-        _warn("PYXIS: '%s' returns error code %d"%(commands[0],retcode));
+        _warn("PYXIS: '%s' returns error code %d"%(commands[0],po.returncode));
         return;
       else:
-        _abort("PYXIS: '%s' returns error code %d"%(commands[0],retcode));
+        _abort("PYXIS: '%s' returns error code %d"%(commands[0],po.returncode));
     else:
-      _verbose(2,"'%s' succeeded"%commands[0]);
+      _verbose(self.verbose+1,"'%s' succeeded"%commands[0]);
+    return output;
       
   def __repr__ (self):
     name = self.__name__;
@@ -689,7 +701,6 @@ def saveconf ():
   # make set of all config files
   configs = set(_config_files);
   for m,globs in _namespaces.iteritems():
-    print m,globs.get('_config_files',[])
     for fvar in globs.get('_config_files',[]):
       if fvar in globs:
         configs.add(globs[fvar]);
@@ -773,6 +784,9 @@ def _call_exec (path,*args,**kws):
   stdin =  kws.pop('stdin',None) or sys.stdin;
   stdout = kws.pop('stdout',None) or sys.stdout;
   stderr = kws.pop('stderr',None) or sys.stderr;
+  verbose = kws.pop('verbose',1);
+  if kws.pop('get_output',None):
+    stdout = subprocess.PIPE;
   # default is to split each argument at whitespace, but split_args=False passes them as-is
   split = kws.pop('split_args',True);
   # build list of arguments
@@ -795,18 +809,21 @@ def _call_exec (path,*args,**kws):
     global _bg_processes;
     po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'));
     _bg_processes.append(po);
-    _verbose(1,"executing '%s' in background: pid %d"%(" ".join(args),po.pid));
+    _verbose(verbose,"executing '%s' in background: pid %d"%(" ".join(args),po.pid));
   else:
-    _verbose(1,"executing '%s':"%(" ".join(args)));
+    _verbose(verbose,"executing '%s':"%(" ".join(args)));
     type(sys.stdout) is file and sys.stdout.flush();
     type(sys.stderr) is file and sys.stderr.flush();
-    if type(stdout) is not file or type(stderr) is not file:
-      po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'));
-      #retcode = subprocess.call(args);
+#    if type(stdout) is not file or type(stderr) is not file:
+#      po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'));
+#      #retcode = subprocess.call(args);
+#    else:
+    po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'),stdin=stdin,stdout=stdout,stderr=stderr);
+    if stdout is subprocess.PIPE:
+      (output,err_output) = po.communicate();
     else:
-      po = subprocess.Popen(args,preexec_fn=_on_parent_exit('SIGTERM'),stdin=stdin,stdout=stdout,stderr=stderr);
-      #retcode = subprocess.call(args,stdin=stdin,stdout=stdout,stderr=stderr);
-    po.wait();
+      po.wait();
+      output = None;
     if po.returncode:
       if allow_fail:
         _warn("%s returned error code %d"%(cmdname,po.returncode));
@@ -814,7 +831,8 @@ def _call_exec (path,*args,**kws):
       else:
         _abort("%s returned error code %d"%(cmdname,po.returncode));
     else:
-      _verbose(2,"%s succeeded"%path);
+      _verbose(verbose+1,"%s succeeded"%cmdname);
+    return output;
 
 
 ## Function to ensure that child processes are killed when Pyxis is killed, see subprocess.Popen calls above

@@ -88,16 +88,17 @@ def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
   tab.close()
 
   
-def uvcov (msname="$MS",save=None):
+def uvcov (msname="$MS",save=None,**kw):
   """Makes uv-coverage plot
   'msname' is superglobal MS by default.
   If 'save' is given, saves figure to file.
+  Any additional keyword arguments are passed to plot().
   """
   msname,save = interpolate_locals("msname save");
   uv = ms(msname).getcol("UVW")[:,:2];
   import pylab
-  pylab.plot(uv[:,0],uv[:,1],'.b');
-  pylab.plot(-uv[:,0],-uv[:,1],'.r');
+  pylab.plot(uv[:,0],uv[:,1],'.b',**kw);
+  pylab.plot(-uv[:,0],-uv[:,1],'.r',**kw);
   pylab.savefig(save) if save else pylab.show();
   
 
@@ -114,7 +115,7 @@ def load_tarball (msname="$MS"):
     x.sh("rm -fr $msname")
   else:
     info("$msname does not exist, unpacking fresh MS from tarball");
-    x.sh("cd ${msname:DIR}; tar zxvf ${TARBALL_DIR}/${msname:FILE}.tgz");
+  x.sh("cd ${msname:DIR}; tar zxvf ${TARBALL_DIR}/${msname:FILE}.tgz");
 
 def save_tarball (msname="$MS"):
   """Saves MS to .tgz in ms.TARBALL_DIR""";
@@ -130,8 +131,11 @@ document_globals(save_tarball,"TARBALL_DIR");
 ##
 def merge (output="merged.MS",options=""):
   """Merges the MSs given by MS_List into the output MS. Options are passed to merge-ms."""
+  if not v.MS_List:
+    abort("MS_List must be set before calling ms.merge()");
   output,options = interpolate_locals("output options");
   mergems("-f",options,output,*v.MS_List);
+document_globals(merge,"MS_List");
 
 
 def split_views (msname="$MS",output="${MS:DIR}/${MS:BASE}-%s.MS",column="OBSERVATION_ID",values=None):
@@ -147,11 +151,30 @@ def split_views (msname="$MS",output="${MS:DIR}/${MS:BASE}-%s.MS",column="OBSERV
     taql("SELECT FROM $msname where $column == $val giving $subset",split_args=False);
 
     
-def virtconcat (output="concat.MS",options=""):
+def virtconcat (output="concat.MS",thorough=False):
   """Virtually concatenates the MSs given by MS_List into an output MS."""
-  
-  pass;
-  
+  output,options = interpolate_locals("output options");
+  auxfile = II("${output}.dat");
+  if not v.MS_List:
+    abort("MS_List must be set before calling ms.virtconcat()");
+  cmd = "";
+  if thorough:
+    cmd = """ms.open("%s", nomodify=False)\n"""%v.MS_List[0];
+    for msl in v.MS_List[1:]:
+      cmd += II("""ms.virtconcatenate("$msl","$auxfile",'1GHz','1arcsec')\n""");  
+    cmd += II("""ms.close()\nos.remove('$auxfile')\n""");
+  cmd += """ms.createmultims('$output',["%s"],
+  [],
+  True, # nomodify  
+  False,# lock  
+  True) # copysubtables from first to all other members  
+ms.close()  
+"""%'","'.join(v.MS_List); 
+  std.runcasapy(cmd);
+  info("virtually concatenated %d inputs MSs into $output"%len(v.MS_List));
+
+document_globals(virtconcat,"MS_List");
+
 
 ##
 ## RESAMPLING FUNCTIONS
@@ -218,7 +241,7 @@ TOTAL_CHANNELS = 0
 _msddid = None;
 def _msddid_Template ():
   global SPWID,TOTAL_CHANNELS,_ms_ddid;
-  if (MS,DDID) != _msddid and MS and DDID is not None:
+  if II("$MS:$DDID") != _msddid and II("$MS") and DDID is not None:
     try:
       SPWID = ms(MS,"DATA_DESCRIPTION").getcol("SPECTRAL_WINDOW_ID",DDID,1)[0];
       TOTAL_CHANNELS = ms(MS,"SPECTRAL_WINDOW").getcol("NUM_CHAN",SPWID,1)[0];
@@ -227,9 +250,9 @@ def _msddid_Template ():
       info("$MS ddid $DDID is spwid $SPWID with $TOTAL_CHANNELS channels"); 
     except:
       warn("Error accessing $MS");
-      traceback.print_exc();
+#      traceback.print_exc();
       return None;
-  return MS,DDID;
+  return II("$MS:$DDID");
 
 ## whenever the channel range changes, setup strings for TDL & Owlcat channel selection (CHAN_TDL and CHAN_OWLCAT),
 ## and also CHANSTART,CHANSTEP,NUMCHANS

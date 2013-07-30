@@ -33,10 +33,12 @@ define('CLUSTER_DIST_BEAMS',3,
 define('MIN_EXTENT',0,
   """minimum Gaussian source extent; sources smaller than this will be converted to point sources""");
 
-def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol='$PYBDSM_POLARIZED',threshold=None,**kw):
+def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol='$PYBDSM_POLARIZED',threshold=None,pbexp=None,**kw):
   """Runs pybdsm on the specified 'image', converts the results into a Tigger model and writes it to 'output'.
   Use 'threshold' to specify a non-default threshold (thresh_isl and thresh_pix).
   Use 'pol' to force non-default polarized mode.
+  Use 'pbexp' to supply a primary beam expression (passed to tigger-convert), in which case the output model will contain
+  intrinsic fluxes.
   """
   image,output,pol = interpolate_locals("image output pol");
   # setup parameters
@@ -56,6 +58,10 @@ def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol=
     # BMAJ/BMIN is in degrees -- convert to seconds, or fall back to 60" if not set
     cluster = 1800*(hdr.get('BMAJ',0)+hdr.get('BMIN',0))*CLUSTER_DIST_BEAMS or 60;
   # convert catalog
+  if pbexp:
+    args = [ "--primary-beam",pbexp,"--app-to-int" ]
+  else:
+    args = []
   tigger_convert(gaul,output,"-t","ASCII","--format",
       "name Isl_id Source_id Wave_id ra_d E_RA dec_d E_DEC i E_Total_flux Peak_flux E_Peak_flux Xposn E_Xposn Yposn E_Yposn Maj E_Maj Min E_Min PA E_PA emaj_d E_DC_Maj emin_d E_DC_Min pa_d E_DC_PA Isl_Total_flux E_Isl_Total_flux Isl_rms Isl_mean Resid_Isl_rms Resid_Isl_mean S_Code"
      +
@@ -65,7 +71,8 @@ def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol=
     "-f","--rename",
     "--cluster-dist",cluster,
     "--min-extent",MIN_EXTENT,
-    split_args=False);
+    split_args=False,
+    *args);
     
 document_globals(pybdsm_search,"PYBDSM_* imager.RESTORED_IMAGE");
 

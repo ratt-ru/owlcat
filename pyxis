@@ -95,7 +95,7 @@ if __name__ == "__main__":
   # make output directory
   if OUTDIR:
     makedir(OUTDIR,no_interpolate=True);
-  file((OUTDIR or '.')+"/pyxis.log","a").write(" ".join(sys.argv)+"\n");
+  file((OUTDIR or '.')+"/pyxis.log","a").write(time.strftime("## %c:\n")+" ".join(sys.argv)+"\n");
   Pyxis.Internals.saveconf();
  
   # sort arguments into commands and MSs
@@ -104,7 +104,7 @@ if __name__ == "__main__":
   
   # add other commands
   for arg in args:
-    if not Pyxis.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)$",arg):
+    if not Pyxis.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)/?$",arg):
 #      assign("MS",arg);
       mslist.append(arg);
     else:
