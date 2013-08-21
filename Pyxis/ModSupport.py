@@ -148,3 +148,8 @@ def interpolate_locals (*varnames):
   ret = [ locs.get(name) for name in itertools.chain(*[ v.split(" ") for v in varnames ]) ];
   return ret if len(ret) != 1 else ret[0];
     
+def kwopt_to_command_line (**kwopt):
+  """Converts keyword options to command-line arguments: returns a string of 
+  --NAME=VALUE or --NAME (for value=True) pairs, where NAME and VALUE are looked up in the dict, and
+  VALUE is interpolated."""
+  return " ".join([ ("--%s %s"%(name,interpolate(value,depth=2)) if value is not True else "--%s"%name) for name,value in kwopt.iteritems()]);

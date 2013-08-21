@@ -43,21 +43,27 @@ define("PLOTMS_ARGS","",
   """extra plot-ms arguments""");
 plotms = x("plot-ms.py").args("$MS $PLOTVIS $PLOTMS_ARGS ${-D <DDID} ${-F <FIELD} ${-I <IFRS} $CHAN_OWLCAT");
 
+class _TableGuard (object):
+  def __init__ (self,tab):
+    self.tab = tab;
+  def __enter__ (self):
+    return self.tab;
+  def __exit__ (self):
+    self.tab.close();
 
 def msw (msname="$MS",subtable=None):
-  """Opens the MS or a subtable read-write, returns table object"""
+  """Opens the MS or a subtable read-write, returns table object."""
   return ms(msname,subtable,write=True);
 
-
-
 def ms (msname="$MS",subtable=None,write=False):
-  """Opens the MS or a subtable (read-only by default), returns table object"""
+  """Opens the MS or a subtable (read-only by default), returns table object."""
   msname = interpolate_locals("msname");
   if not msname:
     raise ValueError("'msname' or global MS variable must be set");
   if subtable:
     msname = table(msname).getkeyword(subtable);
-  return table(msname,readonly=not write);
+  tab = table(msname,readonly=not write);
+  return tab;
 
 def _filename (base,newext):
   while base and base[-1] == "/":
@@ -88,18 +94,20 @@ def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
   tab.close()
 
   
-def uvcov (msname="$MS",save=None,**kw):
+def plot_uvcov (msname="$MS",save=None,width=None,height=None,dpi=None,**kw):
   """Makes uv-coverage plot
   'msname' is superglobal MS by default.
   If 'save' is given, saves figure to file.
-  Any additional keyword arguments are passed to plot().
+  Any additional keyword arguments are passed to plot(). Try e.g. ms=.1 to change the marker size.
   """
   msname,save = interpolate_locals("msname save");
   uv = ms(msname).getcol("UVW")[:,:2];
   import pylab
-  pylab.plot(uv[:,0],uv[:,1],'.b',**kw);
+  if width or height or dpi:
+    pylab.figure(figsize=(width or height,height or width));
   pylab.plot(-uv[:,0],-uv[:,1],'.r',**kw);
-  pylab.savefig(save) if save else pylab.show();
+  pylab.plot(uv[:,0],uv[:,1],'.b',**kw);
+  pylab.savefig(save,dpi=dpi) if save else pylab.show();
   
 
 ##
@@ -175,6 +183,15 @@ ms.close()
 
 document_globals(virtconcat,"MS_List");
 
+
+##
+## CONVERSION
+##
+def from_uvfits (fitsfile,msname="$MS"):
+  fitsfile,msname = interpolate_locals("fitsfile msname");
+  if not msname:
+    msname = fitsfile+".MS";
+  std.runcasapy("""ms.fromfits(msfile='$msname',fitsfile='$fitsfile')""");
 
 ##
 ## RESAMPLING FUNCTIONS

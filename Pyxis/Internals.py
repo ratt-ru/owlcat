@@ -950,11 +950,20 @@ def run (*commands):
             kws[match.group(1)] = _parse_cmdline_value(match.group(2));
           else:
             args.append(_parse_cmdline_value(arg));
+        # if command is 'help', disable logging
+        if comname == "help" and _current_logobj:
+          logfile = _current_logfile;
+          set_logfile(None);
+        else:
+          logfile = None;
         # exec command
         _initconf_done or initconf(force=True);  # make sure config is loaded
         comcall = find_command(comname,inspect.currentframe().f_back,autoimport=True);
         comcall(*args,**kws);
         assign_templates();
+        # reset logging, if disabled for 'help'
+        if logfile:
+          set_logfile(logfile);
         continue;
       # syntax 3: standalone command. This better be found!
       _initconf_done or initconf(force=True);  # make sure config is loaded

@@ -42,7 +42,7 @@ velocity = False;
 
 # known lwimager args -- these will be passed from keywords
 _fileargs = set("image model restored residual".split(" ")); 
-_lwimager_args = set(("ms spwid field prior image model restored residual data mode filter nscales weight noise robust wprojplanes padding "+
+_lwimager_args = set(("ms spwid field prior image model restored residual data mode filter nscales weight weight_fov noise robust wprojplanes padding "+
     "cachesize stokes nfacets npix cellsize phasecenter field spwid chanmode nchan chanstart chanstep img_nchan img_chanstart img_chanstep "+
     "select operation niter gain threshold targetflux sigma fixed constrainflux prefervelocity mask maskblc masktrc uservector maskvalue").split(" "));
 
@@ -138,10 +138,12 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
     kw = kw0.copy();
     if type(restore) is dict:
       kw.update(restore);
-    _run(operation=CLEAN_ALGORITHM,restored=RESTORED_IMAGE,model=MODEL_IMAGE,residual=RESIDUAL_IMAGE,**kw)
+    kw.setdefault("operation",CLEAN_ALGORITHM);
+    _run(restored=RESTORED_IMAGE,model=MODEL_IMAGE,residual=RESIDUAL_IMAGE,**kw)
     if lsm and restore_lsm:
       info("Restoring LSM into FULLREST_IMAGE=$FULLREST_IMAGE");
-      tigger_restore("$RESTORING_OPTIONS","-f",RESTORED_IMAGE,lsm,FULLREST_IMAGE);
+      opts = restore_lsm if isinstance(restore_lsm,dict) else {};
+      tigger_restore("$RESTORING_OPTIONS","-f",RESTORED_IMAGE,lsm,FULLREST_IMAGE,kwopt_to_command_line(**opts));
       
 document_globals(make_image,"*_IMAGE IMAGE_CHANNELIZE MS RESTORING_OPTIONS CLEAN_ALGORITHM ms.IFRS ms.DDID ms.FIELD ms.CHANRANGE");      
 
