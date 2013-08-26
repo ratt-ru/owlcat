@@ -185,18 +185,21 @@ def virtconcat (output="concat.MS",thorough=False):
   auxfile = II("${output}.dat");
   if not v.MS_List:
     abort("MS_List must be set before calling ms.virtconcat()");
+  if len(v.MS_List) != len(set([os.path.basename(x) for x in v.MS_List])):
+    abort("ms.virtconcat: MSs to be concatenated need to have unique basenames. Please rename your MSs accordingly.");
   cmd = "";
   if thorough:
     cmd = """ms.open("%s", nomodify=False)\n"""%v.MS_List[0];
     for msl in v.MS_List[1:]:
       cmd += II("""ms.virtconcatenate("$msl","$auxfile",'1GHz','1arcsec')\n""");  
     cmd += II("""ms.close()\nos.remove('$auxfile')\n""");
-  cmd += """ms.createmultims('$output',["%s"],
+  cmd += """if not ms.createmultims('$output',["%s"],
   [],
   True, # nomodify  
   False,# lock  
-  True) # copysubtables from first to all other members  
-ms.close()  
+  True): # copysubtables from first to all other members  
+  os._exit(1);
+ms.close();
 """%'","'.join(v.MS_List); 
   std.runcasapy(cmd);
   info("virtually concatenated %d inputs MSs into $output"%len(v.MS_List));

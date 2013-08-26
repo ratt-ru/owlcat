@@ -31,8 +31,10 @@ def runcasapy (command):
   tf.flush();
   tfname = tf.name;
   # run casapy
-  info("Running casapy $tfname");
-  casapy(tfname);
+  info("Running casapy $tfname. Content:\n$command\n");
+  retcode = casapy(tfname);
   tf.close();
+  if retcode:
+    abort("casapy failed with return code %d. Check the logs for errors.");
 
 
