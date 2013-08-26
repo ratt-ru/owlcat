@@ -4,6 +4,7 @@ from Pyxis.ModSupport import *
 import pyrap.images
 import os
 import subprocess
+import pyfits
 
 import mqt,ms,std
  
@@ -20,6 +21,8 @@ lwimager = x.time.args("$LWIMAGER_PATH");
 
 rm_fr = x.rm.args("-fr");
 tigger_restore = x("tigger-restore");
+
+imagecalc = x("imagecalc");
 
 # standard imaging options 
 ifrs=""
@@ -86,6 +89,7 @@ define("RESTORED_IMAGE_Template", "${OUTFILE}.restored.fits","output filename fo
 define("RESIDUAL_IMAGE_Template", "${OUTFILE}.residual.fits","output filename for deconvolution residuals");
 define("MODEL_IMAGE_Template", "${OUTFILE}.model.fits","output filename for deconvolution model");
 define("FULLREST_IMAGE_Template", "${OUTFILE}.fullrest.fits","output filename for LSM-restored image");
+define("MASK_IMAGE_Template", "${OUTFILE}.mask.fits","output filename for CLEAN mask");
 
 # How to channelize the output image. 0 for average all, 1 to include all, 2 to average with a step of 2, etc.
 # None means defer to 'imager' module options
@@ -95,6 +99,11 @@ define("RESTORING_OPTIONS","","extra options to tigger-restore for LSM-restoring
 # default clean algorithm
 define("CLEAN_ALGORITHM","clark","CLEAN algorithm (clark, hogbom, csclean, etc.)")
 
+def fits2casa (input,output):
+  """Converts FITS image to CASA image.""";
+  for char in "/-*+().":
+    input = input.replace(char,"\\"+char);
+  imagecalc("in=$input out=$output");
 
 def make_image (msname="$MS",column="CORRECTED_DATA",
                 dirty=True,restore=False,restore_lsm=True,
@@ -139,6 +148,15 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
     if type(restore) is dict:
       kw.update(restore);
     kw.setdefault("operation",CLEAN_ALGORITHM);
+    ## if mask was specified as a fits image, convert to CASA image
+    mask = kw.get("mask");
+    if mask and not isinstance(mask,str):
+      kw['mask'] = mask = MASK_IMAGE; 
+    if mask and os.path.exists(mask) and not os.path.isdir(mask):
+      info("converting clean mask $mask into CASA image");
+      imgmask = mask+".img";
+      fits2casa(mask,imgmask);
+      kw['mask'] = imgmask;
     _run(restored=RESTORED_IMAGE,model=MODEL_IMAGE,residual=RESIDUAL_IMAGE,**kw)
     if lsm and restore_lsm:
       info("Restoring LSM into FULLREST_IMAGE=$FULLREST_IMAGE");
@@ -147,4 +165,16 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
       
 document_globals(make_image,"*_IMAGE IMAGE_CHANNELIZE MS RESTORING_OPTIONS CLEAN_ALGORITHM ms.IFRS ms.DDID ms.FIELD ms.CHANRANGE");      
 
-      
+def make_threshold_mask (input="$RESTORED_IMAGE",threshold=0,output="$MASK_IMAGE",high=1,low=0):
+  """Makes a mask image by thresholding the input image at a given value. The output image is a copy of the input image,
+  with pixel values of 'high' (1 by default) where input pixels are >= threshold, and 'low' (0 default) where pixels are <threshold.
+  """
+  input,output = interpolate_locals("input output");
+  ff = pyfits.open(input);
+  d = ff[0].data;
+  d[d<threshold] = low;
+  d[d>threshold] = high;
+  ff.writeto(output,clobber=True);
+  info("made mask image $output by thresholding $input at %g"%threshold);
+  
+document_globals(make_threshold_mask,"RESTORED_IMAGE MASK_IMAGE");

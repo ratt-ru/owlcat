@@ -102,6 +102,11 @@ def plot_uvcov (msname="$MS",save=None,width=None,height=None,dpi=None,**kw):
   """
   msname,save = interpolate_locals("msname save");
   uv = ms(msname).getcol("UVW")[:,:2];
+  import matplotlib
+  if save:
+    matplotlib.use('agg');
+#  else:
+#    matplotlib.use('qt4agg');
   import pylab
   if width or height or dpi:
     pylab.figure(figsize=(width or height,height or width));
