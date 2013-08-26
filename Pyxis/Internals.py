@@ -707,9 +707,10 @@ def saveconf ():
   # now back them up
   for ff in configs:
     dest = os.path.join(OUTDIR,os.path.basename(ff));
-    if not os.path.exists(dest) or os.path.getmtime(dest) < os.path.getmtime(ff):
-      _info("copying %s to %s"%(os.path.basename(ff),OUTDIR));
-      shutil.copyfile(ff,dest);
+    if os.path.exists(ff):
+      if not os.path.exists(dest) or os.path.getmtime(dest) < os.path.getmtime(ff):
+        _info("copying %s to %s"%(os.path.basename(ff),OUTDIR));
+        shutil.copyfile(ff,dest);
   
 
 def load_package (pkgname,filename,report=True):

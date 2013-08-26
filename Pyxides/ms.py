@@ -94,26 +94,41 @@ def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
   tab.close()
 
   
-def plot_uvcov (msname="$MS",save=None,width=None,height=None,dpi=None,**kw):
+define('FIGURE_WIDTH',8,'width of plots, in inches');
+define('FIGURE_HEIGHT',6,'height of plots, in inches');
+define('FIGURE_DPI',100,'resolution of plots, in DPI');
+  
+def plot_uvcov (msname="$MS",width=None,height=None,dpi=None,save=None,select=None,limit=None,**kw):
   """Makes uv-coverage plot
   'msname' is superglobal MS by default.
   If 'save' is given, saves figure to file.
+  Use width/height/dpi to override figure settings.
   Any additional keyword arguments are passed to plot(). Try e.g. ms=.1 to change the marker size.
   """
   msname,save = interpolate_locals("msname save");
-  uv = ms(msname).getcol("UVW")[:,:2];
+  tab = ms(msname);
+  if select:
+    tab = tab.query(select);
+  uv = tab.getcol("UVW")[:,:2];
   import matplotlib
   if save:
     matplotlib.use('agg');
 #  else:
 #    matplotlib.use('qt4agg');
   import pylab
-  if width or height or dpi:
-    pylab.figure(figsize=(width or height,height or width));
+  pylab.figure(figsize=(width or FIGURE_WIDTH,height or FIGURE_HEIGHT));
   pylab.plot(-uv[:,0],-uv[:,1],'.r',**kw);
   pylab.plot(uv[:,0],uv[:,1],'.b',**kw);
-  pylab.savefig(save,dpi=dpi) if save else pylab.show();
+  if limit is not None:
+    pylab.xlim(-limit,limit);
+    pylab.ylim(-limit,limit);
+  if save:
+    pylab.savefig(save,dpi=(dpi or FIGURE_DPI));
+    info("saved UV coverage plot to $save");
+  else:
+    pylab.show();
   
+document_globals(plot_uvcov,"FIGURE_*");  
 
 ##
 ## ARCHIVE/UNARCHIVE FUNCTIONS
