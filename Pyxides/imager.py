@@ -152,12 +152,16 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
     mask = kw.get("mask");
     if mask and not isinstance(mask,str):
       kw['mask'] = mask = MASK_IMAGE; 
+    imgmask = None;
     if mask and os.path.exists(mask) and not os.path.isdir(mask):
       info("converting clean mask $mask into CASA image");
       imgmask = mask+".img";
       fits2casa(mask,imgmask);
       kw['mask'] = imgmask;
     _run(restored=RESTORED_IMAGE,model=MODEL_IMAGE,residual=RESIDUAL_IMAGE,**kw)
+    # delete CASA mask image if created above
+    if imgmask:
+      rm_fr(imgmask);
     if lsm and restore_lsm:
       info("Restoring LSM into FULLREST_IMAGE=$FULLREST_IMAGE");
       opts = restore_lsm if isinstance(restore_lsm,dict) else {};
