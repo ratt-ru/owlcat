@@ -179,7 +179,7 @@ def split_views (msname="$MS",output="${MS:DIR}/${MS:BASE}-%s.MS",column="OBSERV
     taql("SELECT FROM $msname where $column == $val giving $subset",split_args=False);
 
     
-def virtconcat (output="concat.MS",thorough=False):
+def virtconcat (output="concat.MS",thorough=False,subtables=False):
   """Virtually concatenates the MSs given by MS_List into an output MS."""
   output,options = interpolate_locals("output options");
   auxfile = II("${output}.dat");
@@ -197,7 +197,7 @@ def virtconcat (output="concat.MS",thorough=False):
   [],
   True, # nomodify  
   False,# lock  
-  True): # copysubtables from first to all other members  
+  $subtables): # copysubtables from first to all other members  
   os._exit(1);
 ms.close();
 """%'","'.join(v.MS_List); 
