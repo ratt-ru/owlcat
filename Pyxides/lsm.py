@@ -45,7 +45,7 @@ def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol=
   script = II("${output:FILE}.pybdsm");
   gaul = II("${output:FILE}.gaul");
   if threshold:
-    kw['thresh_isl'] = kw['thresh_pix'] = threshold;
+    kw['thresh_pix'] = threshold;
   kw['polarisation_do'] = is_true(pol);
   # run pybdsm
   from lofar import bdsm
