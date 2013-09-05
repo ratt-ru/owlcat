@@ -7,9 +7,9 @@ register_pyxis_module();
 
 v.define("OUTDIR","",
   """base output directory""");
-v.define("DESTDIR_Template",'${OUTDIR>/}plots-${MS:BASE}-spw${DDID}',
+v.define("DESTDIR_Template",'${OUTDIR>/}plots-${MS:BASE}${-spw<ms.DDID}',
   """destination directory for plots, images, etc.""");
-v.define("OUTFILE_Template",'${DESTDIR>/}${MS:BASE}${_spw<DDID}${_s<STEP}${_<LABEL}',
+v.define("OUTFILE_Template",'${DESTDIR>/}${MS:BASE}${_spw<ms.DDID}${_s<STEP}${_<LABEL}',
   """base output filename for plots, images, etc.""");
 v.define("STEP",1,
   """step counter, automatically incremented. Useful for decorating filenames.""")

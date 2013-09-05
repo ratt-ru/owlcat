@@ -85,12 +85,17 @@ def prep (msname=None):
   
   
   
-def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA"):
-  """Copies data from one column of MS to another""";
+def copycol (msname="$MS",fromcol="DATA",tocol="CORRECTED_DATA",rowchunk=500000):
+  """Copies data from one column of MS to another.
+  Copies 'rowchunk' rows at a time; decrease the default if you have low RAM.
+  """;
   msname,fromcol,tocol = interpolate_locals("msname fromcol tocol");
-  info("Copying $msname $fromcol to $tocol");
   tab = msw(msname)
-  tab.putcol(tocol,tab.getcol(fromcol))
+  nrows = tab.nrows();
+  for row0 in range(0,nrows,rowchunk):
+    nr = min(rowchunk,nrows-row0);
+    info("Copying $msname $fromcol to $tocol (rows $row0 to %d)"%(row0+nr-1));
+    tab.putcol(tocol,tab.getcol(fromcol,row0,nr),row0,nr)
   tab.close()
 
   
