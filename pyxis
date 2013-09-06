@@ -58,6 +58,8 @@ if __name__ == "__main__":
   parser.add_option("-q","--quiet",action="store_true",
                     help="quiet mode: non-critical internal messages are not sent to console "+
                     "when logging to file. Implies --verbose 0 unless explicitly set.");
+  parser.add_option("-n","--no-log",action="store_true",
+                    help="disable logging: ignore assignments to LOG and send all output to console");
   parser.add_option("--log",type="string",metavar="FILENAME",
                     help="log output to file. Equivalent to LOG=FILENAME.");
   parser.add_option("-l",dest="default_log",action="store_true",
@@ -72,11 +74,12 @@ if __name__ == "__main__":
   # set up variables from options before import
   if options.outdir:
     OUTDIR = options.outdir;
-  if options.log:
-    LOG = options.log;
+  if not options.no_log:
+    if options.log:
+      LOG = options.log;
 #    Pyxis.assign("LOG",options.log);
-  elif options.default_log:
-    LOG = os.path.join(OUTDIR,"default.log") if OUTDIR else "default.log";
+    elif options.default_log:
+      LOG = os.path.join(OUTDIR,"default.log") if OUTDIR else "default.log";
   JOBS = options.jobs
   QUIET = options.quiet; 
   if options.verbose is None:
@@ -87,6 +90,9 @@ if __name__ == "__main__":
   import Pyxis
   import Pyxis.Internals
   import Pyxis.Commands
+  if options.no_log:
+    Pyxis.Internals.disable_logfiles();
+    info("Running with --no-log: assignments to LOG will be disabled and all output will go to the console");
 
   # init configuration. This preloads pyxis-*.
   PYXIS_LOAD_CONFIG = True
@@ -151,6 +157,12 @@ if __name__ == "__main__":
       info("all commands have executed successfully");
     else:
       error("exiting with error code %d, check the logs for errors"%retcode);
+  
+    logobj,logfile = Pyxis.Internals.get_logfile();
+    if logobj:
+      Pyxis.Internals.set_logfile(None,quiet=True);
+      info("last logfile was %s"%logfile);
+    
     report_elapsed(ts0);
   
   sys.exit(retcode);

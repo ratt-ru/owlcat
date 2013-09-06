@@ -609,27 +609,43 @@ def assign_templates ():
 
 _current_logfile = None;
 _current_logobj = None;
-_warned_log_ipython = None;
+_warned_nolog = None;
 _visited_logfiles = set();
+_disable_logfiles = False;
 
 def flush_log ():
+  global _current_logobj,_current_logfile;
   _current_logobj and _current_logobj.flush();
 
-def set_logfile (filename):
+def get_logfile ():
+  global _current_logobj,_current_logfile;
+  return _current_logobj,_current_logfile;
+
+def disable_logfiles ():
+  global _disable_logfiles;
+  _disable_logfiles = True;
+
+def set_logfile (filename,quiet=False):
   """Starts logging to the specified file""";
+  global _current_logfile,_current_logobj,_warned_nolog;
+  if _disable_logfiles:
+    if not _warned_nolog:
+      _warn("logfiles disabled, forcing Pyxis output to console and ignoring LOG assignments");
+      _warned_nolog = True;
+    return;
   import Pyxis.ModSupport
-  global _current_logfile,_current_logobj,_warned_log_ipython;
   if filename is not None:
     filename = str(filename);
   if filename == "-" or not filename:
     filename = None;
   if filename != _current_logfile:
     if Pyxis.Context.get('get_ipython'):
-      if not _warned_log_ipython:
+      if not _warned_nolog:
         _warn("running inside ipython, forcing Pyxis output to console and ignoring LOG assignments");
-        _warned_log_ipython = True;
+        _warned_nolog = True;
       return;
-    _info("redirecting log output to %s"%(filename or "console"),console=True);
+    if not quiet:
+      _info("redirecting log output to %s"%(filename or "console"),console=True);
     if filename is None:
       sys.stdout,sys.stderr = sys.__stdout__,sys.__stderr__;
       _current_logobj = None;
@@ -644,11 +660,11 @@ def set_logfile (filename):
       Pyxis.ModSupport.makedir(os.path.dirname(filename),no_interpolate=True);
       _current_logobj = sys.stdout = sys.stderr = open(filename,mode);
       _visited_logfiles.add(filename);
-    if _current_logfile:
-      pass;
+#    if _current_logfile:
+#      pass;
 #      _info("log continued from %s"%_current_logfile);
-    else:
-      _info("log started");
+#    else:
+#      _info("log started");
     _current_logfile = filename;
 
 _initconf_done = False;  
