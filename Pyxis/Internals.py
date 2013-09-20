@@ -23,6 +23,12 @@ LOG: all output will be logged to this file (except for level-0 status messages,
 to the console). Can also be specified as a template (e.g. LOG_Template={$MS:BASE}.log) to make the log
 dependent on other variables.
 
+LOG_DISABLE: if True, logfiles will be disabled, and all output will go to the console
+
+LOG_FLUSH: if True, logfiles will be overwritten by each new Pyxis run. Default is to append to existing logfiles.
+
+LOG_HEADER: header string placed at start of each new log file or log session.
+
 VERBOSE: Pyxis verbosity level, default is 0. Higher is more verbose.
 
 OUTDIR: output directory, for use in recipes and config files (note that Pyxis itself in no way enforces
@@ -611,7 +617,6 @@ _current_logfile = None;
 _current_logobj = None;
 _warned_nolog = None;
 _visited_logfiles = set();
-_disable_logfiles = False;
 
 def flush_log ():
   global _current_logobj,_current_logfile;
@@ -621,14 +626,11 @@ def get_logfile ():
   global _current_logobj,_current_logfile;
   return _current_logobj,_current_logfile;
 
-def disable_logfiles ():
-  global _disable_logfiles;
-  _disable_logfiles = True;
-
 def set_logfile (filename,quiet=False):
   """Starts logging to the specified file""";
   global _current_logfile,_current_logobj,_warned_nolog;
-  if _disable_logfiles:
+  import Pyxis
+  if Pyxis.Context.get("LOG_DISABLE"):
     if not _warned_nolog:
       _warn("logfiles disabled, forcing Pyxis output to console and ignoring LOG assignments");
       _warned_nolog = True;
@@ -650,16 +652,21 @@ def set_logfile (filename,quiet=False):
       sys.stdout,sys.stderr = sys.__stdout__,sys.__stderr__;
       _current_logobj = None;
     else:
-      mode = "w";
-      # append to file if name starts with +, or if file has already been used as a log this session
-      if filename[0] == '+':
-        filename = filename[1:];
-        mode = "a";
-      if filename in _visited_logfiles:
-        mode = "a";
+      mode = "a";
+      # append to file if name starts with +, or if file has already been used as a log this session, or if flush is off
+      if Pyxis.Context.get("LOG_FLUSH"):
+        mode = "w";
+        if filename[0] == '+':
+          filename = filename[1:];
+          mode = "a";
+        if filename in _visited_logfiles:
+          mode = "a";
       Pyxis.ModSupport.makedir(os.path.dirname(filename),no_interpolate=True);
       _current_logobj = sys.stdout = sys.stderr = open(filename,mode);
-      _visited_logfiles.add(filename);
+      hdr = Pyxis.Context.get("LOG_HEADER");
+      if filename not in _visited_logfiles and hdr:
+        _info(hdr);
+        _visited_logfiles.add(filename);
 #    if _current_logfile:
 #      pass;
 #      _info("log continued from %s"%_current_logfile);

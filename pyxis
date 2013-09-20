@@ -53,21 +53,25 @@ if __name__ == "__main__":
   from optparse import OptionParser
   parser = OptionParser(usage="""%prog: [options] a=value command_x b=value c=value command_y ...""",
     description="Runs a sequence of reduction commands");
-  parser.add_option("-v","--verbose",type="int",default=None,
-                    help="verbosity level, default is 1");
+  parser.add_option("-v","--verbose",type="int",default=None,metavar="LEVEL",
+                    help="verbosity level, default is 1. Equivalent to VERBOSE=LEVEL");
   parser.add_option("-q","--quiet",action="store_true",
                     help="quiet mode: non-critical internal messages are not sent to console "+
                     "when logging to file. Implies --verbose 0 unless explicitly set.");
   parser.add_option("-n","--no-log",action="store_true",
-                    help="disable logging: ignore assignments to LOG and send all output to console");
+                    help="disable logging: ignore assignments to LOG and send all output to console.\n"
+                    "Equivalent to LOG_DISABLE=True.");
   parser.add_option("--log",type="string",metavar="FILENAME",
                     help="log output to file. Equivalent to LOG=FILENAME.");
   parser.add_option("-l",dest="default_log",action="store_true",
-                    help="log output to default log file pyxis.log");
+                    help="log output to default log file default.log");
+  parser.add_option("-f",dest="flush_log",action="store_true",
+                    help="flush old logfiles. Default is to append to existing logs.\n"
+                    "Equivalent to LOG_FLUSH=True.");
   parser.add_option("-j","--jobs",type="int",metavar="N",default=1,
                     help="run up to N jobs in parallel. Equivalent to JOBS=N.");
   parser.add_option("-o","--outdir",type="string",metavar="DIR",
-                    help="direct outputs to subdirectory. Equivalent to OUTDIR=N.");
+                    help="direct outputs to subdirectory. Equivalent to OUTDIR=DIR.");
 
   (options,args) = parser.parse_args();
 
@@ -91,8 +95,11 @@ if __name__ == "__main__":
   import Pyxis.Internals
   import Pyxis.Commands
   if options.no_log:
-    Pyxis.Internals.disable_logfiles();
     info("Running with --no-log: assignments to LOG will be disabled and all output will go to the console");
+
+  LOG_HEADER = cmdline = time.strftime("## %c:\n")+" ".join(sys.argv);  
+  LOG_FLUSH = options.flush_log;
+  LOG_DISABLE = options.no_log;
 
   # init configuration. This preloads pyxis-*.
   PYXIS_LOAD_CONFIG = True
@@ -101,7 +108,7 @@ if __name__ == "__main__":
   # make output directory
   if OUTDIR:
     makedir(OUTDIR,no_interpolate=True);
-  file((OUTDIR or '.')+"/pyxis.log","a").write(time.strftime("## %c:\n")+" ".join(sys.argv)+"\n");
+  file((OUTDIR or '.')+"/pyxis.log","a").write(cmdline+"\n");
   Pyxis.Internals.saveconf();
  
   # sort arguments into commands and MSs
@@ -111,6 +118,8 @@ if __name__ == "__main__":
   # add other commands
   for arg in args:
     if not Pyxis.Internals._re_assign.match(arg) and re.match(".*\\.(MS|ms)/?$",arg):
+      if arg.endswith("/"):
+        arg = arg[:-1];
 #      assign("MS",arg);
       mslist.append(arg);
     else:

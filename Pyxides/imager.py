@@ -41,6 +41,8 @@ flux_rescale=1
 # use velocity rather than frequency
 velocity = False;
 
+no_weight_fov = False
+
 # known lwimager args -- these will be passed from keywords
 _fileargs = set("image model restored residual".split(" ")); 
 _lwimager_args = set(("ms spwid field prior image model restored residual data mode filter nscales weight weight_fov noise robust wprojplanes padding "+
@@ -53,6 +55,8 @@ def _run (convert_output_to_fits=True,lwimager_path="$LWIMAGER_PATH",**kw):
   # make dict of imager arguments that have been specified globally or locally
   args = dict([ (arg,globals()[arg]) for arg in _lwimager_args if arg in globals() and globals()[arg] is not None ]);
   args.update([ (arg,kw[arg]) for arg in _lwimager_args if arg in kw ]);
+  if no_weight_fov:
+    args.pop('weight_fov',0);
   # add ifrs, spwid and field arguments
   ms.IFRS is not None and args.setdefault('ifrs',ms.IFRS);
   ms.DDID is not None and args.setdefault('spwid',ms.DDID);
