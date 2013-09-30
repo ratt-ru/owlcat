@@ -4,7 +4,7 @@ img_extIsRegExp=false
 img_extensions=.eps .jpg .jpeg .png .pdf .ps .fig .gif
 kileprversion=2
 kileversion=2.1.0
-lastDocument=pyxis-intro.tex
+lastDocument=example/pyxis-a773.conf
 masterDocument=
 name=PyxisIntro
 pkg_extIsRegExp=false
@@ -63,15 +63,15 @@ encoding=UTF-8
 highlight=Python
 line=93
 mode=Python
-open=true
+open=false
 order=2
 
 [item:pyxis-intro.tex]
 archive=true
-column=114
+column=0
 encoding=UTF-8
 highlight=LaTeX
-line=463
+line=18
 mode=LaTeX
 open=true
 order=0
@@ -99,7 +99,7 @@ JumpList=
 ViMarks=
 
 [view-settings,view=0,item:pyxis-intro.tex]
-CursorColumn=114
-CursorLine=463
+CursorColumn=0
+CursorLine=18
 JumpList=
 ViMarks=

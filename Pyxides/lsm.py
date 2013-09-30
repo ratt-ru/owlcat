@@ -41,6 +41,7 @@ def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol=
   intrinsic fluxes.
   """
   image,output,pol = interpolate_locals("image output pol");
+  makedir(v.DESTDIR);
   # setup parameters
   script = II("${output:FILE}.pybdsm");
   gaul = II("${output:FILE}.gaul");

@@ -14,7 +14,7 @@ register_pyxis_module(superglobals="MS LSM DESTDIR");
 v.define("LSM","lsm.lsm.html","""current local sky model""");
   
 # external tools  
-#define('LWIMAGER_PATH','lwimager','path to lwimager binary. Default is to look in the system PATH.');
+define('LWIMAGER_PATH','lwimager','path to lwimager binary. Default is to look in the system PATH.');
 #lwimager = x.time.args("$LWIMAGER_PATH");
 
 rm_fr = x.rm.args("-fr");
