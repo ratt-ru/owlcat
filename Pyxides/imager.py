@@ -34,6 +34,7 @@ cachesize=4096
 niter=1000
 gain=.1
 threshold=0
+fixed=0
 
 # rescale images by factor
 flux_rescale=1
@@ -118,17 +119,16 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
                 restored_image="$RESTORED_IMAGE",
                 residual_image="$RESIDUAL_IMAGE",
                 model_image="$MODEL_IMAGE",
-                channelize=None,lsm="$LSM",config="",**kw0):
+                channelize=None,lsm="$LSM",**kw0):
   """Makes image(s) from MS. Set dirty and restore to True or False to make the appropriate images. You can also
   set either to a dict of options to be passed to the imager. If restore=True and restore_lsm is True and 'lsm' is set, 
   it will also make a full-restored image (i.e. will restore the LSM into the image) with tigger-restore. Use this when 
   deconvolving residual images. Note that RESTORING_OPTIONS are passed to tigger-restore.
   
-  'config' specifies a config file for run-imager. If empty, the default imager.conf is used.
-  
   'channelize', if set, overrides the IMAGE_CHANNELIZE setting. If both are None, the options in the 'imager' module take effect. 
   
-  Image names are determined by the globals DIRTY_IMAGE, RESTORED_IMAGE, RESIDUAL_IMAGE, MODEL_IMAGE and FULLREST_IMAGE"""
+  'dirty_image', etc. sets the image names, with defaults determined by the globals DIRTY_IMAGE, etc.
+  """;
   msname,column,lsm,dirty_image,restored_image,residual_image,model_image = \
     interpolate_locals("msname column lsm dirty_image restored_image residual_image model_image"); 
   makedir(DESTDIR);

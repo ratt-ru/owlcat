@@ -101,13 +101,19 @@ if __name__ == "__main__":
 
   for keyval in options.edit_header:
     key,val = keyval.split("=");
+    q = ''
     if val[0] == "'" and val[-1] == "'":
       images[0][0].header[key] = val[1:-1:];
+      q = '"'
     elif val[-1] == 'd' or key.startswith('NAXIS'):
       images[0][0].header[key] = int(val[:-1] if val[-1]=='d' else val);
     else:
-      images[0][0].header[key] = float(val);
-    print "Setting header %s=%s"%(key,val);
+      try:
+        images[0][0].header[key] = float(val);
+      except:
+        images[0][0].header[key] = val;
+        q = '"';
+    print "Setting header %s=%s%s%s"%(key,q,val,q);
     updated = True;
 
   if options.sanitize is not None:

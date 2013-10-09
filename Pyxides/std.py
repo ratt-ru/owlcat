@@ -37,4 +37,5 @@ def runcasapy (command):
   if retcode:
     abort("casapy failed with return code %d. Check the logs for errors.");
 
-
+def printpaths ():
+  info("OUTDIR=$OUTDIR, DESTDIR=$DESTDIR, OUTFILE=$OUTFILE");

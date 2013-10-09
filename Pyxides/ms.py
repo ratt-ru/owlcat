@@ -288,6 +288,10 @@ def _msddid_Template ():
   global SPWID,TOTAL_CHANNELS,_ms_ddid;
   if II("$MS:$DDID") != _msddid and II("$MS") and DDID is not None:
     try:
+      ddtab = ms(MS,"DATA_DESCRIPTION");
+      if ddtab.nrows() < DDID+1:
+        warn("No DDID $DDID in $MS");
+        return None;
       SPWID = ms(MS,"DATA_DESCRIPTION").getcol("SPECTRAL_WINDOW_ID",DDID,1)[0];
       TOTAL_CHANNELS = ms(MS,"SPECTRAL_WINDOW").getcol("NUM_CHAN",SPWID,1)[0];
       # make sure this is reevaluated
@@ -295,7 +299,8 @@ def _msddid_Template ():
       info("$MS ddid $DDID is spwid $SPWID with $TOTAL_CHANNELS channels"); 
     except:
       warn("Error accessing $MS");
-#      traceback.print_exc();
+      if v.VERBOSE > 1:
+        traceback.print_exc();
       return None;
   return II("$MS:$DDID");
 
