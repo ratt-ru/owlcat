@@ -63,9 +63,9 @@ if __name__ == "__main__":
                     "Equivalent to LOG_DISABLE=True.");
   parser.add_option("--log",type="string",metavar="FILENAME",
                     help="log output to file. Equivalent to LOG=FILENAME.");
-  parser.add_option("-l",dest="default_log",action="store_true",
+  parser.add_option("-l","--default-log",dest="default_log",action="store_true",
                     help="log output to default log file default.log");
-  parser.add_option("-f",dest="flush_log",action="store_true",
+  parser.add_option("-f","--flush-log",dest="flush_log",action="store_true",
                     help="flush old logfiles. Default is to append to existing logs.\n"
                     "Equivalent to LOG_FLUSH=True.");
   parser.add_option("-j","--jobs",type="int",metavar="N",default=1,
