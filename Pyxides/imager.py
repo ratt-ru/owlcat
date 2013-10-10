@@ -119,18 +119,21 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
                 restored_image="$RESTORED_IMAGE",
                 residual_image="$RESIDUAL_IMAGE",
                 model_image="$MODEL_IMAGE",
+                algorithms="$CLEAN_ALGORITHM",
                 channelize=None,lsm="$LSM",**kw0):
   """Makes image(s) from MS. Set dirty and restore to True or False to make the appropriate images. You can also
   set either to a dict of options to be passed to the imager. If restore=True and restore_lsm is True and 'lsm' is set, 
   it will also make a full-restored image (i.e. will restore the LSM into the image) with tigger-restore. Use this when 
   deconvolving residual images. Note that RESTORING_OPTIONS are passed to tigger-restore.
   
-  'channelize', if set, overrides the IMAGE_CHANNELIZE setting. If both are None, the options in the 'imager' module take effect. 
+  'channelize', if set, overrides the IMAGE_CHANNELIZE setting. If both are None, the options in the 'imager' module take effect.
+  
+  'algorithm' is the deconvolution algorithm to use (hogbom, clark, csclean, multiscale, entropy) 
   
   'dirty_image', etc. sets the image names, with defaults determined by the globals DIRTY_IMAGE, etc.
   """;
-  msname,column,lsm,dirty_image,restored_image,residual_image,model_image = \
-    interpolate_locals("msname column lsm dirty_image restored_image residual_image model_image"); 
+  msname,column,lsm,dirty_image,restored_image,residual_image,model_image,algorithm = \
+    interpolate_locals("msname column lsm dirty_image restored_image residual_image model_image algorithm"); 
   makedir(DESTDIR);
   
   if restore and column != "CORRECTED_DATA":
@@ -162,7 +165,7 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
     kw = kw0.copy();
     if type(restore) is dict:
       kw.update(restore);
-    kw.setdefault("operation",CLEAN_ALGORITHM);
+    kw.setdefault("operation",algorithm);
     temp_images = [];
     ## if fixed model was specified as a fits image, convert to CASA image
     if kw.pop('fixed',None):

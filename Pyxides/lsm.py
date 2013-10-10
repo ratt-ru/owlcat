@@ -55,7 +55,7 @@ def pybdsm_search (image="${imager.RESTORED_IMAGE}",output="$PYBDSM_OUTPUT",pol=
   if pol is not None:
     opts['polarisation_do'] = is_true(pol);
   pol = opts.get('polarisation_do',False);
- # opts['quiet'] = True;
+  opts['quiet'] = True;
   # run pybdsm
   info("running PyBDSM process_image($image,%s)"%",".join(sorted([ "%s=%s"%x for x in opts.iteritems() ])));
   from lofar import bdsm
