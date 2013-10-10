@@ -119,7 +119,7 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
                 restored_image="$RESTORED_IMAGE",
                 residual_image="$RESIDUAL_IMAGE",
                 model_image="$MODEL_IMAGE",
-                algorithms="$CLEAN_ALGORITHM",
+                algorithm="$CLEAN_ALGORITHM",
                 channelize=None,lsm="$LSM",**kw0):
   """Makes image(s) from MS. Set dirty and restore to True or False to make the appropriate images. You can also
   set either to a dict of options to be passed to the imager. If restore=True and restore_lsm is True and 'lsm' is set, 
@@ -165,7 +165,7 @@ def make_image (msname="$MS",column="CORRECTED_DATA",
     kw = kw0.copy();
     if type(restore) is dict:
       kw.update(restore);
-    kw.setdefault("operation",algorithm);
+    kw.setdefault("operation",algorithm or "clark");
     temp_images = [];
     ## if fixed model was specified as a fits image, convert to CASA image
     if kw.pop('fixed',None):
