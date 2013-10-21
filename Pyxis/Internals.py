@@ -409,7 +409,7 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
 
-def _resolve_namespace (name,frame,autoimport=False):
+def _resolve_namespace (name,frame=None,default_namespace=None,autoimport=False):
   if '.' in name:
     nsname,name = name.rsplit(".",1);
     if autoimport:
@@ -418,10 +418,10 @@ def _resolve_namespace (name,frame,autoimport=False):
     if namespace is None:
       raise ValueError,"invalid namespace %s"%nsname;
   else:
-    namespace = frame.f_globals;
+    namespace = frame.f_globals if frame else default_namespace;
   return namespace,name;
-    
-    
+   
+   
 def assign (name,value,namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
   """Assigns value to variable, then reevaluates templates etc."""
   frame = frame or inspect.currentframe().f_back;

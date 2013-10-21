@@ -210,8 +210,9 @@ def exists (filename):
   return os.path.exists(_I(filename,2));
 
 def _per (varname,parallel,*commands):
-  saveval = Pyxis.Context.get(varname,None);
-  varlist = Pyxis.Context.get(varname+"_List",None);
+  namespace,vname = Pyxis.Internals._resolve_namespace(varname,default_namespace=Pyxis.Context);
+  saveval = namespace.get(vname,None);
+  varlist = namespace.get(vname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
   if varlist is None:
     _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
@@ -229,7 +230,8 @@ def _per (varname,parallel,*commands):
     if not parallel or nforks < 2 or len(varlist) < 2 or _subprocess_id is not None:
       # do the actual iteration
       for value in varlist:
-        assign(varname,value,namespace=Pyxis.Context,interpolate=False);
+        _verbose(1,"per-loop, setting %s=%s"%(varname,value));
+        assign(varname,value,interpolate=False);
         Pyxis.Internals.run(*commands);
     else:
       # else split varlist into forked subprocesses
@@ -250,7 +252,8 @@ def _per (varname,parallel,*commands):
             _subprocess_id = job_id;
             try:
               for value in subvals:
-                assign(varname,value,namespace=Pyxis.Context,interpolate=False);
+                _verbose(1,"per-loop, setting %s=%s"%(varname,value));
+                assign(varname,value,interpolate=False);
                 Pyxis.Internals.run(*commands);
             except:
               traceback.print_exc();
@@ -298,8 +301,8 @@ def _per (varname,parallel,*commands):
       # assign old value
       if saveval is not None:
         _verbose(2,"restoring %s=%s"%(varname,saveval));
-        assign(varname,saveval,namespace=Pyxis.Context,interpolate=False);
-        Pyxis.Internals.assign_templates();
+        assign(varname,saveval,interpolate=False);
+#        Pyxis.Internals.assign_templates();
 
 def per (varname,*commands):
   """Iterates over variable 'varname', and executes commands. That is, for every value
