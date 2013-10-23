@@ -1,4 +1,4 @@
-"""Pyxis.Commands: implements commands, etc. for interactive use, as well as for Pyxides modules"""
+
 
 import sys
 import traceback
@@ -210,7 +210,8 @@ def exists (filename):
   return os.path.exists(_I(filename,2));
 
 def _per (varname,parallel,*commands):
-  namespace,vname = Pyxis.Internals._resolve_namespace(varname,default_namespace=Pyxis.Context);
+  frame = inspect.currentframe().f_back.f_back;
+  namespace,vname = Pyxis.Internals._resolve_namespace(varname,frame=frame,default_namespace=Pyxis.Context);
   saveval = namespace.get(vname,None);
   varlist = namespace.get(vname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
@@ -231,7 +232,7 @@ def _per (varname,parallel,*commands):
       # do the actual iteration
       for value in varlist:
         _verbose(1,"per-loop, setting %s=%s"%(varname,value));
-        assign(varname,value,interpolate=False);
+        assign(varname,value,interpolate=False,default_namespace=Pyxis.Context);
         Pyxis.Internals.run(*commands);
     else:
       # else split varlist into forked subprocesses
@@ -253,7 +254,7 @@ def _per (varname,parallel,*commands):
             try:
               for value in subvals:
                 _verbose(1,"per-loop, setting %s=%s"%(varname,value));
-                assign(varname,value,interpolate=False);
+                assign(varname,value,interpolate=False,default_namespace=Pyxis.Context);
                 Pyxis.Internals.run(*commands);
             except:
               traceback.print_exc();

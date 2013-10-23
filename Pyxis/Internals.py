@@ -409,7 +409,7 @@ class DictProxy (object):
   def __contains__ (self,item):
     return True;
 
-def _resolve_namespace (name,frame=None,default_namespace=None,autoimport=False):
+def _resolve_namespace (name,frame,default_namespace=None,autoimport=False):
   if '.' in name:
     nsname,name = name.rsplit(".",1);
     if autoimport:
@@ -418,16 +418,16 @@ def _resolve_namespace (name,frame=None,default_namespace=None,autoimport=False)
     if namespace is None:
       raise ValueError,"invalid namespace %s"%nsname;
   else:
-    namespace = frame.f_globals if frame else default_namespace;
+    namespace = default_namespace or frame.f_globals;
   return namespace,name;
    
    
-def assign (name,value,namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
+def assign (name,value,namespace=None,default_namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
   """Assigns value to variable, then reevaluates templates etc."""
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
-    namespace,name = _resolve_namespace(name,frame,autoimport=autoimport);
+    namespace,name = _resolve_namespace(name,frame,default_namespace,autoimport=autoimport);
   modname = namespace.get('__name__',"???") if namespace is not Pyxis.Context else "v";
   # interpolate if asked to, unless this is a template, which are never interpolated
   if interpolate and not name.endswith("_Template"):
@@ -463,7 +463,7 @@ def unset (name,namespace=None,frame=None,verbose_level=2):
   frame = frame or inspect.currentframe().f_back;
   # find namespace
   if not namespace:
-    namespace,name = _resolve_namespace(name,frame);
+    namespace,name = _resolve_namespace(name,frame=frame);
   # get list of namespaces from which to unset
   namespaces = [ namespace ];
   # get superglobals associated with this namespace: if the variable is one of them, then propagate the un-setting
