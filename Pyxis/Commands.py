@@ -210,8 +210,10 @@ def exists (filename):
   return os.path.exists(_I(filename,2));
 
 def _per (varname,parallel,*commands):
+  # default frame to look for vars is caller of caller
   frame = inspect.currentframe().f_back.f_back;
   namespace,vname = Pyxis.Internals._resolve_namespace(varname,frame=frame,default_namespace=Pyxis.Context);
+  _verbose(2,"per(%s.%s)",namespace.get('__name__',"???") if namespace is not Pyxis.Context else "v",vname);
   saveval = namespace.get(vname,None);
   varlist = namespace.get(vname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
@@ -232,7 +234,7 @@ def _per (varname,parallel,*commands):
       # do the actual iteration
       for value in varlist:
         _verbose(1,"per-loop, setting %s=%s"%(varname,value));
-        assign(varname,value,interpolate=False,default_namespace=Pyxis.Context);
+        assign(vname,value,namespace=namespace,interpolate=False); 
         Pyxis.Internals.run(*commands);
     else:
       # else split varlist into forked subprocesses
@@ -254,7 +256,7 @@ def _per (varname,parallel,*commands):
             try:
               for value in subvals:
                 _verbose(1,"per-loop, setting %s=%s"%(varname,value));
-                assign(varname,value,interpolate=False,default_namespace=Pyxis.Context);
+                assign(vname,value,namespace=namespace,interpolate=False);
                 Pyxis.Internals.run(*commands);
             except:
               traceback.print_exc();

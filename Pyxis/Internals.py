@@ -421,7 +421,6 @@ def _resolve_namespace (name,frame,default_namespace=None,autoimport=False):
     namespace = default_namespace or frame.f_globals;
   return namespace,name;
    
-   
 def assign (name,value,namespace=None,default_namespace=None,interpolate=True,frame=None,append=False,autoimport=False,verbose_level=2):
   """Assigns value to variable, then reevaluates templates etc."""
   frame = frame or inspect.currentframe().f_back;
