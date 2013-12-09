@@ -46,6 +46,9 @@ Default is 1.
 
 JOB_STAGGER: stagger launch of subprocesses by this many seconds. Can be useful to e.g. de-syncronize
 disk access in subprocesses. Default is 10.
+
+PERSIST: if False, then per() commands (such as per_ms) will abort processing on any error. If True,
+per commands will carry on with other items in the list, and will only report the error afterwards.
 """
 
 def init (context):
@@ -60,6 +63,7 @@ def init (context):
   context.setdefault("OUTDIR",".");
   context.setdefault("JOBS",0);
   context.setdefault("JOB_STAGGER",10);
+  context.setdefault("PERSIST",0);
   context.setdefault("PYXIS_LOAD_CONFIG",True);
   context.setdefault("PYXIS_AUTO_IMPORT_MODULES",True);
   # set default verbosity to 1

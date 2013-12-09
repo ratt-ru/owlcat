@@ -217,6 +217,9 @@ def _per (varname,parallel,*commands):
   saveval = namespace.get(vname,None);
   varlist = namespace.get(vname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
+  persist = Pyxis.Context.get("PERSIST");
+  _info("PERSIST is ",persist)
+  fail_list = [];
   if varlist is None:
     _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
     return;
@@ -235,7 +238,18 @@ def _per (varname,parallel,*commands):
       for value in varlist:
         _verbose(1,"per-loop, setting %s=%s"%(varname,value));
         assign(vname,value,namespace=namespace,interpolate=False); 
-        Pyxis.Internals.run(*commands);
+        try:
+          Pyxis.Internals.run(*commands);
+        except (Exception,SystemExit,KeyboardInterrupt) as exc:
+          if persist:
+            _warn("exception raised for %s=%s (%s)"%(vname,value,str(exc)))
+            _warn("persistent mode is on (PERSIST=1), so continuing to end of %s_List"%vname)
+            fail_list.append((value,str(exc)));
+          else:
+            raise;
+      # any fails?
+      if fail_list:
+        _abort("per-command failed for %s"%(",".join([f[0] for f in fail_list])));
     else:
       # else split varlist into forked subprocesses
       per_fork = max(len(varlist)//nforks,1);
@@ -254,10 +268,22 @@ def _per (varname,parallel,*commands):
             # child fork: run commands
             _subprocess_id = job_id;
             try:
+              fail_list = [];
               for value in subvals:
                 _verbose(1,"per-loop, setting %s=%s"%(varname,value));
                 assign(vname,value,namespace=namespace,interpolate=False);
-                Pyxis.Internals.run(*commands);
+                try:
+                  Pyxis.Internals.run(*commands);
+                except (Exception,SystemExit,KeyboardInterrupt) as exc:
+                  if persist:
+                    _warn("exception raised for %s=%s (%s)"%(vname,value,str(exc)))
+                    _warn("persistent mode is on (PERSIST=1), so continuing to end of %s_List"%vname)
+                    fail_list.append((value,str(exc)));
+                  else:
+                    raise;
+              # any fails?
+              if fail_list:
+                _abort("per-command failed for %s"%(", ".join([f[0] for f in fail_list])));
             except:
               traceback.print_exc();
               _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value));

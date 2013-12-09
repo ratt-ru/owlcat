@@ -70,6 +70,8 @@ if __name__ == "__main__":
                     "Equivalent to LOG_FLUSH=True.");
   parser.add_option("-j","--jobs",type="int",metavar="N",default=1,
                     help="run up to N jobs in parallel. Equivalent to JOBS=N.");
+  parser.add_option("-p","--persist",action="store_true",
+                    help="Persist with per-lists as far as possible on error. Equivalent to PERSIST=1.");
   parser.add_option("-o","--outdir",type="string",metavar="DIR",
                     help="direct outputs to subdirectory. Equivalent to OUTDIR=DIR.");
 
@@ -86,6 +88,7 @@ if __name__ == "__main__":
       LOG = os.path.join(OUTDIR,"default.log") if OUTDIR else "default.log";
   JOBS = options.jobs
   QUIET = options.quiet; 
+  PERSIST = options.persist;
   if options.verbose is None:
     VERBOSE = -1 if QUIET else 1;
   else:

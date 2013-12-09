@@ -109,6 +109,7 @@ def plot_uvcov (msname="$MS",width=None,height=None,dpi=None,save=None,select=No
   If 'save' is given, saves figure to file.
   Use width/height/dpi to override figure settings.
   Any additional keyword arguments are passed to plot(). Try e.g. ms=.1 to change the marker size.
+  Return value is maximum baseline length.
   """
   msname,save = interpolate_locals("msname save");
   tab = ms(msname);
@@ -124,6 +125,8 @@ def plot_uvcov (msname="$MS",width=None,height=None,dpi=None,save=None,select=No
   pylab.figure(figsize=(width or FIGURE_WIDTH,height or FIGURE_HEIGHT));
   pylab.plot(-uv[:,0],-uv[:,1],'.r',**kw);
   pylab.plot(uv[:,0],uv[:,1],'.b',**kw);
+  mb = numpy.sqrt((uv**2).sum(1)).max();
+  info("max baseline is %.3f km"%(mb*1e-3));
   if limit is not None:
     pylab.xlim(-limit,limit);
     pylab.ylim(-limit,limit);
@@ -132,6 +135,7 @@ def plot_uvcov (msname="$MS",width=None,height=None,dpi=None,save=None,select=No
     info("saved UV coverage plot to $save");
   else:
     pylab.show();
+  return mb
   
 document_globals(plot_uvcov,"FIGURE_*");  
 
