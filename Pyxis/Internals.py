@@ -87,6 +87,15 @@ def init (context):
     _verbose(1,"VERBOSE=1 by default");
   else:
     _verbose(1,"VERBOSE=%d"%context['VERBOSE']);
+  # import matplotlib in fork, disable output if fails
+  try:
+    import matplotlib
+  except:
+  # no matplotlib? Carry on without
+    return;
+  # try to open a figure in child process. If this fails, use the 'agg' backend
+  if os.system('xdpyinfo >/dev/null 2>/dev/null'):
+    matplotlib.use('agg');
 
 def _int_or_str (x):
   """helper function: converts argument to int if possible, else returns string""";

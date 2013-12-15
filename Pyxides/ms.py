@@ -116,11 +116,6 @@ def plot_uvcov (msname="$MS",width=None,height=None,dpi=None,save=None,select=No
   if select:
     tab = tab.query(select);
   uv = tab.getcol("UVW")[:,:2];
-  import matplotlib
-  if save:
-    matplotlib.use('agg');
-#  else:
-#    matplotlib.use('qt4agg');
   import pylab
   pylab.figure(figsize=(width or FIGURE_WIDTH,height or FIGURE_HEIGHT));
   pylab.plot(-uv[:,0],-uv[:,1],'.r',**kw);

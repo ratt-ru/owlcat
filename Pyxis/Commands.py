@@ -252,21 +252,29 @@ def _per (varname,parallel,*commands):
         _abort("per-command failed for %s"%(",".join([f[0] for f in fail_list])));
     else:
       # else split varlist into forked subprocesses
-      per_fork = max(len(varlist)//nforks,1);
-      _verbose(1,"splitting into %d jobs, %d %s's per job, staggered by %ds"%(min(nforks,len(varlist)),per_fork,varname,stagger));
+      nforks = min(nforks,len(varlist));
+      vpf = len(varlist)/nforks;
+      # distribute N values per each fork
+      subvals_list = [ varlist[i*vpf:(i+1)*vpf] for i in range(nforks) ];
+      # if something is left over, assign to first few forks
+      for i in range(nforks*vpf,len(varlist)):
+        subvals_list[i-nforks*vpf].append(varlist[i]); 
+      # how many vars per fork?
+#      print [ len(sv) for sv in subvals_list ];
+#      print subvals_list;
+      _verbose(1,"splitting into %d jobs, up to %d %s's per job, staggered by %ds"%(len(subvals_list),len(subvals_list[0]),varname,stagger));
       forked_pids = {};
       try:
-        for i in range(0,len(varlist),per_fork):
-          if i and stagger:
+        for job_id,subvals in enumerate(subvals_list):
+          if job_id and stagger:
             time.sleep(stagger);
           # subvals is range of values to be iterated over by this subjob
-          subvals = varlist[i:i+per_fork];
           subval_str = ",".join(map(str,subvals));
           pid = os.fork();
-          job_id = i//per_fork;
           if not pid:
             # child fork: run commands
             _subprocess_id = job_id;
+            _verbose(1,"started job %d for %s"%(job_id,", ".join(subvals)));
             try:
               fail_list = [];
               for value in subvals:
