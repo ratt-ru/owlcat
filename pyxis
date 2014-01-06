@@ -74,6 +74,14 @@ if __name__ == "__main__":
                     help="Persist with per-lists as far as possible on error. Equivalent to PERSIST=1.");
   parser.add_option("-o","--outdir",type="string",metavar="DIR",
                     help="direct outputs to subdirectory. Equivalent to OUTDIR=DIR.");
+  parser.add_option("-x","--no-x11",action="store_true",
+                    help="explicitly disable X11 connections. Equivalent to NO_X11=True.\n"
+                    "HIGHLY RECOMMENDED for offline jobs, as some tools (e.g. matplolib) like\n"
+                    "to open needless X11 connections, then crash if the X server becomes\n"
+                    "unavailable. This is the default when running under a 'screen' session.");
+  parser.add_option("-X","--x11",action="store_true",
+                    help="do not disable X11 connections when running under a 'screen' session.");
+                    
 
   (options,args) = parser.parse_args();
 
@@ -86,11 +94,18 @@ if __name__ == "__main__":
 #    Pyxis.assign("LOG",options.log);
     elif options.default_log:
       LOG = os.path.join(OUTDIR,"default.log") if OUTDIR else "default.log";
+  
+  in_screen = os.environ.get("STY") and not options.x11;
+  
+  NO_X11 = options.no_x11 or in_screen;
+  if NO_X11:
+    os.environ.pop('DISPLAY',None);
   JOBS = options.jobs
   QUIET = options.quiet; 
   PERSIST = options.persist;
   if options.verbose is None:
-    VERBOSE = -1 if QUIET else 1;
+    if options.quiet:
+      VERBOSE = -1;
   else:
     VERBOSE = options.verbose;
       
@@ -98,7 +113,9 @@ if __name__ == "__main__":
   import Pyxis.Internals
   import Pyxis.Commands
   if options.no_log:
-    info("Running with --no-log: assignments to LOG will be disabled and all output will go to the console");
+    verbose(-99,"running with --no-log: assignments to LOG will be disabled and all output will go to the console");
+  if in_screen and not options.no_x11:
+    verbose(-99,"screen session detected: auto-disabling X11 connections. Run with the -X option to reenable.")
 
   LOG_HEADER = cmdline = time.strftime("## %c:\n")+" ".join(sys.argv);  
   LOG_FLUSH = options.flush_log;

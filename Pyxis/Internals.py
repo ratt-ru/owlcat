@@ -93,8 +93,8 @@ def init (context):
   except:
   # no matplotlib? Carry on without
     return;
-  # try to open a figure in child process. If this fails, use the 'agg' backend
-  if os.system('xdpyinfo >/dev/null 2>/dev/null'):
+  # Use the 'agg' backend if X is disabled
+  if context.get("NO_X11") or os.system('xdpyinfo >/dev/null 2>/dev/null'):
     matplotlib.use('agg');
 
 def _int_or_str (x):
@@ -634,6 +634,10 @@ def flush_log ():
   global _current_logobj,_current_logfile;
   _current_logobj and _current_logobj.flush();
 
+def update_log ():
+  global _current_logobj,_current_logfile;
+  _current_logobj and _current_logobj.seek(0,2);
+
 def get_logfile ():
   global _current_logobj,_current_logfile;
   return _current_logobj,_current_logfile;
@@ -677,7 +681,7 @@ def set_logfile (filename,quiet=False):
       _current_logobj = sys.stdout = sys.stderr = open(filename,mode);
       hdr = Pyxis.Context.get("LOG_HEADER");
       if filename not in _visited_logfiles and hdr:
-        _info(hdr);
+        _info(hdr,quiet=True);
         _visited_logfiles.add(filename);
 #    if _current_logfile:
 #      pass;

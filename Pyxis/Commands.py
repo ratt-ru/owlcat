@@ -8,6 +8,7 @@ import os.path
 import time
 import itertools
 import math
+import fcntl
 
 import Pyxis
 import Pyxis.Internals
@@ -84,9 +85,16 @@ def _timestamp ():
 
 def _message (*msg,**kw):
   output = " ".join(map(str,msg));
-  quiet = Pyxis.Context.get('QUIET') and not kw.get('critical'); 
+  sync = kw.get("sync");
+  quiet = ( Pyxis.Context.get('QUIET') or kw.get("quiet") ) and not kw.get('critical'); 
   if sys.stdout is not sys.__stdout__:
+    if sync:
+      fcntl.lockf(sys.stdout,fcntl.LOCK_EX);
+      sys.stdout.seek(0,2);
     print output;
+    if sync:
+      sys.stdout.flush();
+      fcntl.lockf(sys.stdout,fcntl.LOCK_UN);
     if not quiet:
       sys.__stdout__.write(output+"\n");
   else:
@@ -215,10 +223,13 @@ def _per (varname,parallel,*commands):
   namespace,vname = Pyxis.Internals._resolve_namespace(varname,frame=frame,default_namespace=Pyxis.Context);
   _verbose(2,"per(%s.%s)",namespace.get('__name__',"???") if namespace is not Pyxis.Context else "v",vname);
   saveval = namespace.get(vname,None);
+  def _restore ():
+#    if saveval is not None:
+    _verbose(2,"restoring %s=%s"%(varname,saveval),sync=True);
+    assign(varname,saveval,namespace=namespace,interpolate=False);
   varlist = namespace.get(vname+"_List",None);
   cmdlist = ",".join([ x if isinstance(x,str) else getattr(x,"__name__","?") for x in commands ]);
   persist = Pyxis.Context.get("PERSIST");
-  _info("PERSIST is ",persist)
   fail_list = [];
   if varlist is None:
     _verbose(1,"per(%s,%s): %s_List is empty"%(varname,cmdlist,varname));
@@ -231,7 +242,7 @@ def _per (varname,parallel,*commands):
     nforks = Pyxis.Context.get("JOBS",0);
     stagger = Pyxis.Context.get("JOB_STAGGER",0);
     # unforked case
-    _verbose(1,"per(%s,%s): iterating over %s=%s"%(varname,cmdlist,varname," ".join(map(str,varlist))));
+    _verbose(1,"per(%s,%s,persist=%d): iterating over %s=%s"%(varname,cmdlist,1 if persist else 0,varname," ".join(map(str,varlist))));
     global _subprocess_id;
     if not parallel or nforks < 2 or len(varlist) < 2 or _subprocess_id is not None:
       # do the actual iteration
@@ -242,14 +253,16 @@ def _per (varname,parallel,*commands):
           Pyxis.Internals.run(*commands);
         except (Exception,SystemExit,KeyboardInterrupt) as exc:
           if persist:
-            _warn("exception raised for %s=%s (%s)"%(vname,value,str(exc)))
+            _warn("exception raised for %s=%s:\n"%(vname,value),
+                *traceback.format_exception(*sys.exc_info()));
             _warn("persistent mode is on (PERSIST=1), so continuing to end of %s_List"%vname)
             fail_list.append((value,str(exc)));
           else:
             raise;
       # any fails?
       if fail_list:
-        _abort("per-command failed for %s"%(",".join([f[0] for f in fail_list])));
+        _restore();
+        _abort("per-loop failed for %s"%(",".join([f[0] for f in fail_list])));
     else:
       # else split varlist into forked subprocesses
       nforks = min(nforks,len(varlist));
@@ -263,6 +276,7 @@ def _per (varname,parallel,*commands):
 #      print [ len(sv) for sv in subvals_list ];
 #      print subvals_list;
       _verbose(1,"splitting into %d jobs, up to %d %s's per job, staggered by %ds"%(len(subvals_list),len(subvals_list[0]),varname,stagger));
+      Pyxis.Internals.flush_log();
       forked_pids = {};
       try:
         for job_id,subvals in enumerate(subvals_list):
@@ -274,35 +288,40 @@ def _per (varname,parallel,*commands):
           if not pid:
             # child fork: run commands
             _subprocess_id = job_id;
-            _verbose(1,"started job %d for %s"%(job_id,", ".join(subvals)));
+            _verbose(1,"started job %d for %s"%(job_id,", ".join(subvals)),sync=True);
             try:
               fail_list = [];
               for value in subvals:
-                _verbose(1,"per-loop, setting %s=%s"%(varname,value));
+                _verbose(1,"per-loop, setting %s=%s"%(varname,value),sync=True);
                 assign(vname,value,namespace=namespace,interpolate=False);
                 try:
                   Pyxis.Internals.run(*commands);
                 except (Exception,SystemExit,KeyboardInterrupt) as exc:
                   if persist:
-                    _warn("exception raised for %s=%s (%s)"%(vname,value,str(exc)))
-                    _warn("persistent mode is on (PERSIST=1), so continuing to end of %s_List"%vname)
+                    _warn("exception raised for %s=%s:\n"%(vname,value),
+                        sync=True,*traceback.format_exception(*sys.exc_info()));
+                    _warn("persistent mode is on (PERSIST=1), so continuing to end of %s_List"%vname,sync=True)
                     fail_list.append((value,str(exc)));
                   else:
                     raise;
               # any fails?
               if fail_list:
-                _abort("per-command failed for %s"%(", ".join([f[0] for f in fail_list])));
+                _restore();
+                _abort("per-loop failed for %s"%(", ".join([f[0] for f in fail_list])),sync=True);
             except:
               traceback.print_exc();
-              _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value));
+              _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value),sync=True);
+              _restore();
+              _verbose(2,"log is",Pyxis.Context['LOG'],sync=True);
+              _error("per-loop failed for %s"%value,sync=True);
               sys.exit(1);
-            _verbose(2,"job #%d (pid %d) exiting normally"%(_subprocess_id,os.getpid()));
+            _verbose(2,"job #%d (pid %d) exiting normally"%(_subprocess_id,os.getpid()),sync=True);
             sys.exit(0);
           else: # parent pid: append to list
-            _verbose(2,"launched job #%d (%s=%s) with pid %d"%(job_id,varname,subval_str,pid));
+            _verbose(2,"launched job #%d (%s=%s) with pid %d"%(job_id,varname,subval_str,pid),sync=True);
             forked_pids[pid] = job_id,subval_str;
         njobs = len(forked_pids);
-        _verbose(1,"%d jobs launched, waiting for finish"%len(forked_pids));
+        _verbose(1,"%d jobs launched, waiting for finish"%len(forked_pids),sync=True);
         failed = [];
         while forked_pids:
           pid,status = os.waitpid(-1,0);
@@ -312,16 +331,17 @@ def _per (varname,parallel,*commands):
             if status:
               failed.append((job_id,subval_str));
   #            success = False;
-              _error("job #%d (%s=%s) exited with error status %d, waiting for %d more jobs to complete"%(job_id,varname,subval_str,status,len(forked_pids)));
+              _error("job #%d (%s=%s) exited with error status %d, waiting for %d more jobs to complete"%(job_id,varname,subval_str,status,len(forked_pids)),sync=True);
             else:
-              _verbose(1,"job #%d (%s=%s) finished, waiting for %d more jobs to complete"%(job_id,varname,subval_str,len(forked_pids)));
+              _verbose(1,"job #%d (%s=%s) finished, waiting for %d more jobs to complete"%(job_id,varname,subval_str,len(forked_pids)),sync=True);
         if failed:
-          _abort("%d of %d jobs (MS=%s) have failed"%(len(failed),njobs,",".join([x[1] for x in failed])));
+          _abort("%d of %d jobs have failed"%(len(failed),njobs),sync=True);
         else:     
-          _verbose(1,"all jobs finished ok");
+          _verbose(1,"all jobs finished ok",sync=True);
       except KeyboardInterrupt:
         if _subprocess_id is None:
-          _error("Caught Ctrl+C, waiting for %d jobs to exit"%len(forked_pids));
+          _restore();
+          _error("Caught Ctrl+C, waiting for %d jobs to exit"%len(forked_pids),sync=True);
           import signal;
           for pid in forked_pids.keys():
             os.kill(pid,signal.SIGINT);
@@ -330,16 +350,13 @@ def _per (varname,parallel,*commands):
             if pid in forked_pids:
               job_id,subval_str = forked_pids.pop(pid);
               _verbose(1,"job #%d (%s=%s) exited with error status %d, waiting for %d more"%
-                  (job_id,varname,subval_str,status>>8,len(forked_pids)));
+                  (job_id,varname,subval_str,status>>8,len(forked_pids)),sync=True);
         raise;
   finally:
     # note that children also execute this block with sys.exit()
     if _subprocess_id is None:
-      # assign old value
-      if saveval is not None:
-        _verbose(2,"restoring %s=%s"%(varname,saveval));
-        assign(varname,saveval,interpolate=False);
-#        Pyxis.Internals.assign_templates();
+      _restore();
+    Pyxis.Internals.flush_log();
 
 def per (varname,*commands):
   """Iterates over variable 'varname', and executes commands. That is, for every value
