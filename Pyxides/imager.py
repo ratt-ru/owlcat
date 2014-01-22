@@ -259,7 +259,8 @@ def predict_vis (msname="$MS",image="$MODEL_IMAGE",column="MODEL_DATA",channeliz
       kw0.update(img_nchan=ms.NUMCHANS//channelize,img_chanstart=ms.CHANSTART,img_chanstep=channelize);
 
   # setup imager options
-  kw0.update(ms=msname,niter=0,fixed=1,mode="channel",operation="csclean",model=casaimage,weight="natural",
+  kw0.setdefault("weight","natural");
+  kw0.update(ms=msname,niter=0,fixed=1,mode="channel",operation="csclean",model=casaimage,
              chanstart=ms.CHANSTART,chanstep=ms.CHANSTEP,nchan=ms.NUMCHANS);
   
   info("Predicting visibilities from $image into MODEL_DATA");

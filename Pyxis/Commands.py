@@ -288,7 +288,7 @@ def _per (varname,parallel,*commands):
           if not pid:
             # child fork: run commands
             _subprocess_id = job_id;
-            _verbose(1,"started job %d for %s"%(job_id,", ".join(subvals)),sync=True);
+            _verbose(1,"started job %d for %s"%(job_id,", ".join(map(str,subvals))),sync=True);
             try:
               fail_list = [];
               for value in subvals:
@@ -307,7 +307,7 @@ def _per (varname,parallel,*commands):
               # any fails?
               if fail_list:
                 _restore();
-                _abort("per-loop failed for %s"%(", ".join([f[0] for f in fail_list])),sync=True);
+                _abort("per-loop failed for %s"%(", ".join([str(f[0]) for f in fail_list])),sync=True);
             except:
               traceback.print_exc();
               _verbose(2,"job #%d (pid %d: %s=%s) exiting with error code 1"%(_subprocess_id,os.getpid(),varname,value),sync=True);
