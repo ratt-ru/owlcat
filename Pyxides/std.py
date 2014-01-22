@@ -7,11 +7,11 @@ register_pyxis_module();
 
 v.define("OUTDIR","",
   """base output directory""");
-v.define("SUFFIX_Template",'${-spw<ms.DDID}',
+v.define("SUFFIX_Template",'${spw<ms.DDID}',
   """suffix added to filenames, default is "-spwX""");
-v.define("DESTDIR_Template",'${OUTDIR>/}plots-${MS:BASE}${-spw<ms.DDID}',
+v.define("DESTDIR_Template",'${OUTDIR>/}plots${MS:BASE>-}${spw<ms.DDID}',
   """destination directory for plots, images, etc.""");
-v.define("OUTFILE_Template",'${DESTDIR>/}${MS:BASE}${SUFFIX}${-s<STEP}${-<LABEL}',
+v.define("OUTFILE_Template",'${DESTDIR>/}${MS:BASE>-}${SUFFIX>-}${s<STEP>-}${LABEL}',
   """base output filename for plots, images, etc.""");
 v.define("STEP",1,
   """step counter, automatically incremented. Useful for decorating filenames.""")
