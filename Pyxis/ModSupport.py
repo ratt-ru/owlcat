@@ -34,6 +34,7 @@ def register_pyxis_module (superglobals=""):
   _verbose(1,"registered module '%s'"%modname);
   _namespaces[modname] = globs;
   _superglobals[id(globs)] = superglobs;
+  Pyxis.Context[modname] = __import__(modname,Pyxis.Context);
   # add superglobals
   for sym in superglobs:
     # if superglobal is already defined, copy its value to the new module

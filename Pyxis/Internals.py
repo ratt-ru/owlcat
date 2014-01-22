@@ -976,7 +976,7 @@ def run (*commands):
         # assign variable -- note that templates are not interpolated
         Pyxis.Commands.assign(name,_parse_cmdline_value(value),frame=frame,append=(op=="+="),autoimport=True);
         continue;
-      # syntax 2: command(args) or command[args]. command can have a "?" prefix to make it optional
+      # syntax 2: command(args) or command[args]. command can have a "?" prefix to make success optional
       match = _re_command1.match(command) or _re_command2.match(command);
       if match:
         comname,comargs = match.groups();
@@ -991,16 +991,18 @@ def run (*commands):
           else:
             args.append(_parse_cmdline_value(arg));
         # if command is 'help', disable logging
-        if comname == "help" and _current_logobj:
-          logfile = _current_logfile;
-          set_logfile(None);
-        else:
-          logfile = None;
-        # exec command
+        logfile = None;
+        if comname == "help":
+#          comname = 'pydoc.getdoc'
+          if _current_logobj:
+            logfile = _current_logfile;
+            set_logfile(None);
         _initconf_done or initconf(force=True);  # make sure config is loaded
         comcall = find_command(comname,inspect.currentframe().f_back,autoimport=True);
-        comcall(*args,**kws);
+        result = comcall(*args,**kws);
         assign_templates();
+        if comname == 'pydoc.getdoc':
+          print "help:",result;
         # reset logging, if disabled for 'help'
         if logfile:
           set_logfile(logfile);
