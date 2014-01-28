@@ -5,7 +5,7 @@ from distutils.core import setup
 
 setup(name='owlcat',
       version='1.3.0',
-      description='',
+      description='miscellaneous utility scripts for manipulating radio interferometry data',
       author='Oleg Smirnov',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',
       url='https://github.com/ska-sa/owlcat',
