@@ -1,46 +1,53 @@
 Installing Owlcat
+=================
+
+
+Prerequisites
+-------------
+
+* Assorted python packages: pyfits, numpy, matplotlib, casacore, pyrap.
+
+ There are debian packages available for casacore and pyrap at:
+
+ https://launchpad.net/~ska-sa/+archive/main
+
+* MeqTrees Cattery, which you can get here:
+
+  https://github.com/ska-sa/meqtrees-cattery
+
+  For this software there are also Debian packages available in the repo above.
+
+
+Getting Owlcat
+--------------
+
+  Download the tarball or do a git checkout from:
+
+  https://github.com/ska-sa/owlcat
+
+
+Installing Olwcat
 -----------------
 
-1. Prerequisites
+to intall the package run:
 
-* Assorted python packages: pyfits, numpy, matplotlib. These are already
-present in most Linux distros.
+  $ python setup.py install
 
-* casacore and pyrap. If you don't have them , it's easiest to install these
-from the MeqTrees repository, if you have a supported distro (see
-http://www.astron.nl/meqwiki/Downloading).
-
-* MeqTrees Cattery. Either install meqtrees-frameworks from the MeqTrees
-repository, or check out the Python code directly
-
-  svn co svn://lofar9.astron.nl/var/svn/repos/trunk/Frameworks/Cattery
-
-  ...and add the Cattery dir to your PYTHONPATH.
-
-2. Getting Owlcat
-
-  svn co svn://lofar9.astron.nl/var/svn/repos/trunk/Owlcat
-
-  This retrieves the latest version from svn. If the need arises, I'll
-switch to some kind of semi-official release system later.
-
-3. Running Owlcat
-
-  Add the resulting Owlcat directory to your PYTHONPATH and PATH.
-
-  Currently, the most useful script in Owlcat is plot-ms.py. See 
-
-    http://www.astron.nl/meqwiki-data/users/oms/Owlcat-plotms-tutorial.purrlog/
-
-  for examples. If you need quick deterministic flagging, try flag-ms.py.
+Or add the source to your PYTHONPATH.
 
 
-4. Questions or problems?
+Running Owlcat
+--------------
 
-  Just e-mail me.
+Currently, the most useful script in Owlcat is plot-ms.py. See 
+
+http://www.astron.nl/meqwiki-data/users/oms/Owlcat-plotms-tutorial.purrlog/
+
+for examples. If you need quick deterministic flagging, try flag-ms.py.
 
 
-Have fun,
+Questions or problems?
+----------------------
 
-Oleg Smirnov <osmirnov@gmail.com>
+Just e-mail Oleg Smirnov <osmirnov@gmail.com> or open an issue on Github.
 
