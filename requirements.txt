@@ -1,0 +1,5 @@
+pyfits
+numpy
+matplotlib
+pyrap
+
