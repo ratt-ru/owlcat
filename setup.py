@@ -12,4 +12,5 @@ setup(name='owlcat',
       packages=['Owlcat'],
       requires=['pyfits', 'numpy', 'matplotlib', 'pyrap'],
       scripts=['Owlcat/bin/' + i for i in os.listdir('Owlcat/bin')],
+      data_files=[('Owlcat/bin/', ['Owlcat/bin/commands.list'])],
      )
