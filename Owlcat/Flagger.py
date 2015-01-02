@@ -537,7 +537,8 @@ class Flagger (Timba.dmi.verbosity):
             # clear all affected bits in rowflag
             bfr[rmask] &= ~(flag|unflag);
             # set bits in rowflag that are set in all flags
-            bfr[rmask] |= numpy.logical_and.reduce(numpy.logical_and.reduce(bf1,2),1);
+            for nbit in range(self.NBITS):
+              bfr[rmask] |= (1<<nbit)*numpy.logical_and.reduce(numpy.logical_and.reduce(bf1&(1<<nbit),2),1);
             ms.putcol('BITFLAG',bf,row0,nrows);
             ms.putcol('BITFLAG_ROW',bfr,row0,nrows);
             # fill legacy flags
@@ -561,6 +562,7 @@ class Flagger (Timba.dmi.verbosity):
 
   BITMASK_ALL = 0xFFFFFFFF;   # 32 bitflags
   LEGACY      = (1<<33);      # legacy flag: bit 33
+  NBITS = 33
 
   def lookup_flagmask (self,flagset,create=False):
     """helper function: converts a flagset name into an integer flagmask""";
@@ -880,7 +882,9 @@ class Flagger (Timba.dmi.verbosity):
             vf[rowmask] &= ~self.LEGACY;
             vf[rowmask] |= numpy.where(vf[rowmask,...]&fill_legacy,self.LEGACY,0);
           # adjust the rowflags
-          rf[rowmask] = numpy.logical_and.reduce(numpy.logical_and.reduce(vf[rowmask,:,:],2),1);
+          rf[rowmask] = 0;
+          for nbit in range(self.NBITS):
+            rf[rowmask] |= (1<<nbit)*numpy.logical_and.reduce(numpy.logical_and.reduce(vf[rowmask,:,:]&(1<<nbit),2),1);
           # mask bitflag, convert back to bitflag type and write out
           if self.has_bitflags and (flag|unflag)&self.BITMASK_ALL:
             ms.putcol('BITFLAG',numpy.asarray(vf&self.BITMASK_ALL,self._bitflag_dtype),row0,nrows);
