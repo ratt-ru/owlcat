@@ -111,9 +111,11 @@ def _format_clip (arg,argname):
   raise TypeError,"invalid value for '%s' keyword (%s)"%(argname,arg);
 
 class Flagger (Timba.dmi.verbosity):
-  def __init__ (self,msname,verbose=0,chunksize=200000):
+  def __init__ (self,msname,verbose=0,timestamps=False,chunksize=200000):
     Timba.dmi.verbosity.__init__(self,name="Flagger");
     self.set_verbose(verbose);
+    if timestamps:
+      self.enable_timestamps(modulo=10000)
     if not TABLE:
       raise RuntimeError,"No tables module found. Please install pyrap and casacore";
     self.msname = msname;
@@ -872,28 +874,41 @@ class Flagger (Timba.dmi.verbosity):
         if flag or unflag or fill_legacy is not None:
           rf = rowflags();
           vf = visflags();
+          self.dprint(4,"doing flag/unflag");
           # flag/unflag visibilities
           if flag:
             vf[vismask] |= flag;
           if unflag:
             vf[vismask] &= ~unflag;
           # fill legacy flags
+          self.dprint(4,"filling legacy");
           if fill_legacy is not None:
             vf[rowmask] &= ~self.LEGACY;
             vf[rowmask] |= numpy.where(vf[rowmask,...]&fill_legacy,self.LEGACY,0);
           # adjust the rowflags
-          rf[rowmask] = 0;
-          for nbit in range(self.NBITS):
-            rf[rowmask] |= (1<<nbit)*numpy.logical_and.reduce(numpy.logical_and.reduce(vf[rowmask,:,:]&(1<<nbit),2),1);
+          self.dprint(4,"adjusting rowflags");
+            ## in principle we need to bitwise_and.reduce both axes of vf[rowmask,:,:], and set the rowflags from that
+            ## but bitwise_and.reduce is broken, see https://github.com/numpy/numpy/issues/5250
+            ## so here's a lengthy workaround:
+            #   rf[rowmask] = 0;
+            #   for nbit in range(self.NBITS):
+            #     rf[rowmask] |= (1<<nbit)*numpy.logical_and.reduce(numpy.logical_and.reduce(vf[rowmask,:,:]&(1<<nbit),2),1);
+            ## and here's a shorter one:
+          rf[rowmask] = ~numpy.bitwise_or.reduce(numpy.bitwise_or.reduce(~vf[rowmask,:,:],2),1);
           # mask bitflag, convert back to bitflag type and write out
           if self.has_bitflags and (flag|unflag)&self.BITMASK_ALL:
-            ms.putcol('BITFLAG',numpy.asarray(vf&self.BITMASK_ALL,self._bitflag_dtype),row0,nrows);
-            ms.putcol('BITFLAG_ROW',numpy.asarray(rf&self.BITMASK_ALL,self._bitflag_dtype),row0,nrows);
+            self.dprint(4,"computing bitflags");
+            bf = numpy.asarray(vf&self.BITMASK_ALL,self._bitflag_dtype)
+            bfr = numpy.asarray(rf&self.BITMASK_ALL,self._bitflag_dtype)
+            self.dprintf(4,"filling bitflags for rows %d:%d\n"%(row0,row0+nrows));
+            ms.putcol('BITFLAG',bf,row0,nrows);
+            ms.putcol('BITFLAG_ROW',bfr,row0,nrows);
           # write legacy flags
           if fill_legacy is not None or (flag|unflag)&self.LEGACY:
             self.dprintf(4,"filling legacy flags for rows %d:%d\n"%(row0,row0+nrows));
             ms.putcol('FLAG',(vf&self.LEGACY)!=0,row0,nrows);
             ms.putcol('FLAG_ROW',(rf&self.LEGACY)!=0,row0,nrows);
+        self.dprint(4,"done with this chunk");
     if progress_callback:
       progress_callback(99,100);
     self._rowflags = self._visflags = None;
