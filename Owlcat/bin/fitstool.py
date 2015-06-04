@@ -220,6 +220,10 @@ if __name__ == "__main__":
                     "(as it appears in the NAXIS keyword), or as a string (as it appears in the CTYPE keyword)")
   parser.add_option("--swap",metavar="LAST_AXIS",
                     help="Which axis do want to be last")
+  parser.add_option("--add-axis",metavar="CTYPE:CRVAL:CRPIX:CDELT[:CUNIT:CROTA]",action="append",default=[],
+                    help="Add axis to a FITS image. The AXIS will be described by CTYPE:CRVAL:CRPIX:CDELT[:CUNIT:CROTA]. "
+                    "The keywords in brackets are optinal, while those not in brackets are mendatory. "
+                    "This axis will be the last dimension. Maybe specified more than once.")
   parser.add_option("--unstack",metavar="prefix:axis:each_chunk",
                     help="Unstack a FITS image into smaller chunks each having [each_chunk] planes along a given axis. "
                     "This axis may given as an integer (as it appears in the NAXIS keyword), or as a string "
@@ -257,7 +261,6 @@ if __name__ == "__main__":
 
     stack_planes(imagenames,ctype=axis if _string else None,keep_old=True,
                  axis=None if _string else axis,outfile=outfile,fits=True)
-    sys.exit(0)
   
   # Unstack FITS image
   if options.unstack:
@@ -282,6 +285,33 @@ if __name__ == "__main__":
     unstack_planes(image,each_chunk,ctype=axis if _string else None,
             axis=None if _string else axis,prefix=prefix,fits=False)
     sys.exit(0)
+  
+  if options.add_axis:
+    for axis in options.add_axis:
+      hdu = pyfits.open(imagenames[0])
+      hdr = hdu[0].header
+      ndim = hdr["NAXIS"]
+      hdu[0].data = hdu[0].data[numpy.newaxis,...]
+      _mendatory = "CTYPE CRVAL CDELT CRPIX".split()
+      _optional = "CUNIT CROTA".split()
+      L = len(_mendatory+_optional)
+      values = axis.split(":")
+      Lv = len(values)
+
+      if len(_mendatory)>len(values) :
+        parser.error("Something with the way specified --add-axis. See %prog -h for help")
+
+      for i,value in enumerate(values ) :
+        try:
+          value = float(value)
+        except ValueError:
+          pass
+
+        hdu[0].header["%s%d"%( (_mendatory+_optional)[i],ndim+1)] = value
+
+      hdu.writeto(imagenames[0],clobber=True)
+      print("Successfully added axis %s to %s"%(values[0],imagenames[0]))
+        
 
   if options.swap:
     for image in imagenames:
@@ -414,5 +444,5 @@ if __name__ == "__main__":
       print "Output image exists, rerun with the -f switch to overwrite.";
       sys.exit(1);
     images[0].writeto(outname,clobber=True);
-  elif not (options.header or options.stack or options.unstack):
+  elif not (options.header or options.stack or options.add_axis):
     print "No operations specified. Use --help for help."
