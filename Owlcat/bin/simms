@@ -1,1 +1,6 @@
-../simms/simms.py
+#!/usr/bin/env python
+
+from Owlcat.simms.simms import main
+
+main()
+

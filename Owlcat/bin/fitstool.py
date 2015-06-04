@@ -38,6 +38,155 @@ import math
 
 SANITIZE_DEFAULT = 12345e-7689
 
+
+def stack_planes(fitslist, outfile='combined.fits', axis=0, ctype=None, keep_old=False, fits=False):
+    """ Stack a list of fits files along a given axiis.
+       
+       fitslist: list of fits file to combine
+       outfile: output file name
+       axis: axis along which to combine the files
+       fits: If True will axis FITS ordering axes
+       ctype: Axis label in the fits header (if given, axis will be ignored)
+       keep_old: Keep component files after combining?
+    """
+
+    hdu = pyfits.open(fitslist[0])[0]
+    hdr = hdu.header
+    naxis = hdr['NAXIS']
+
+    # find axis via CTYPE key
+    if ctype is not None:
+        for i in range(1,naxis+1):
+            if hdr['CTYPE%d'%i].lower().startswith(ctype.lower()):
+                axis = naxis - i # fits to numpy convention
+    elif fits:
+      axis = naxis - axis
+
+    fits_ind = abs(axis-naxis)
+    crval = hdr['CRVAL%d'%fits_ind]
+
+    imslice = [slice(None)]*naxis
+    _sorted = sorted([pyfits.open(fits) for fits in fitslist],
+                    key=lambda a: a[0].header['CRVAL%d'%(naxis-axis)])
+
+    # define structure of new FITS file
+    nn = [ hd[0].header['NAXIS%d'%(naxis-axis)] for hd in _sorted]
+    shape = list(hdu.data.shape)
+    shape[axis] = sum(nn)
+    data = numpy.zeros(shape,dtype=float)
+
+    for i, hdu0 in enumerate(_sorted):
+        h = hdu0[0].header
+        d = hdu0[0].data
+        imslice[axis] = range(sum(nn[:i]),sum(nn[:i+1]) )
+        data[imslice] = d
+        if crval > h['CRVAL%d'%fits_ind]:
+            crval =  h['CRVAL%d'%fits_ind]
+
+    # update header
+    hdr['CRVAL%d'%fits_ind] = crval
+    hdr['CRPIX%d'%fits_ind] = 1
+
+    pyfits.writeto(outfile,data,hdr,clobber=True)
+    print("Successfully stacked images. Output image is %s"%outfile)
+
+    # remove old files
+    if not keep_old:
+        for fits in fitslist:
+            os.system('rm -f %s'%fits)
+
+
+def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits=False):
+    """ 
+        Unstack FITS image along a given axis into multiple 
+        images each having each_chunk planes along that axis 
+    """
+
+    prefix = prefix or fitsname[:-5] # take everthing but .FITS/.fits
+    hdu = pyfits.open(fitsname)
+    hdr = hdu[0].header
+    data = hdu[0].data.copy()
+    naxis = hdr["NAXIS"]
+
+    if axis is None and ctype is None:
+        raise SystemExit('Please specify either axis or ctype')
+    # find axis via CTYPE key
+
+    if ctype :
+        for i in range(1,naxis+1):
+            if hdr['CTYPE%d'%i].lower().startswith(ctype.lower()):
+                axis = naxis - i # fits to numpy indexing
+    elif fits:
+      axis = naxis - axis
+
+    crval = hdr['CRVAL%d'%(naxis-axis)]
+    cdelt = hdr['CDELT%d'%(naxis-axis)]
+    crpix = hdr['CRPIX%d'%(naxis-axis)]
+    # shift crval to crpix=1
+    crval = crval - (crpix-1)*cdelt
+
+    nstacks = hdr['NAXIS%d'%(naxis-axis)]
+    nchunks = nstacks//each_chunk
+    print("The FITS file %s has %s stacks along this axis. Breaking it up to %d images"%(fitsname, nstacks, nchunks))
+
+    outfiles = []
+    for i in range(0, nchunks):
+
+        _slice = [slice(None)]*naxis
+        _slice[axis] = range(i*each_chunk, (i+1)*each_chunk if i+1!=nchunks else nstacks)
+        hdu[0].data = data[_slice]
+        hdu[0].header['CRVAL%d'%(naxis-axis)] = crval + i*cdelt*each_chunk
+        hdu[0].header['CRPIX%d'%(naxis-axis)] = 1
+        outfile = '%s-%04d.fits'%(prefix, i)
+        outfiles.append(outfile)
+        print("Making chunk %d : %s. File is %s"%(i, repr(_slice[axis]), outfile))
+        hdu.writeto(outfile, clobber=True)
+    hdu.close()
+    return outfiles
+
+
+def swap_stokes_freq(fitsname, last="STOKES", outfile=None):
+    """ Swap order of STOKES and FREQ planes in FITS image. Input FITS image must have 4 dimensions """
+
+    # Get to know input FITS image
+    hdu = pyfits.open(fitsname)
+    hdr0 = hdu[0].header
+    ndim = hdr0["NAXIS"]
+    if ndim!=4:
+        raise TypeError("ABORTING: FITS file does not have 4 dimensions. Je suis confused. ")
+
+    # Check ordering before we do anything
+    _last = hdr0["CTYPE4"].lower()
+    if _last == last.lower():
+        print("FITS Image already has the desired ordering of FREQ/STOKES axes")
+        hdu.close()
+        return
+
+    # Ok, Lock and Load
+    data = hdu[0].data
+    # First re-order data
+    hdu[0].data = numpy.rollaxis(data,1)
+
+    hdr = hdr0.copy()
+    mendatory = "CTYPE CRVAL CDELT CRPIX".split()
+    optional = "CUNIT CROTA".split()
+
+    for key in mendatory+optional:
+        try:
+            hdr["%s%d"%(key,3)] = hdr0["%s%d"%(key,4)]
+            hdr["%s%d"%(key,4)] = hdr0["%s%d"%(key,3)]
+        except KeyError: 
+            if key in mendatory:
+                raise KeyError("ARBORTNG: FITS file doesn't have the '%s' key in the header"%key)
+            else:
+                pass
+
+    hdu[0].header = hdr
+    outfile = outfile or "swapped_"+fitsname
+    print("Successfully swapped FREQ and STOKES axes in FITS image. Output image is at %s"%outfile)
+    hdu.writeto(outfile, clobber=True)
+    
+
 if __name__ == "__main__":
 
   # setup some standard command-line option parsing
@@ -66,19 +215,78 @@ if __name__ == "__main__":
                     help="rescale image values");
   parser.add_option("-E","--edit-header",metavar="KEY=VALUE",type="string",action="append",
                     help="replace header KEY with VALUE. Use KEY=VALUE for floats and KEY='VALUE' for strings.");
+  parser.add_option("--stack",metavar="outfile:axis",
+                    help="Stack a list of FITS images along a given axis. This axis may given as an integer"
+                    "(as it appears in the NAXIS keyword), or as a string (as it appears in the CTYPE keyword)")
+  parser.add_option("--swap",metavar="LAST_AXIS",
+                    help="Which axis do want to be last")
+  parser.add_option("--unstack",metavar="prefix:axis:each_chunk",
+                    help="Unstack a FITS image into smaller chunks each having [each_chunk] planes along a given axis. "
+                    "This axis may given as an integer (as it appears in the NAXIS keyword), or as a string "
+                    "(as it appears in the CTYPE keyword)")
   parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
   parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
 
   parser.set_defaults(output="",mean=False,zoom=0,rescale=1,edit_header=[]);
 
   (options,imagenames) = parser.parse_args();
-
+  
   if not imagenames:
     parser.error("No images specified. Use '-h' for help.");
 
   # print "%d input image(s): %s"%(len(imagenames),", ".join(imagenames));
   images = [ pyfits.open(img) for img in imagenames ];
   updated = False;
+
+  # Stack FITS images
+  if options.stack:
+    if len(imagenames)<1:
+      parser.error("Need more than one image to stack")
+    stack_args = options.stack.split(":")
+    if len(stack_args) != 2:
+      parser.error("Two --stack options are required. See ./fitstool.py -h")
+   
+    outfile,axis = stack_args
+
+    _string = True
+    try:
+      axis = int(axis)
+      _string = False
+    except ValueError:
+      _string = True
+
+    stack_planes(imagenames,ctype=axis if _string else None,keep_old=True,
+                 axis=None if _string else axis,outfile=outfile,fits=True)
+    sys.exit(0)
+  
+  # Unstack FITS image
+  if options.unstack:
+    image = imagenames[0]
+    if len(imagenames)<1:
+      parser.error("Need more than one image to stack")
+    unstack_args = options.unstack.split(":")
+    if len(unstack_args) != 3:
+      parser.error("Two --unstack options are required. See ./fitstool.py -h")
+
+    prefix,axis,each_chunk = unstack_args
+    
+    _string = True
+    try:
+      axis = int(axis)
+      _string = False
+    except ValueError:
+      _string = True
+
+    each_chunk = int(each_chunk)
+    
+    unstack_planes(image,each_chunk,ctype=axis if _string else None,
+            axis=None if _string else axis,prefix=prefix,fits=False)
+    sys.exit(0)
+
+  if options.swap:
+    for image in imagenames:
+      swap_stokes_freq(image,last=options.swap)
+      updated = True
   
   if options.header:
     for filename,img in zip(imagenames,images):
@@ -206,5 +414,5 @@ if __name__ == "__main__":
       print "Output image exists, rerun with the -f switch to overwrite.";
       sys.exit(1);
     images[0].writeto(outname,clobber=True);
-  elif not options.header:
+  elif not (options.header or options.stack or options.unstack):
     print "No operations specified. Use --help for help."

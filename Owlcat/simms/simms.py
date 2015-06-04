@@ -37,12 +37,12 @@ def abort(string):
     raise SystemExit("%s ##ABORTING: %s"%(t,string))
 
 
-def simms(msname=None,label=None,tel=None,pos=None,pos_type='casa',
+def create_empty_ms(msname=None,label=None,tel=None,pos=None,pos_type='casa',
           ra='0h0m0s',dec='-30d0m0s',synthesis=4,scan_length=4,dtime=10,freq0=700e6,
-          dfreq=50e6,nchan=1,stokes='LL LR RL RR',start_time=-2,setlimits=False,
+          dfreq=50e6,nchan=1,stokes='RR RL LR LL',start_time=-2,setlimits=False,
           elevation_limit=0,shadow_limit=0,outdir=None,nolog=False,
           coords='itrf',lon_lat=None,noup=False,nbands=1,direction=[],date=None,
-          fromknown=False):
+          fromknown=False,feed="perfect X Y"):
 
     """ Make simulated measurement set """
 
@@ -84,7 +84,7 @@ def simms(msname=None,label=None,tel=None,pos=None,pos_type='casa',
         date = '%d/%d/%d'%(time.localtime()[:3])
 
     if msname is None:
-        msname = '%s_%dh%s.MS'%(label or tel,synthesis,dtime)
+        msname = '%s_%dh%ss.MS'%(label or tel,synthesis,dtime)
     if outdir not in [None,'.']:
         msname = '%s/%s'%(outdir,msname)
         outdir = None
@@ -105,7 +105,8 @@ execfile('%s/casasm.py')
           'nchan=%(nchan)s, stokes="%(stokes)s", start_time=%(start_time)s, setlimits=%(setlimits)s, '\
           'elevation_limit=%(elevation_limit)f, shadow_limit=%(shadow_limit)f, '\
           'coords="%(coords)s",lon_lat=%(lon_lat)s, noup=%(noup)s, nbands=%(nbands)d, '\
-          'direction=%(direction)s, outdir="%(outdir)s",date="%(date)s",fromknown=%(fromknown)s'%locals()
+          'direction=%(direction)s, outdir="%(outdir)s",date="%(date)s",fromknown=%(fromknown)s, '\
+          'feed="%(feed)s"'%locals()
     casa_script.write('makems(%s)\nexit'%fmt)
     casa_script.flush()
 
@@ -150,7 +151,13 @@ execfile('%s/casasm.py')
 
     return msname
 
-if __name__=='__main__':
+
+# Add this for backwards compatibilty. But naming of this function "simms" was a bit stupid.
+def simms(**kw):
+    msname = create_empty_ms(**kw)
+    return msname
+
+def main():
 
     __version_info__ = (0,1,0)
     __version__ = ".".join( map(str,__version_info__) )
@@ -223,8 +230,10 @@ if __name__=='__main__':
                  ' see also --nchan, --freq0 : default is 50MHz')
     add('-nb','--nband',dest='nband',default=1,type=int,
             help='Number of subbands : default is 1')
-    add('-pl','--pol',dest='pol',default='LL LR RL RR',
-            help='Polarization : default is LL LR RL RR')
+    add('-pl','--pol',dest='pol',default='RR RL LR LL',
+            help='Polarization : default is RR RL LR LL')
+    add('-feed','--feed',dest='feed',default='perfect X Y',
+            help='Polarization : default is "perfect X Y" ')
     add('-date','--date',dest='date',
             help='Date of observation : default is today')
     add('-stl','--set-limits',dest='set_limits',action='store_true',
@@ -245,7 +254,7 @@ if __name__=='__main__':
     if not args.tel:
         parser.error('Telescope name (--tel ot -T) is required')
 
-    simms(msname=args.name,label=args.label,tel=args.tel,pos=args.pos,
+    simms(msname=args.name,label=args.label,tel=args.tel,pos=args.pos,feed=args.feed,
           pos_type=args.type,ra=args.ra,dec=args.dec,synthesis=args.synthesis,scan_length=args.scan_length,
           dtime=args.dtime,freq0=args.freq0,dfreq=args.dfreq,nchan=args.nchan,
           stokes=args.pol,start_time=args.init_ha,setlimits=args.set_limits,
