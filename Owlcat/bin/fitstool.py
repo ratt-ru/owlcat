@@ -316,7 +316,6 @@ if __name__ == "__main__":
   if options.swap:
     for image in imagenames:
       swap_stokes_freq(image,last=options.swap)
-      updated = True
   
   if options.header:
     for filename,img in zip(imagenames,images):
@@ -444,5 +443,5 @@ if __name__ == "__main__":
       print "Output image exists, rerun with the -f switch to overwrite.";
       sys.exit(1);
     images[0].writeto(outname,clobber=True);
-  elif not (options.header or options.stack or options.add_axis):
+  elif not (options.header or options.stack or options.add_axis or options.swap):
     print "No operations specified. Use --help for help."
