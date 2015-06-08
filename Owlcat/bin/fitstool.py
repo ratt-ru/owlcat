@@ -145,45 +145,52 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits
     return outfiles
 
 
-def swap_stokes_freq(fitsname, last="STOKES", outfile=None):
+def reorder(fitsname, order=[], outfile=None):
     """ Swap order of STOKES and FREQ planes in FITS image. Input FITS image must have 4 dimensions """
 
     # Get to know input FITS image
     hdu = pyfits.open(fitsname)
     hdr0 = hdu[0].header
     ndim = hdr0["NAXIS"]
-    if ndim!=4:
-        raise TypeError("ABORTING: FITS file does not have 4 dimensions. Je suis confused. ")
+    order0 = range(1,ndim+1)
 
-    # Check ordering before we do anything
-    _last = hdr0["CTYPE4"].lower()
-    if _last == last.lower():
-        print("FITS Image already has the desired ordering of FREQ/STOKES axes")
-        hdu.close()
-        return
+    def fits2py(a):
+        if isinstance(a, (list, tuple)):
+            return list(ndim - numpy.array(a) )
+        else:
+            return ndim -a
+
+
+    if order == order0:
+        print("The FITS image already has the order you requested")
+        return 
+    elif len(order)!=ndim:
+        raise ValueError("The dimensions of the FITS image do not match your request.")
 
     # Ok, Lock and Load
     data = hdu[0].data
     # First re-order data
-    hdu[0].data = numpy.rollaxis(data,1)
+    hdu[0].data = numpy.transpose(data, fits2py(order))
 
     hdr = hdr0.copy()
     mendatory = "CTYPE CRVAL CDELT CRPIX".split()
     optional = "CUNIT CROTA".split()
 
     for key in mendatory+optional:
-        try:
-            hdr["%s%d"%(key,3)] = hdr0["%s%d"%(key,4)]
-            hdr["%s%d"%(key,4)] = hdr0["%s%d"%(key,3)]
-        except KeyError: 
-            if key in mendatory:
-                raise KeyError("ARBORTNG: FITS file doesn't have the '%s' key in the header"%key)
-            else:
-                pass
+        for old, new in zip(order0,order):
+            if old == new:
+                continue
+            try:
+                hdr["%s%d"%(key,new)] = hdr0["%s%d"%(key,old)]
+            except KeyError: 
+                if key in mendatory:
+                    raise KeyError("ARBORTNG: FITS file doesn't have the '%s' key in the header"%key)
+                else:
+                    pass
 
     hdu[0].header = hdr
-    outfile = outfile or "swapped_"+fitsname
-    print("Successfully swapped FREQ and STOKES axes in FITS image. Output image is at %s"%outfile)
+    outfile = outfile or "reodered_"+fitsname
+    print("Successfully re-ordered axes in FITS image. Output image is at %s"%outfile)
     hdu.writeto(outfile, clobber=True)
     
 
@@ -218,8 +225,8 @@ if __name__ == "__main__":
   parser.add_option("--stack",metavar="outfile:axis",
                     help="Stack a list of FITS images along a given axis. This axis may given as an integer"
                     "(as it appears in the NAXIS keyword), or as a string (as it appears in the CTYPE keyword)")
-  parser.add_option("--swap",metavar="LAST_AXIS",
-                    help="Which axis do want to be last")
+  parser.add_option("--reorder",
+                    help="Required order. List of comma seperated indeces")
   parser.add_option("--add-axis",metavar="CTYPE:CRVAL:CRPIX:CDELT[:CUNIT:CROTA]",action="append",default=[],
                     help="Add axis to a FITS image. The AXIS will be described by CTYPE:CRVAL:CRPIX:CDELT[:CUNIT:CROTA]. "
                     "The keywords in brackets are optinal, while those not in brackets are mendatory. "
@@ -313,9 +320,10 @@ if __name__ == "__main__":
       print("Successfully added axis %s to %s"%(values[0],imagenames[0]))
         
 
-  if options.swap:
+  if options.reorder:
     for image in imagenames:
-      swap_stokes_freq(image,last=options.swap)
+      order = map(int, options.reorder.split(","))
+      reorder(image, order=order)
   
   if options.header:
     for filename,img in zip(imagenames,images):
@@ -443,5 +451,5 @@ if __name__ == "__main__":
       print "Output image exists, rerun with the -f switch to overwrite.";
       sys.exit(1);
     images[0].writeto(outname,clobber=True);
-  elif not (options.header or options.stack or options.add_axis or options.swap):
+  elif not (options.header or options.stack or options.add_axis or options.reorder):
     print "No operations specified. Use --help for help."
