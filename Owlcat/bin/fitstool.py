@@ -170,7 +170,7 @@ def reorder(fitsname, order=[], outfile=None):
     # Ok, Lock and Load
     data = hdu[0].data
     # First re-order data
-    hdu[0].data = numpy.transpose(data, fits2py(order))
+    hdu[0].data = numpy.transpose(data, list((ndim-numpy.array(order))[range(ndim-1,-1,-1)]) )
 
     hdr = hdr0.copy()
     mendatory = "CTYPE CRVAL CDELT CRPIX".split()
@@ -312,7 +312,8 @@ if __name__ == "__main__":
         try:
           value = float(value)
         except ValueError:
-          pass
+          if isinstance(value, str):
+            value = value.upper()
 
         hdu[0].header["%s%d"%( (_mendatory+_optional)[i],ndim+1)] = value
 
@@ -323,7 +324,7 @@ if __name__ == "__main__":
   if options.reorder:
     for image in imagenames:
       order = map(int, options.reorder.split(","))
-      reorder(image, order=order)
+      reorder(image, order=order, outfile=image)
   
   if options.header:
     for filename,img in zip(imagenames,images):
