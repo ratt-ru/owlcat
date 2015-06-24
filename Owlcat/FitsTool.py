@@ -145,7 +145,14 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits
 
 
 def reorder(fitsname, order=[], outfile=None):
-    """ Swap order of STOKES and FREQ planes in FITS image. Input FITS image must have 4 dimensions """
+    """ 
+    Re-order FITS image axes. 
+
+    Example:
+        If your FITS files has axes (NAXIS{1,2,3,4})-> RA, DEC, STOKES, FREQ
+        You can re-order it so that it has RA, DEC, FREQ, STOKES
+        by running: reorder(fitsname, order=[1,2,4,3], "my_reodered_image.fits")
+    """
 
     # Get to know input FITS image
     hdu = pyfits.open(fitsname)
@@ -181,10 +188,13 @@ def reorder(fitsname, order=[], outfile=None):
                 continue
             try:
                 val = hdr0["%s%d"%(key,old)]
+                comment = hdr0.comments["%s%d"%(key,old)]
+                idx = hdr.index( "%s%d"%(key,old) )
                 # Seems like can't replace non empy val with an empty string. So delete first
-                if isinstance(val,str) and (val == "" or val.isspace()):
-                    del hdr["%s%d"%(key,new)]
-                hdr["%s%d"%(key,new)] = val
+
+                del hdr["%s%d"%(key,new)]
+                hdr.insert(idx, ("%s%d"%(key,new), val, comment) )
+
             except KeyError: 
                 if key in mendatory:
                     raise KeyError("ARBORTNG: FITS file doesn't have the '%s' key in the header"%key)
