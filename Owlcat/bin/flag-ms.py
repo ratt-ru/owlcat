@@ -235,6 +235,10 @@ if __name__ == "__main__":
                   help="imports flags from flag file. If any flagging actions are specified, these will be done after the import.");
   group.add_option("-v","--verbose",metavar="LEVEL",type="int",
                     help="verbosity level for messages. Higher is more verbose, default is 0.");
+  group.add_option("--timestamps",action="store_true",
+                  help="adds timestamps to verbosity messages.");
+  group.add_option("-z","--chunk-size",metavar="NROWS",type="int",default=200000,
+                    help="Number of rows to process at once. Default is %default. Set to higher values if you have RAM to spare.");
   parser.add_option_group(group);
 
   parser.set_defaults(data_column="CORRECTED_DATA",data_flagmask="ALL",
@@ -282,7 +286,7 @@ if __name__ == "__main__":
   # now, skip most of the actions below if we're in statonly mode and exporting
   if not (statonly and options.export):
     # create flagger object
-    flagger = Flagger(msname,verbose=options.verbose);
+    flagger = Flagger(msname,verbose=options.verbose,timestamps=options.timestamps,chunksize=options.chunk_size);
 
     #
     # -l/--list: list MS info
