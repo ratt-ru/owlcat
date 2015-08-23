@@ -34,6 +34,7 @@ import Kittens.utils
 pyfits = Kittens.utils.import_pyfits();
 import scipy.ndimage.measurements
 import math
+from astLib.astWCS import WCS
 
 SANITIZE_DEFAULT = 12345e-7689
 
@@ -303,7 +304,7 @@ def main():
     each_chunk = int(each_chunk)
     
     unstack_planes(image,each_chunk,ctype=axis if _string else None,
-            axis=None if _string else axis,prefix=prefix,fits=False)
+            axis=None if _string else axis,prefix=prefix,fits=True)
     sys.exit(0)
   
   if options.add_axis:
@@ -399,7 +400,7 @@ def main():
     if autoname:
       outname = "xfer_" + outname;
     print "Transferring %s into coordinate system of %s"%(imagenames[1],imagenames[0]);
-    images[0][0].data[...] = images[1][0].data;
+    images[0][0].data = images[1][0].data;
     updated = True;
   elif options.diff:
     if len(images) != 2:
@@ -429,11 +430,20 @@ def main():
       "Too many input images specified for this operation, at most 1 expected";
       sys.exit(2);
     data = images[0][0].data;
-    nx = data.shape[2];
-    ny = data.shape[3];
+    nx = data.shape[-2];
+    ny = data.shape[-1];
     zdata = data[:,:,(nx-z)/2:(nx+z)/2,(ny-z)/2:(ny+z)/2];
+    #update header
+    hdr = images[0][0].header
+    wcs = WCS(hdr, mode="pyfits")
+    cr1, cr2 = wcs.pix2wcs(ny/2, nx/2)
+    hdr["CRVAL1"] = cr1
+    hdr["CRVAL2"] = cr2 
+    hdr["CRPIX1"] = zdata.shape[-1]/2
+    hdr["CRPIX2"] = zdata.shape[-2]/2
+    
     print "Making zoomed image of shape","x".join(map(str,zdata.shape));
-    images = [ pyfits.PrimaryHDU(zdata) ];
+    images = [ pyfits.PrimaryHDU(zdata, hdr) ];
     updated = True;
 
   if options.rescale != 1:
