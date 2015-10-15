@@ -281,7 +281,7 @@ def main():
       _string = True
 
     stack_planes(imagenames,ctype=axis if _string else None,keep_old=True,
-                 axis=None if _string else axis,outfile=outfile,fits=True)
+                 axis=None if _string else axis,outname=outfile,fits=True)
   
   # Unstack FITS image
   if options.unstack:
