@@ -362,31 +362,29 @@ if __name__ == "__main__":
     if options.remove is not None:
       if options.flag or options.unflag:
         error("Can't combine -r/--remove with --f/--flag or -u/--unflag.");
-      # get list of names and flagmask to remove
-      remove_names = options.remove.split(",");
-      names_found = [];
-      names_not_found = [];
-      flagmask = 0;
-      for name in remove_names:
-        try:
-          flagmask |= flagger.flagsets.flagmask(name);
-          names_found.append(name);
-        except:
-          names_not_found.append(name);
-      if not names_found:
+      # get set of flagsets to remove
+      remove_flagsets = set(options.remove.split(","))
+      # get set of all flagsets
+      all_flagsets = set(flagger.flagsets.names())
+      # warn if any named flagsets were not found
+      if remove_flagsets - all_flagsets:
+        print "===> WARNING: flagset(s) %s not found, ignoring"%",".join(remove_flagsets - all_flagsets)
+      # build flagmask of remaining flagsets
+      retain = all_flagsets-remove_flagsets
+      if not retain:
         #if names_not_found:
         # error("No such flagset(s): %s"%",".join(names_not_found));
-        print "===> WARNING: no flagsets to remove, exiting";
-        sys.exit(0);
-      # unflag flagsets
-      if names_not_found:
-        print "===> WARNING: flagset(s) not found, ignoring: %s"%",".join(names_not_found);
-      print "===> removing flagset(s) %s"%",".join(names_found);
-      print "===> and clearing corresponding flagmask %s"%Flagger.flagmaskstr(flagmask);
+        print "===> WARNING: no flagsets to remove, exiting"
+        sys.exit(0)
+      flagmask = 0
+      for name in retain:
+        flagmask |= flagger.flagsets.flagmask(name)
+      print "===> removing flagset(s) %s"%",".join(all_flagsets-retain);
+      print "===> and clearing flagmask %s"%Flagger.flagmaskstr(~flagmask);
       if options.fill_legacy is not None:
         print "===> and filling FLAG/FLAG_ROW using flagmask %s"%Flagger.flagmaskstr(options.fill_legacy);
-      flagger.xflag(unflag=flagmask,fill_legacy=options.fill_legacy);
-      flagger.flagsets.remove_flagset(*names_found);
+      flagger.xflag(unflag=~flagmask,fill_legacy=options.fill_legacy);
+      flagger.flagsets.remove_flagset(*list(all_flagsets-retain));
       sys.exit(0);
 
     # parse subset options
