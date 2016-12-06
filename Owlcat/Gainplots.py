@@ -25,7 +25,8 @@
 # or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-
+import matplotlib
+matplotlib.use('Agg')
 import pylab
 from Timba.Meq import meq
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
