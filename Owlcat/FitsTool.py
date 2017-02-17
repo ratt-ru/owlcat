@@ -344,7 +344,7 @@ def main():
     for filename,img in zip(imagenames,images):
       if len(imagenames)>1:
         print "======== FITS header for",filename;
-      for hdrline in img[0].header.ascard:
+      for hdrline in img[0].header.cards:
         print hdrline; 
   
   if options.replace or len(imagenames)<2:
