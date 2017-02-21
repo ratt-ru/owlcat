@@ -32,6 +32,7 @@ import numpy
 ## ugly hack to get around UGLY FSCKING ARROGNAT (misspelling fully intentional) pyfits-2.3 bug
 import Kittens.utils
 pyfits = Kittens.utils.import_pyfits();
+from astropy.io import fits as pyfits
 import scipy.ndimage.measurements
 import math
 from astLib.astWCS import WCS
@@ -236,6 +237,8 @@ def main():
                     help="rescale image values");
   parser.add_option("-E","--edit-header",metavar="KEY=VALUE",type="string",action="append",
                     help="replace header KEY with VALUE. Use KEY=VALUE for floats and KEY='VALUE' for strings.");
+  parser.add_option("-D","--delete-header",metavar="KEY",type="string",action="append",
+                    help="Remove KEY from header");
   parser.add_option("--stack",metavar="outfile:axis",
                     help="Stack a list of FITS images along a given axis. This axis may given as an integer"
                     "(as it appears in the NAXIS keyword), or as a string (as it appears in the CTYPE keyword)")
@@ -252,7 +255,7 @@ def main():
   parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
   parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
 
-  parser.set_defaults(output="",mean=False,zoom=0,rescale=1,edit_header=[]);
+  parser.set_defaults(output="",mean=False,zoom=0,rescale=1,edit_header=[], delete_header=[]);
 
   (options,imagenames) = parser.parse_args();
   
@@ -342,10 +345,11 @@ def main():
   
   if options.header:
     for filename,img in zip(imagenames,images):
+      img.verify('silentfix')
       if len(imagenames)>1:
         print "======== FITS header for",filename;
       for hdrline in img[0].header.ascard:
-        print hdrline; 
+          print hdrline
   
   if options.replace or len(imagenames)<2:
     if options.output:
@@ -375,6 +379,15 @@ def main():
         q = '"';
     print "Setting header %s=%s%s%s"%(key,q,val,q);
     updated = True;
+
+  for key in options.delete_header:
+    try:
+      del images[0][0].header[key]
+    except KeyError:
+      raise "Key '%s' not found in FITS header"%key
+    print "Deleting key '%s' header"%key
+    updated = True;
+
 
   if options.sanitize is not None:
     print "Sanitizing: replacing INF/NAN with",options.sanitize;
