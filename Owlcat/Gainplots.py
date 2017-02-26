@@ -109,7 +109,8 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
   # find amplitude axis ranges for parallel and cross-hand plots
   ppminmax = 1e+99,-1e+99
   xhminmax = 1e+99,-1e+99
-  for ant in antennas: 
+  for ant in antennas:
+    print G[ant]
     for j in ( (0,1) if diagonal else range(4) ):
       if diagonal:
         gg = G[ant,j]
@@ -118,7 +119,8 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
         gg = G[ant][j]
         xhand = j in (1,2) 
       valid = (gg!=0)&(gg!=1);  # mask trivial or unfilled solutions
-      if valid.any():
+      #TODO: Find out what's causing these entries to be scalers, and fix the issue properly
+      if isinstance(gg, numpy.ndarray) and valid.any():
         a = abs(gg);
         amin,amax = a[valid].min(),a[valid].max();
         if not xhand:
@@ -132,6 +134,9 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
       for icol,j in enumerate([0,1] if diagonal else [0,3,1,2]):
         jonesterm = [0,3][j] if diagonal else j
         feed = feeds[j]
+        #TODO: Find out what's causing these entries to be scalers, and fix the issue properly
+        if not isinstance(G[ant][j], numpy.ndarray):
+            continue
         gg = numpy.transpose(G[ant,j] if diagonal else G[ant][j],(xaxis,yaxis));
         # get plot axis and averaging axis
         nx,ny = gg.shape;
