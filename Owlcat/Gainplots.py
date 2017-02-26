@@ -110,7 +110,6 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
   ppminmax = 1e+99,-1e+99
   xhminmax = 1e+99,-1e+99
   for ant in antennas:
-    print G[ant]
     for j in ( (0,1) if diagonal else range(4) ):
       if diagonal:
         gg = G[ant,j]
