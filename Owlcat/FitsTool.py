@@ -32,7 +32,6 @@ import numpy
 ## ugly hack to get around UGLY FSCKING ARROGNAT (misspelling fully intentional) pyfits-2.3 bug
 import Kittens.utils
 pyfits = Kittens.utils.import_pyfits();
-from astropy.io import fits as pyfits
 import scipy.ndimage.measurements
 import math
 from astLib.astWCS import WCS
