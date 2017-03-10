@@ -142,7 +142,7 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
         valid = (gg!=0)&(gg!=1);  # mask trivial or unfilled solutions
         amp = abs(gg)
         ampwh = numpy.ma.masked_array(amp,mask=~valid);
-        amid  = ampwh.mean(1);
+        amid  = ampwh.mean(1, dtype='float64');
         xvalid = ~amid.mask;
         if gain_plot_style == 'fill':
           pylab.fill_between(x[:,0],ampwh.min(1),ampwh.max(1),where=xvalid,color='grey')
