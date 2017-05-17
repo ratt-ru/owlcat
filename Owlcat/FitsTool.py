@@ -87,7 +87,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     hdr['CRVAL%d'%fits_ind] = crval
     hdr['CRPIX%d'%fits_ind] = 1
 
-    pyfits.writeto(outname, data, hdr, clobber=True)
+    pyfits.writeto(outname, data.astype(numpy.float32), hdr, clobber=True)
     print("Successfully stacked images. Output image is %s"%outname)
 
     # remove old files
@@ -134,7 +134,7 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits
 
         _slice = [slice(None)]*naxis
         _slice[axis] = range(i*each_chunk, (i+1)*each_chunk if i+1!=nchunks else nstacks)
-        hdu[0].data = data[_slice]
+        hdu[0].data = data[_slice].astype(numpy.float32)
         hdu[0].header['CRVAL%d'%(naxis-axis)] = crval + i*cdelt*each_chunk
         hdu[0].header['CRPIX%d'%(naxis-axis)] = 1
         outfile = '%s-%04d.fits'%(prefix, i)
@@ -175,7 +175,7 @@ def reorder(fitsname, order=[], outfile=None):
         raise ValueError("The dimensions of the FITS image do not match your request.")
 
     # Ok, Lock and Load
-    data = hdu[0].data
+    data = hdu[0].data.astype(numpy.float32)
     # First re-order data
     hdu[0].data = numpy.transpose(data, list((ndim-numpy.array(order))[range(ndim-1,-1,-1)]) )
 
