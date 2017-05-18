@@ -96,7 +96,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
             os.system('rm -f %s'%fits)
 
 
-def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits=False):
+def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits=False,keep_old=True):
     """ 
         Unstack FITS image along a given axis into multiple 
         images each having each_chunk planes along that axis 
@@ -142,6 +142,10 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,fits
         print("Making chunk %d : %s. File is %s"%(i, repr(_slice[axis]), outfile))
         hdu.writeto(outfile, clobber=True)
     hdu.close()
+
+    if keep_old == False:
+        os.system('rm -rf %s'%fitsname)
+
     return outfiles
 
 
@@ -251,6 +255,8 @@ def main():
                     help="Unstack a FITS image into smaller chunks each having [each_chunk] planes along a given axis. "
                     "This axis may given as an integer (as it appears in the NAXIS keyword), or as a string "
                     "(as it appears in the CTYPE keyword)")
+  parser.add_option("--delete-files", action="store_true", 
+                    help="Delete original file(s) after stacking/unstacking using --stack/--unstack")
   parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
   parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
 
@@ -282,7 +288,7 @@ def main():
     except ValueError:
       _string = True
 
-    stack_planes(imagenames,ctype=axis if _string else None,keep_old=True,
+    stack_planes(imagenames,ctype=axis if _string else None,keep_old=not options.delete_files,
                  axis=None if _string else axis,outname=outfile,fits=True)
   
   # Unstack FITS image
@@ -306,7 +312,8 @@ def main():
     each_chunk = int(each_chunk)
     
     unstack_planes(image,each_chunk,ctype=axis if _string else None,
-            axis=None if _string else axis,prefix=prefix,fits=True)
+            axis=None if _string else axis,prefix=prefix,fits=True, 
+            keep_old=not options.delete_files)
     sys.exit(0)
   
   if options.add_axis:
