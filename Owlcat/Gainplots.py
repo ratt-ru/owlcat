@@ -134,7 +134,7 @@ def make_gain_plots (filename, prefix=None, gain_label="G",
         jonesterm = [0,3][j] if diagonal else j
         feed = feeds[j]
         #TODO: Find out what's causing these entries to be scalers, and fix the issue properly
-        if not isinstance(G[ant][j], numpy.ndarray):
+        if not isinstance(G[ant,j] if diagonal else G[ant][j], numpy.ndarray):
             continue
         gg = numpy.transpose(G[ant,j] if diagonal else G[ant][j],(xaxis,yaxis));
         # get plot axis and averaging axis
