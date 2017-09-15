@@ -60,6 +60,8 @@ if __name__ == "__main__":
                     help="set fixed plot limits on Fourier component plot");
   parser.add_option("--wind",metavar="FILE",type="string",
                     help="loads wind data from pickle file, adds wind plots");
+  parser.add_option("--prefix",metavar="PREFIX",type="string",default="E::",
+                    help="funklet name prefix");
 
   plotgroup = OptionGroup(parser,"Plotting options");
   outputgroup = OptionGroup(parser,"Output options");
@@ -95,10 +97,12 @@ if __name__ == "__main__":
   # scan funklet names to build up sets of keys
   oldtable = False;
   pt = ParmTab(args[0]);
+  print "Table contains:", pt.funklet_names()
   for name in pt.funklet_names():
     if name.startswith("E::dlm::dl"):
+      options.prefix = "E::dlm::"
       oldtable = True;
-    if name.startswith("E::dlm::dl:") or name.startswith("E::dl:"):
+    if name.startswith(options.prefix):
       fields = name.split(':');
       ANTS.add(fields[-1]);
   ts_slice = slice(getattr(options,'from'),options.to if options.to >=0 else None);
@@ -160,8 +164,8 @@ if __name__ == "__main__":
         fsl = pt.funkset('E::dlm::dl:%s'%ant).get_slice()[ts_slice];
         fsm = pt.funkset('E::dlm::dm:%s'%ant).get_slice()[ts_slice];
       else:
-        fsl = pt.funkset('E::dl:%s'%ant).get_slice()[ts_slice];
-        fsm = pt.funkset('E::dm:%s'%ant).get_slice()[ts_slice];
+        fsl = pt.funkset('%sdl:%s'%(options.prefix, ant)).get_slice()[ts_slice];
+        fsm = pt.funkset('%sdm:%s'%(options.prefix, ant)).get_slice()[ts_slice];
       if len(fsl) != len(fsm) or len(fsl) != NTIMES:
         print "Error: table contains %d funklets for dl and %d for dm; %d expected"%(len(fsl),len(fsm),NTIMES);
         sys.exit(1);
@@ -171,15 +175,15 @@ if __name__ == "__main__":
       dlm[0,spw,i,:] = map(c00,fsl);
       dlm[1,spw,i,:] = map(c00,fsm);
       # fill beam sizes
-      if 'E::beamshape:%s'%ant in pt.funklet_names():
+      if '%sbeamshape:%s'%(options.prefix, ant) in pt.funklet_names():
         beam_sizes = 1;
-        fs = pt.funkset('E::beamshape:%s'%ant).get_slice()[ts_slice];
+        fs = pt.funkset('%sbeamshape:%s'%(options.prefix, ant)).get_slice()[ts_slice];
         bsz[0,0,spw,i,:] = map(c00,fs);
-      elif 'E::beamshape:xy:lm:%s'%ant in pt.funklet_names():
+      elif '%sbeamshape:xy:lm:%s'%(options.prefix, ant) in pt.funklet_names():
         beam_sizes = 4;
         for ixy,xy in enumerate("xy"):
           for ilm,lm in enumerate("lm"):
-            fs = pt.funkset('E::beamshape:%s:%s:%s'%(ant,xy,lm)).get_slice()[ts_slice];
+            fs = pt.funkset('%sbeamshape:%s:%s:%s'%(options.prefix,ant,xy,lm)).get_slice()[ts_slice];
             bsz[ixy,ilm,spw,i,:] = map(c00,fs);
   
   interval = round((interval or 60)/60);
