@@ -232,6 +232,8 @@ def main():
                     help="overwrite output file even if it exists");
   parser.add_option("-S","--sanitize",type="float",metavar="VALUE",
                     help="sanitize FITS files by replacing NANs and INFs with VALUE");
+  parser.add_option("-Z","--zero-to-nan",action='store_true',
+                    help="Replace zeros with NaNs");
   parser.add_option("-N","--nonneg",action="store_true",
                     help="replace negative values by 0");
   parser.add_option("-m","--mean",dest="mean",action="store_true",
@@ -412,6 +414,15 @@ def main():
     for img in images:
       d = img[0].data;
       d[numpy.isnan(d)+numpy.isinf(d)] = options.sanitize;
+    # if using stats, do not generate output
+    if not options.stats:
+      updated = True;
+
+  if options.zero_to_nan:
+    print "Replacing zeros with NaNs";
+    for img in images:
+      d = img[0].data;
+      d[d==0] = numpy.nan;
     # if using stats, do not generate output
     if not options.stats:
       updated = True;
