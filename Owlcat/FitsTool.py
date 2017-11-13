@@ -82,6 +82,12 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
         data[imslice] = d
         if crval > h['CRVAL%d'%fits_ind]:
             crval =  h['CRVAL%d'%fits_ind]
+        try:
+            hdr['BMAJ%d'%(i+1)] = h['BMAJ']
+            hdr['BMIN%d'%(i+1)] = h['BMIN']
+            hdr['BPA%d'%(i+1)] = h['BPA']
+        except KeyError:
+            pass
 
     # update header
     hdr['CRVAL%d'%fits_ind] = crval
@@ -226,12 +232,20 @@ def main():
                     help="overwrite output file even if it exists");
   parser.add_option("-S","--sanitize",type="float",metavar="VALUE",
                     help="sanitize FITS files by replacing NANs and INFs with VALUE");
+  parser.add_option("-Z","--zero-to-nan",action='store_true',
+                    help="Replace zeros with NaNs");
   parser.add_option("-N","--nonneg",action="store_true",
                     help="replace negative values by 0");
   parser.add_option("-m","--mean",dest="mean",action="store_true",
                     help="take mean of input images");
   parser.add_option("-d","--diff",dest="diff",action="store_true",
                     help="take difference of 2 input images");
+  parser.add_option("--ratio",dest="ratio",action="store_true",
+                    help="take ratio of 2 input images");
+  parser.add_option("--sum",dest="sum",action="store_true",
+                    help="sum of input images");
+  parser.add_option("--prod",dest="prod",action="store_true",
+                    help="product of input images");
   parser.add_option("-t","--transfer",action="store_true",
                     help="transfer data from image 2 into image 1, preserving the FITS header of image 1");
   parser.add_option("-z","--zoom",dest="zoom",type="int",metavar="NPIX",                    
@@ -404,6 +418,15 @@ def main():
     if not options.stats:
       updated = True;
 
+  if options.zero_to_nan:
+    print "Replacing zeros with NaNs";
+    for img in images:
+      d = img[0].data;
+      d[d==0] = numpy.nan;
+    # if using stats, do not generate output
+    if not options.stats:
+      updated = True;
+
   if options.nonneg:
     print "Replacing negative value by 0";
     for img,name in zip(images,imagenames)[:1]:
@@ -429,6 +452,31 @@ def main():
     print "Computing difference";
     data = images[0][0].data;
     data -= images[1][0].data;
+    updated = True;
+  elif options.sum:
+    if autoname:
+      outname = "sum_" + outname;
+    print "Computing sum";
+    data = images[0][0].data
+    for d in images[1:]:
+      data += d[0].data
+    updated = True;
+  elif options.ratio:
+    if len(images) != 2:
+      parser.error("The --ratio option requires exactly two input images.");
+    if autoname:
+      outname = "ratio_" + outname;
+    print "Computing ratio";
+    data = images[0][0].data;
+    data /= images[1][0].data;
+    updated = True;
+  elif options.prod:
+    if autoname:
+      outname = "prod_" + outname;
+    print "Computing product";
+    data = images[0][0].data
+    for d in images[1:]:
+      data *= d[0].data
     updated = True;
   elif options.mean:
     if autoname:
