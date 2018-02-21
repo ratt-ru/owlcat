@@ -4,7 +4,7 @@ import os
 from distutils.core import setup
 
 setup(name='owlcat',
-      version='1.4.2',
+      version='1.4.3',
       description='miscellaneous utility scripts for manipulating radio interferometry data',
       author='Oleg Smirnov',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',
