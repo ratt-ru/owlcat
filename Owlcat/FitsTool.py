@@ -371,10 +371,10 @@ def main():
       for hdrline in img[0].header.cards:
         print hdrline; 
   
-  if options.replace or len(imagenames)<2:
+  if options.replace:
     if options.output:
       parser.error("Cannot combine -r/--replace with -o/--output");
-    outname = imagenames[0];
+    outname = options.output or imagenames[0];
     options.force = True;
     autoname = False;
   else:
