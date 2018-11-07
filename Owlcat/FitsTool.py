@@ -35,6 +35,7 @@ pyfits = Kittens.utils.import_pyfits();
 import scipy.ndimage.measurements
 import math
 from astLib.astWCS import WCS
+import glob
 
 SANITIZE_DEFAULT = 12345e-7689
 
@@ -273,10 +274,15 @@ def main():
                     help="Delete original file(s) after stacking/unstacking using --stack/--unstack")
   parser.add_option("-H","--header",action="store_true",help="print header(s) of input image(s)");
   parser.add_option("-s","--stats",action="store_true",help="print stats on images and exit. No output images will be written.");
+  parser.add_option("-F", "--file_pattern",
+            help="Speicfy input images via a pattern string, e.g, \"prefix*June2016.fits\". NB: The qouatation marks are important.");
 
   parser.set_defaults(output="",mean=False,zoom=0,rescale=1,edit_header=[], delete_header=[]);
 
   (options,imagenames) = parser.parse_args();
+
+  if options.file_pattern:
+    imagenames = glob.glob(options.file_pattern)
   
   if not imagenames:
     parser.error("No images specified. Use '-h' for help.");
