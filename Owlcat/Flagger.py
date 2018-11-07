@@ -36,7 +36,7 @@ def _format_nbins(bins, argname):
         return str(list(bins))
     else:
         return "%d" % bins
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, bins)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, bins))
 
 
 def _format_bool(arg, argname):
@@ -52,7 +52,7 @@ def _format_index(arg, argname):
             return str(arg)
         else:
             return str(arg + 1)
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
 def _format_list(arg, argname):
@@ -64,7 +64,7 @@ def _format_list(arg, argname):
         return _format_bool(arg, argname)
     elif isinstance(arg, (int, float)):
         return str(arg)
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
 def _format_ilist(arg, argname):
@@ -78,7 +78,7 @@ def _format_ilist(arg, argname):
         return _format_index(arg, argname)
     elif isinstance(arg, float):
         return str(arg)
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
 def _format_plotchan(arg, argname):
@@ -100,7 +100,7 @@ def _format_2N(arg, argname):
             return str(list(a))
         elif a.ndim == 2 and a.shape[1] == 2:
             return "[%s]" % (','.join([str(list(a[i, :])) for i in range(a.shape[0])]))
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
 def _format_clip(arg, argname):
@@ -110,7 +110,7 @@ def _format_clip(arg, argname):
         recfields = []
         for i, triplet in enumerate(arg):
             if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
-                raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+                raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
             expr, minval, maxval = triplet
             subfields = ["expr='%s'" % expr]
             if minval is not None:
@@ -119,7 +119,7 @@ def _format_clip(arg, argname):
                 subfields.append("max=%g" % maxval)
             recfields.append("a%d=[%s]" % (i, ','.join(subfields)))
         return "[%s]" % ','.join(recfields)
-    raise TypeError, "invalid value for '%s' keyword (%s)" % (argname, arg)
+    raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
 class Flagger(Timba.dmi.verbosity):
@@ -129,7 +129,7 @@ class Flagger(Timba.dmi.verbosity):
         if timestamps:
             self.enable_timestamps(modulo=10000)
         if not TABLE:
-            raise RuntimeError, "No tables module found. Please install pyrap and casacore"
+            raise RuntimeError("No tables module found. Please install pyrap and casacore")
         self.msname = msname
         self.ms = None
         self.readwrite = False
@@ -160,11 +160,11 @@ class Flagger(Timba.dmi.verbosity):
         if not self.has_bitflags:
             global _addbitflagcol
             if not _addbitflagcol:
-                raise RuntimeError, "cannot find addbitflagcol utility in $PATH"
+                raise RuntimeError("cannot find addbitflagcol utility in $PATH")
             self.close()
             self.dprintf(1, "running addbitflagcol\n")
             if os.spawnvp(os.P_WAIT, _addbitflagcol, ['addbitflagcol', self.msname]):
-                raise RuntimeError, "addbitflagcol failed"
+                raise RuntimeError("addbitflagcol failed")
             # report to purr
             if purr and self.purrpipe:
                 self.purrpipe.title("Flagging").comment("Adding bitflag columns.")
@@ -254,7 +254,7 @@ class Flagger(Timba.dmi.verbosity):
         sub_mss = []
         nrows = 0
         if ddids is None:
-            ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False).nrows())
+            ddids = list(range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False).nrows()))
         for ddid in ddids:
             subms = ms.query("DATA_DESC_ID==%d" % ddid)
             sub_mss.append((ddid, nrows, subms))
@@ -295,9 +295,9 @@ class Flagger(Timba.dmi.verbosity):
         ms = self._reopen(True)
         if not self.has_bitflags:
             if transfer:
-                raise TypeError, "MS does not contain a BITFLAG column, cannot use flagsets"""
+                raise TypeError("MS does not contain a BITFLAG column, cannot use flagsets""")
             if get_stats and flag:
-                raise TypeError, "MS does not contain a BITFLAG column, cannot get statistics"""
+                raise TypeError("MS does not contain a BITFLAG column, cannot get statistics""")
         if get_stats and not flag and not include_legacy_stats:
             flag = -1
         # lookup flagset name, if so specified
@@ -320,13 +320,13 @@ class Flagger(Timba.dmi.verbosity):
 
         # get DDIDs
         if ddid is None:
-            ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows())
+            ddids = list(range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows()))
         elif isinstance(ddid, int):
             ddids = [ddid]
         elif isinstance(ddid, (tuple, list)):
             ddids = ddid
         else:
-            raise TypeError, "invalid ddid argument of type %s" % type(ddid)
+            raise TypeError("invalid ddid argument of type %s" % type(ddid))
 
         # form up list of TaQL expressions for subset selectors
         queries = []
@@ -336,7 +336,7 @@ class Flagger(Timba.dmi.verbosity):
             if isinstance(fieldid, int):
                 fieldid = [fieldid]
             elif not isinstance(fieldid, (tuple, list)):
-                raise TypeError, "invalid fieldid argument of type %s" % type(fieldid)
+                raise TypeError("invalid fieldid argument of type %s" % type(fieldid))
             queries.append(" || ".join(["FIELD_ID==%d" % f for f in fieldid]))
         if antennas is not None:
             antlist = str(list(antennas))
@@ -584,12 +584,12 @@ class Flagger(Timba.dmi.verbosity):
         if flagset is None:
             return None
         # convert flagset to list
-        elif isinstance(flagset, (int, long)):
+        elif isinstance(flagset, int):
             return int(flagset)
         elif isinstance(flagset, str):
             flagset = flagset.split(",")
         elif not isinstance(flagset, (list, tuple)):
-            raise TypeError, "invalid flagset of type %s" % type(flagset)
+            raise TypeError("invalid flagset of type %s" % type(flagset))
         # loop over list and accumulate flagmask
         flagmask = 0
         for fset in flagset:
@@ -613,7 +613,7 @@ class Flagger(Timba.dmi.verbosity):
                     elif fset:
                         flagmask |= self.flagsets.flagmask(fset, create=create)
             else:
-                raise TypeError, "invalid flagset of type %s in list of flagsets" % type(fset)
+                raise TypeError("invalid flagset of type %s in list of flagsets" % type(fset))
         return flagmask
 
     @staticmethod
@@ -677,7 +677,7 @@ class Flagger(Timba.dmi.verbosity):
         flag = flag or 0
         unflag = unflag or 0
         if not self.has_bitflags and (flag | unflag) & self.BITMASK_ALL:
-            raise RuntimeError, "no BITFLAG column in this MS, can't change bitflags"
+            raise RuntimeError("no BITFLAG column in this MS, can't change bitflags")
         # stats
         # total number of rows
         totrows = ms.nrows()
@@ -687,13 +687,13 @@ class Flagger(Timba.dmi.verbosity):
         nvis_A = nvis_B = nvis_C = 0
         # get DDIDs and FIELD_IDs
         if ddid is None:
-            ddids = range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows())
+            ddids = list(range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows()))
         elif isinstance(ddid, int):
             ddids = [ddid]
         elif isinstance(ddid, (tuple, list)):
             ddids = ddid
         else:
-            raise TypeError, "invalid ddid argument of type %s" % type(ddid)
+            raise TypeError("invalid ddid argument of type %s" % type(ddid))
         # form up list of TaQL expressions for subset selectors
         queries = []
         if taql:
@@ -702,7 +702,7 @@ class Flagger(Timba.dmi.verbosity):
             if isinstance(fieldid, int):
                 fieldid = [fieldid]
             elif not isinstance(fieldid, (tuple, list)):
-                raise TypeError, "invalid fieldid argument of type %s" % type(fieldid)
+                raise TypeError("invalid fieldid argument of type %s" % type(fieldid))
             queries.append(" || ".join(["FIELD_ID==%d" % f for f in fieldid]))
         if antennas is not None:
             antlist = str(list(antennas))
@@ -743,7 +743,7 @@ class Flagger(Timba.dmi.verbosity):
             if isinstance(selection, (int, slice)):
                 return make_slice_list([selection], parm)
             if not isinstance(selection, (list, tuple)):
-                raise TypeError, "invalid %s selection: %s" % (parm, selection)
+                raise TypeError("invalid %s selection: %s" % (parm, selection))
             sellist = []
             for sel in selection:
                 if isinstance(sel, int):
@@ -751,7 +751,7 @@ class Flagger(Timba.dmi.verbosity):
                 elif isinstance(sel, slice):
                     sellist.append(sel)
                 else:
-                    raise TypeError, "invalid %s selection: %s" % (parm, selection)
+                    raise TypeError("invalid %s selection: %s" % (parm, selection))
             return sellist
 
         # parse the arguments
@@ -951,7 +951,7 @@ class Flagger(Timba.dmi.verbosity):
             purr = False
         ms = self._reopen()
         if not self.has_bitflags:
-            raise TypeError, "MS does not contain a BITFLAG column, cannot use bitflags"""
+            raise TypeError("MS does not contain a BITFLAG column, cannot use bitflags""")
         if isinstance(flags, str):
             flagmask = self.flagsets.flagmask(flags)
             self.dprintf(1, "filling legacy FLAG/FLAG_ROW using flagset %s\n", flags)
@@ -968,7 +968,7 @@ class Flagger(Timba.dmi.verbosity):
             #      self.dprintf(1,"filling legacy FLAG/FLAG_ROW using flagsets %s\n",flags)
             purr and self.purrpipe.title("Flagging").comment("Filling FLAG/FLAG_ROW from bitflags %x." % flags)
         else:
-            raise TypeError, "flagmask argument must be int, str or sequence"
+            raise TypeError("flagmask argument must be int, str or sequence")
         self.dprintf(1, "filling legacy FLAG/FLAG_ROW using bitmask 0x%x\n", flagmask)
         # now go through MS and fill the column
         # get list of per-DDID subsets
@@ -1088,11 +1088,11 @@ class Flagger(Timba.dmi.verbosity):
         def _setmethod(self, methodname, kwargs):
             argdict = getattr(self, '_%s_dict' % methodname)
             args = []
-            for kw, value in kwargs.iteritems():
+            for kw, value in kwargs.items():
                 if value is not None:
                     format = argdict.get(kw, None)
                     if format is None:
-                        raise TypeError, "Autoflagger: invalid keyword '%s' passed to method %s()" % (kw, methodname)
+                        raise TypeError("Autoflagger: invalid keyword '%s' passed to method %s()" % (kw, methodname))
                     elif callable(format):
                         args.append("%s=%s" % (kw, format(value, kw)))
                     else:
@@ -1122,7 +1122,7 @@ class Flagger(Timba.dmi.verbosity):
                 kw["mode"] = "channel"
             # else if any other arguments are specified, set mode to "spwids", as this effectively
             # causes the flagger to select on everything except channels
-            elif [x for x in kw.itervalues() if x is not None]:
+            elif [x for x in kw.values() if x is not None]:
                 kw["mode"] = "spwids"
             self._cmd(self._setmethod('setdata', kw))
 
@@ -1133,7 +1133,7 @@ class Flagger(Timba.dmi.verbosity):
             # init list of command strings
             cmds = ["include 'autoflag.g'", "af:=autoflag('%s');" % self.flagger.msname]
             # add default setdata() if not specified
-            if not filter(lambda x: x.startswith('af.setdata'), self._cmds):
+            if not [x for x in self._cmds if x.startswith('af.setdata')]:
                 cmds.append("af.setdata();")
             # add specified command set
             cmds += self._cmds
@@ -1143,7 +1143,7 @@ class Flagger(Timba.dmi.verbosity):
             for cmd in cmds:
                 self.flagger.dprint(2, cmd)
             if _GLISH is None:
-                raise RuntimeError, "glish not found, so cannot run autoflagger"
+                raise RuntimeError("glish not found, so cannot run autoflagger")
             # write commands to temporary file and run glish
             if cmdfile:
                 fobj = file(cmdfile, "wt")

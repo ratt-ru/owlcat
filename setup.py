@@ -10,7 +10,10 @@ install_requires = [
       'python-casacore',
       'meqtrees_cattery',
       'scipy',
-      'astlib'
+      'astlib',
+      'astro-kittens',
+      'six',
+      'future',
 ]
 
 setup(name='owlcat',

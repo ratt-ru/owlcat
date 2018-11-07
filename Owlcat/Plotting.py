@@ -30,7 +30,7 @@ def _int_or_0(x):
         return 0
 
 
-_version = map(_int_or_0, matplotlib.__version__.split('.'))
+_version = list(map(_int_or_0, matplotlib.__version__.split('.')))
 _version_major = (_version and _version[0]) or 0
 _version_minor = (len(_version) > 1 and _version[1]) or 0
 
@@ -73,7 +73,7 @@ class PlotCollection(object):
         # compute inter-plot offset, based on the median stddev
         offset = self.offset
         if not offset:
-            stddevs = sorted(self.stddev.itervalues())
+            stddevs = sorted(self.stddev.values())
             if stddevs:
                 offset = self.offset = offset_std * stddevs[len(stddevs) / 2]
         # if still not set, force to 1
@@ -146,7 +146,7 @@ class PlotCollection(object):
                         # print dd
                     except:
                         traceback.print_exc()
-                        print
+                        print()
                         "Error plotting data for", key
                         continue
                     if self.label[key]:
@@ -187,9 +187,9 @@ class PlotCollection(object):
             if xgrid and xgrid != [0]:
                 if isinstance(xgrid, (list, tuple)):
                     if len(xgrid) > 0:
-                        plt.set_xticks(range(0, nx, xgrid[0]))
+                        plt.set_xticks(list(range(0, nx, xgrid[0])))
                     if len(xgrid) > 1:
-                        plt.set_xticks(range(0, nx, xgrid[1]), True)
+                        plt.set_xticks(list(range(0, nx, xgrid[1])), True)
                 for x in plt.get_xticks():
                     plt.axvline(x, color='0.7', ls='-', lw=1, zorder=-10)
                 for x in plt.get_xticks(True):
@@ -202,7 +202,7 @@ class PlotCollection(object):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print
+            print()
             "===> Wrote", save
         return fig
 
@@ -276,7 +276,7 @@ class PlotCollectionSep(PlotCollection):
                         plt.plot(dd, ',', color=colors[ikey % len(colors)], label=self.label[key])
                     except:
                         traceback.print_exc()
-                        print
+                        print()
                         "Error plotting data for", key
                         continue
             # add text labels
@@ -312,9 +312,9 @@ class PlotCollectionSep(PlotCollection):
             if xgrid and xgrid != [0]:
                 if isinstance(xgrid, (list, tuple)):
                     if len(xgrid) > 0:
-                        plt.set_xticks(range(0, nx, xgrid[0]))
+                        plt.set_xticks(list(range(0, nx, xgrid[0])))
                     if len(xgrid) > 1:
-                        plt.set_xticks(range(0, nx, xgrid[1]), True)
+                        plt.set_xticks(list(range(0, nx, xgrid[1])), True)
                 for x in plt.get_xticks():
                     plt.axvline(x, color='0.7', ls='-', lw=1, zorder=-10)
                 for x in plt.get_xticks(True):
@@ -334,7 +334,7 @@ class PlotCollectionSep(PlotCollection):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print
+            print()
             "===> Wrote", save
         return fig
 
@@ -354,7 +354,7 @@ class ComplexCirclePlot(PlotCollection):
         if keylist:
             datalist = [(key, self.data.get(key)) for key in keylist]
         else:
-            datalist = data.iteritems()
+            datalist = iter(data.items())
         # margin sizes. We want to keep them fixed in absolute terms,
         # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
         # we rescale them accordingly.
@@ -367,7 +367,7 @@ class ComplexCirclePlot(PlotCollection):
         height = (1 - mtop - mbottom)
         plt = fig.add_axes([mleft, mbottom, width, height])
         # find length of common prefix of labels
-        labels = [lab for lab in self.label.itervalues() if lab]
+        labels = [lab for lab in self.label.values() if lab]
         if labels:
             prefix = 1
             while len(labels[0]) > prefix and all([lab.startswith(labels[0][:prefix]) for lab in labels]):
@@ -391,7 +391,7 @@ class ComplexCirclePlot(PlotCollection):
         # plot arrow to means
         for icorr in range(ncorr):
             color = self.colors[icorr]
-            datameans = [d[..., icorr].mean() for d in self.data.itervalues() if d.shape[-1] > icorr]
+            datameans = [d[..., icorr].mean() for d in self.data.values() if d.shape[-1] > icorr]
             meanval = sum(datameans) / len(datameans) if datameans else 0
             plt.arrow(0, 0, meanval.real, meanval.imag, color=color)
             # plot circle
@@ -412,7 +412,7 @@ class ComplexCirclePlot(PlotCollection):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print
+            print()
             "===> Wrote", save
         return fig
 
@@ -459,21 +459,21 @@ class ScatterPlot(object):
         plt = fig.add_axes([mleft, mbottom, width, height])
         # remove common prefix from labels
         if self.label:
-            lab0 = self.label.values()[0]
+            lab0 = list(self.label.values())[0]
             prefix = 1
-            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in self.label.itervalues()]):
+            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in self.label.values()]):
                 prefix += 1
-            labels = dict([(key, label[prefix - 1:]) for key, label in self.label.iteritems()])
+            labels = dict([(key, label[prefix - 1:]) for key, label in self.label.items()])
         else:
             labels = None
         # plot data over text labels
-        for key, (x, y) in self.data.iteritems():
+        for key, (x, y) in self.data.items():
             # plot data
             try:
                 plt.plot(x, y, "-x", zorder=0)
             except:
                 traceback.print_exc()
-                print
+                print()
                 "Error plotting data for", key
                 continue
             # plot text labels
@@ -499,7 +499,7 @@ class ScatterPlot(object):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print
+            print()
             "===> Wrote", save
         return fig
 
@@ -554,9 +554,9 @@ class MultigridPlot(AbstractBasePlot):
                 pass
         if options.y_lock:
             try:
-                y0, y1 = map(float, options.y_lock.split(","))
+                y0, y1 = list(map(float, options.y_lock.split(",")))
             except:
-                print
+                print()
                 "Error parsing --y-lock option, --y-lock MIN,MAX expected."
                 sys.exit(1)
             self.ylock = y0, y1
@@ -629,19 +629,19 @@ class MultigridPlot(AbstractBasePlot):
             elif len(data) == 3:
                 x, y, yerr = data
             else:
-                raise TypeError, "incorrect datum returned: 2- or 3-tuple expected, got %d-tuple""" % len(data)
+                raise TypeError("incorrect datum returned: 2- or 3-tuple expected, got %d-tuple""" % len(data))
         # else interpret data as Y
         else:
             y = data
             x = yerr = None
         # set X axis
         if x is None:
-            x = range(len(y)) if xaxis is None else xaxis
+            x = list(range(len(y))) if xaxis is None else xaxis
         # check lengths
         if len(x) != len(y):
-            raise TypeError, "misshaped datum returned: %d X elements, %d Y elements""" % (len(x), len(y))
+            raise TypeError("misshaped datum returned: %d X elements, %d Y elements""" % (len(x), len(y)))
         if yerr is not None and len(yerr) != len(y):
-            raise TypeError, "misshaped datum returned: %d Y elements, %d Yerr elements""" % (len(y), len(yerr))
+            raise TypeError("misshaped datum returned: %d Y elements, %d Yerr elements""" % (len(y), len(yerr)))
         return x, y, yerr
 
     def make_figure(self, rows, cols,  # (irow,row) and (icol,col) list
@@ -664,7 +664,7 @@ class MultigridPlot(AbstractBasePlot):
             # exit if figure already exists, and we're not refreshing
             if os.path.exists(
                     save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-                print
+                print()
                 save, "exists, not redoing"
                 return save
         else:
@@ -746,11 +746,11 @@ class MultigridPlot(AbstractBasePlot):
                     plot_text(plt, data)
                     realplot = False
                 elif mode is PLOT_SINGLE:
-                    plt.plot(range(len(data)) if xaxis is None else xaxis, data)
+                    plt.plot(list(range(len(data))) if xaxis is None else xaxis, data)
                     if xaxis is None:
                         plt.set_xlim(-1, len(data))
                 elif mode is PLOT_BARPLOT:
-                    plt.bar(range(len(data)) if xaxis is None else xaxis, data, linewidth=0)
+                    plt.bar(list(range(len(data))) if xaxis is None else xaxis, data, linewidth=0)
                     if xaxis is None:
                         plt.set_xlim(-1, len(data))
                 elif mode is PLOT_MULTI:
@@ -760,7 +760,7 @@ class MultigridPlot(AbstractBasePlot):
                             plt.plot(x, y)
                         else:
                             plt.errorbar(x, y, yerr, fmt=None, capsize=1)
-                        if x == range(len(y)):
+                        if x == list(range(len(y))):
                             plt.set_xlim(-1, len(y))
                 elif mode is PLOT_ERRORBARS:
                     y, yerr = data
@@ -768,7 +768,7 @@ class MultigridPlot(AbstractBasePlot):
                         plot_text(plt, (mean_format % y[0], "+/-" + (mean_format % yerr[0])))
                         realplot = False
                     else:
-                        plt.errorbar(range(len(y)) if xaxis is None else xaxis, y, yerr, fmt=None, capsize=1)
+                        plt.errorbar(list(range(len(y))) if xaxis is None else xaxis, y, yerr, fmt=None, capsize=1)
                         if xaxis is None:
                             plt.set_xlim(-1, len(y))
                 if realplot:
@@ -808,7 +808,7 @@ class MultigridPlot(AbstractBasePlot):
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
             fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
                         orientation=orientation)
-            print
+            print()
             "Wrote", save, "in", orientation, "orientation"
             fig = None
             pyplot.close("all")
@@ -893,7 +893,7 @@ class SkyPlot(AbstractBasePlot):
             # exit if figure already exists, and we're not refreshing
             if os.path.exists(
                     save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-                print
+                print()
                 save, "exists, not redoing"
                 return save
         else:
@@ -965,7 +965,7 @@ class SkyPlot(AbstractBasePlot):
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
             fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
                         orientation=orientation)
-            print
+            print()
             "Wrote", save, "in", orientation, "orientation"
             fig = None
             pyplot.close("all")

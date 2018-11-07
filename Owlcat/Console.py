@@ -22,7 +22,7 @@ import time
 # _width = 80
 
 try:
-    _height, _width = map(int, os.popen('stty size', 'r').read().split())
+    _height, _width = list(map(int, os.popen('stty size', 'r').read().split()))
 except:
     _width = 132
 

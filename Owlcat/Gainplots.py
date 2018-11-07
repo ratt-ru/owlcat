@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-
-#
-# % $Id$
-#
 #
 # Copyright (C) 2002-2011
 # The MeqTree Foundation &
@@ -34,6 +30,8 @@ from six.moves import cPickle
 import numpy
 import math
 import cmath
+from past.builtins import cmp
+from future.utils import raise_with_traceback
 
 
 def _normifrgain(rr):
@@ -78,11 +76,11 @@ def make_gain_plots(filename, prefix=None, gain_label="G",
     'ylim' can be used to override GAIN_PLOT_AMPL_YLIM setting.
     'ant' can be set to a whitespace-separated list of antennas. Wildcard patterns are allowed."""
 
-    print("loading gain solutions from %s" % filename)
-    G0 = cPickle.load(file(filename))
+    print(("loading gain solutions from %s" % filename))
+    G0 = cPickle.load(open(filename))
 
     G = G0['gains'][gain_label]['solutions']
-    solkeys = G.keys()
+    solkeys = list(G.keys())
     # solutions are stored either as [antenna,{0,1}] for diagonal Jones, or [antenna][{0,1,2,3}] for 2x2 Jones
     diagonal = all([type(k) is tuple and len(k) == 2 and k[1] in (0, 1) for k in solkeys])
     if diagonal:
@@ -91,14 +89,14 @@ def make_gain_plots(filename, prefix=None, gain_label="G",
         antennas = antennas0 = sorted(solkeys, _cmp_antenna)
 
     NANT = len(antennas)
-    print("loaded solutions for %d antennas, diagonal=%s" % (NANT, diagonal))
+    print(("loaded solutions for %d antennas, diagonal=%s" % (NANT, diagonal)))
 
     ylim1 = ylim_offdiag
 
     if ant:
         antpatts = str(ant).split()
         antennas = [x for x in antennas if any([fnmatch.fnmatch(str(x), patt) for patt in antpatts])]
-        print("applied subset '%s' to antennas %s, selecting %d" % (nant, " ".join(map(str, antennas0)), NANT))
+        print(("applied subset '%s' to antennas %s, selecting %d" % (nant, " ".join(map(str, antennas0)), NANT)))
 
     if not antennas:
         print("no antennas to plot")
@@ -114,7 +112,7 @@ def make_gain_plots(filename, prefix=None, gain_label="G",
     ppminmax = 1e+99, -1e+99
     xhminmax = 1e+99, -1e+99
     for ant in antennas:
-        for j in ((0, 1) if diagonal else range(4)):
+        for j in ((0, 1) if diagonal else list(range(4))):
             if diagonal:
                 gg = G[ant, j]
                 xhand = False
@@ -191,7 +189,7 @@ def make_gain_plots(filename, prefix=None, gain_label="G",
         prefix = prefix or filename + "_gains"
         outname = "%s-%s.png" % (prefix, label)
         pylab.savefig(outname, dpi=75)
-        print("generated plot %s" % outname)
+        print(("generated plot %s" % outname))
 
 
 def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None, feed_type="rl"):
@@ -201,12 +199,12 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
     'subset' can be set to a whitespace-separated list of parameter names
     'ant' can be set to a whitespace-separated list of antennas. Wildcard patterns are allowed in both cases"""
 
-    print("loading diffgain solutions from %s" % filename)
+    print(("loading diffgain solutions from %s" % filename))
     DG0 = cPickle.load(file(filename))
 
     DG = DG0['gains']
     srcnames = sorted(DG.keys())
-    antennas = sorted(DG[srcnames[0]]['solutions'].keys(), _cmp_antenna)
+    antennas = sorted(list(DG[srcnames[0]]['solutions'].keys()), _cmp_antenna)
 
     NANT = len(antennas)
     prefix = prefix or filename + "_diffgains"
@@ -214,12 +212,12 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
     # apply subsets
     if subset:
         src = subset.split()
-        print
+        print()
         "applying subset '%s' to sources" % src, srcnames
         srcnames = [x for x in srcnames if any([fnmatch.fnmatch(x, patt) for patt in src])]
     if ant:
         ant = ant.split()
-        print
+        print()
         "applying subset '%s' to antennas" % ant, antennas
         antennas = [x for x in antennas if any([fnmatch.fnmatch(x, patt) for patt in ant])]
 
@@ -229,15 +227,15 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
 
     ncols = len(srcnames)
 
-    print
+    print()
     "making diffgain plots for", srcnames
-    print("and %d antennas" % NANT)
+    print(("and %d antennas" % NANT))
     # feed labels
     feeds = ("RR", "RL", "LR", "LL") if feed_type.upper() == "RL" else ("XX", "XY", "YX", "YY")
 
     for ant in antennas:
         filename = "%s-%s.png" % (prefix, ant)
-        print("making plot %s" % filename)
+        print(("making plot %s" % filename))
         pylab.figure(figsize=(5 * ncols, 3 * 8))
         for i, src in enumerate(sorted(srcnames)):
             sols = DG[src]['solutions'][ant]
@@ -252,7 +250,7 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
                 if ylim:
                     pylab.ylim(*ylim)
                 if nfreq > 1:
-                    x = range(ntime)
+                    x = list(range(ntime))
                     pylab.fill_between(x, abs(sols[j][:, 0]), abs(sols[j][:, -1]), color='grey')
                     pylab.plot(abs(sols[j][:, nfreq / 2]))
                 else:
@@ -275,7 +273,7 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
     nrows = len(antennas)
     filename = "%s-ampl-summary.png" % prefix
 
-    print("making plot %s" % filename)
+    print(("making plot %s" % filename))
     pylab.figure(figsize=(5 * ncols, 3 * nrows))
     for row, ant in enumerate(antennas):
         for isrc, src in enumerate(sorted(srcnames)):
@@ -286,7 +284,7 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
                 continue
             ntime, nfreq = sols.shape
             if nfreq > 1:
-                x = range(ntime)
+                x = list(range(ntime))
                 pylab.fill_between(x, abs(sols[:, 0]), abs(sols[:, -1]), color='grey')
                 pylab.plot(abs(sols[:, nfreq / 2]))
             else:
@@ -307,7 +305,6 @@ def make_ifrgain_plots(filename,
                        msname=None):
     """Makes a set of ifrgain plots from the specified saved file."""
     import pylab
-    from Timba.Meq import meq
 
     prefix = prefix or filename + "_ifrgain"
 
@@ -324,9 +321,8 @@ def make_ifrgain_plots(filename,
             baseline = dict(
                 [("%s-%s" % (p, q), math.sqrt(((ppos - qpos) ** 2).sum())) for p, ppos in antpos for q, qpos in antpos])
         except:
-            traceback.print_exc()
-            print(
-                "WARNING:: can't access %s antenna table, so IFR gain versus baseline length plots will not be made" % maname)
+            error = "WARNING:: can't access %s antenna table, so IFR gain versus baseline length plots will not be made" % msname
+            raise_with_traceback(ValueError(error))
     else:
         print(
             "WARNING:: MS not specified, thus no antenna info. IFR gain versus baseline length plots will not be made")
@@ -334,7 +330,7 @@ def make_ifrgain_plots(filename,
     # feed labels
     feeds = ("RR", "LL", "RL", "LR") if feed_type.upper() == "RL" else ("XX", "YY", "XY", "YX")
 
-    ig = cPickle.load(file(filename))
+    ig = cPickle.load(open(filename))
 
     def plot_xy(content, title):
         """Plots x vs y"""
@@ -358,7 +354,7 @@ def make_ifrgain_plots(filename,
         for l, (x, xe), (y, ye) in content:
             b = baseline.get(l, None)
             if b is None:
-                print("WARNING:: baseline %s not found in MS ANTENNA table" % l)
+                print(("WARNING:: baseline %s not found in MS ANTENNA table" % l))
             else:
                 lab += ["%s:%s" % (l, feeds[0]), "%s:%s" % (l, feeds[1])]
                 col += ["blue", "red"]
@@ -403,8 +399,8 @@ def make_ifrgain_plots(filename,
         #   for l1,l2,(x,xe),(y,ye) in content ])
         minre, maxre, minim, maxim = 2, -2, 2, -2
         for l1, l2, (x, xe), (y, ye) in content:
-            offs = numpy.array([getattr(v, attr) + sign * e / 4 for v, e in (x, xe), (y, ye)
-                                for attr in 'real', 'imag' for sign in 1, -1])
+            offs = numpy.array([getattr(v, attr) + sign * e / 4 for v, e in [(x, xe), (y, ye)]
+                                for attr in ['real', 'imag'] for sign in [1, -1]])
             minre, maxre = min(x.real - xe / 4, y.real - ye / 4, minre), max(x.real + xe / 4, y.real + ye / 4, maxre)
             minim, maxim = min(x.imag - xe / 4, y.imag - ye / 4, minim), max(x.imag + xe / 4, y.imag + ye / 4, maxim)
         # plot labels
@@ -429,17 +425,17 @@ def make_ifrgain_plots(filename,
                     pylab.text(i, value, label, horizontalalignment='center', verticalalignment='center', size=8,
                                color=color)
         pylab.xlim(-1, len(content))
-        pylab.xticks(range(len(content)), [p for p, gainlist in content])
+        pylab.xticks(list(range(len(content))), [p for p, gainlist in content])
         pylab.title(title)
 
-    antennas = set([p for p, q in ig.keys()])
+    antennas = set([p for p, q in list(ig.keys())])
     # plot RR vs LL offsets
     crl_diag = [("%s-%s" % (p, q), _normifrgain(rr), _normifrgain(ll))
-                for (p, q), (rr, rl, lr, ll) in ig.iteritems() if not _is_unity(rr, ll)]
+                for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rr, ll)]
     have_diag = bool(crl_diag)
     # plot RL vs LR offsets, if present
     crl_offdiag = [("%s-%s" % (p, q), _normifrgain(rl), _normifrgain(lr))
-                   for (p, q), (rr, rl, lr, ll) in ig.iteritems() if not _is_unity(rl, lr)]
+                   for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rl, lr)]
     have_offdiag = bool(crl_offdiag)
 
     # plot size and layout
@@ -455,13 +451,13 @@ def make_ifrgain_plots(filename,
         plot_hist(crl_diag, "IFR gain histogram for %s and %s" % feeds[:2])
         crl = [("%s-%s:%s" % (p, q, feeds[0].upper()), "%s-%s:%s" % (p, q, feeds[1].upper()), _complexifrgain(rr),
                 _complexifrgain(ll))
-               for (p, q), (rr, rl, lr, ll) in ig.iteritems() if not _is_unity(rr, ll)]
+               for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rr, ll)]
         pylab.subplot(NR, NC, 1)
         plot_complex(crl, "IFR complex %s %s gains" % feeds[:2])
         igpa = {}
         igpa0 = {}
         igpa0_means = []
-        for (p, q), (rr, rl, lr, ll) in ig.iteritems():
+        for (p, q), (rr, rl, lr, ll) in ig.items():
             rr0 = abs(numpy.array(rr) - 1)
             ll0 = abs(numpy.array(ll) - 1)
             rr0 = numpy.ma.masked_array(rr0, rr0 == 0)
@@ -477,7 +473,7 @@ def make_ifrgain_plots(filename,
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[0]), 'blue', rr))
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[1]), 'red', ll))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[1]), 'red', ll))
-        content = [(p, igpa[p]) for p in sorted(igpa.keys(), cmp=_cmp_antenna)]
+        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), cmp=_cmp_antenna)]
         pylab.subplot(NR, NC, 2)
         plot_ants(content, "IFR %s %s gain amplitudes per antenna" % feeds[:2])
         if baseline:
@@ -485,9 +481,9 @@ def make_ifrgain_plots(filename,
             plot_baseline(crl_diag, baseline, "IFR gain amplitude vs. baseline length", feeds[:2])
         outname = "%s-%s.png" % (prefix, "".join(feeds[:2]))
         pylab.savefig(outname, dpi=75)
-        print("generated plot %s" % outname)
+        print(("generated plot %s" % outname))
         # make per-antenna figure
-        antennas = sorted(igpa0.keys(), _cmp_antenna)
+        antennas = sorted(list(igpa0.keys()), _cmp_antenna)
         NC = 4
         NR = int(math.ceil(len(antennas) / float(NC)))
         offset = numpy.median(igpa0_means)
@@ -495,7 +491,7 @@ def make_ifrgain_plots(filename,
         for iant, pant in enumerate(antennas):
             pylab.subplot(NR, NC, iant + 1)
             ig = igpa0[pant]
-            ants1 = sorted(ig.keys(), _cmp_antenna)
+            ants1 = sorted(list(ig.keys()), _cmp_antenna)
             rr, ll = ig[ants1[0]]
             for i, qant in enumerate(ants1):
                 rr, ll = ig[qant]
@@ -515,7 +511,7 @@ def make_ifrgain_plots(filename,
 
         outname = "%s-ant.png" % (prefix)
         pylab.savefig(outname, dpi=75)
-        print("generated plot %s" % outname)
+        print(("generated plot %s" % outname))
 
     if have_offdiag:
         pylab.figure(figsize=FS)
@@ -525,17 +521,17 @@ def make_ifrgain_plots(filename,
         plot_hist(crl_diag, "IFR offset histogram for %s and %s" % feeds[2:])
         crl = [("%s-%s:%s" % (p, q, feeds[0].upper()), "%s-%s:%s" % (p, q, feeds[1].upper()), _complexifrgain(rl),
                 _complexifrgain(lr))
-               for (p, q), (rr, rl, lr, ll) in ig.iteritems() if not _is_unity(rl, lr)]
+               for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rl, lr)]
         pylab.subplot(NR, NC, 1)
         plot_complex(crl_diag, "IFR complex %s %s offsets" % feeds[2:])
         igpa = {}
-        for (p, q), (rr, rl, lr, ll) in ig.iteritems():
+        for (p, q), (rr, rl, lr, ll) in ig.items():
             rr, ll = _normifrgain(rl), _normifrgain(lr)
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[2]), 'blue', rr))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[2]), 'blue', rr))
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[3]), 'red', ll))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[3]), 'red', ll))
-        content = [(p, igpa[p]) for p in sorted(igpa.keys(), cmp=_cmp_antenna)]
+        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), cmp=_cmp_antenna)]
         pylab.subplot(NR, NC, 2)
         plot_ants(content, "IFR %s %s offset amplitudes per antenna" % feeds[2:])
         if baseline:
@@ -544,4 +540,4 @@ def make_ifrgain_plots(filename,
 
         outname = "%s.png" % (prefix)
         pylab.savefig(outname, dpi=75)
-        print("generated plot %s" % outname)
+        print(("generated plot %s" % outname))

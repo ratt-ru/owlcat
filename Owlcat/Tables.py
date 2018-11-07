@@ -32,7 +32,7 @@ class TableDump(object):
         # dump in <.5Gb chunks, so figure out size of one row
         row0 = tab.getcol(colname, 0, 1)
         maxrows = (2 ** 27) // (row0.size * row0.itemsize)
-        rng = range(0, nrows, maxrows)
+        rng = list(range(0, nrows, maxrows))
         # dump name,keywords,num_chunks
         for obj in colname, kws, len(rng):
             cPickle.dump(obj, self.stream)
@@ -40,7 +40,7 @@ class TableDump(object):
         for i0 in rng:
             cPickle.dump(tab.getcol(colname, i0, maxrows), self.stream)
         if verbose:
-            print
+            print()
             "  %s: %d chunk(s)%s%s" % (colname, len(rng),
                                        ", array column shape %s" % "x".join(
                                            map(str, row0.shape[1:])) if row0.ndim > 2 else "scalar column",
@@ -67,5 +67,5 @@ class TableDump(object):
                     tab.putcol(colname, col, row0, col.shape[0])
                     row0 += col.shape[0]
                 if verbose:
-                    print
+                    print()
                     "  %s: %d chunks%s" % (colname, nchunks, ", %d keywords" % len(kws) if kws else "")

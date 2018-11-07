@@ -12,8 +12,8 @@ def parse_slice(spec, multiplier=1):
         return slice(0, None)
     match = re.match("^(?P<start>\d*)((?P<sep>[:~])(?P<end>\d*)(:(?P<step>\d*))?)?$", spec)
     if not match:
-        raise ValueError, "invalid slice specification %s" % spec
-    start, end, step = [((match.group(name) or None) and int(match.group(name))) for name in 'start', 'end', 'step']
+        raise ValueError("invalid slice specification %s" % spec)
+    start, end, step = [((match.group(name) or None) and int(match.group(name))) for name in ('start', 'end', 'step')]
     sep = match.group('sep')
     # No match for first separator implies single number. If even that is missing, return full slice
     if sep == None:

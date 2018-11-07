@@ -77,7 +77,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     for i, hdu0 in enumerate(_sorted):
         h = hdu0[0].header
         d = hdu0[0].data
-        imslice[axis] = range(sum(nn[:i]), sum(nn[:i + 1]))
+        imslice[axis] = list(range(sum(nn[:i]), sum(nn[:i + 1])))
         data[imslice] = d
         if crval > h['CRVAL%d' % fits_ind]:
             crval = h['CRVAL%d' % fits_ind]
@@ -93,7 +93,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     hdr['CRPIX%d' % fits_ind] = 1
 
     pyfits.writeto(outname, data.astype(numpy.float32), hdr, clobber=True)
-    print("Successfully stacked images. Output image is %s" % outname)
+    print(("Successfully stacked images. Output image is %s" % outname))
 
     # remove old files
     if not keep_old:
@@ -132,18 +132,18 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fit
 
     nstacks = hdr['NAXIS%d' % (naxis - axis)]
     nchunks = nstacks // each_chunk
-    print("The FITS file %s has %s stacks along this axis. Breaking it up to %d images" % (fitsname, nstacks, nchunks))
+    print(("The FITS file %s has %s stacks along this axis. Breaking it up to %d images" % (fitsname, nstacks, nchunks)))
 
     outfiles = []
     for i in range(0, nchunks):
         _slice = [slice(None)] * naxis
-        _slice[axis] = range(i * each_chunk, (i + 1) * each_chunk if i + 1 != nchunks else nstacks)
+        _slice[axis] = list(range(i * each_chunk, (i + 1) * each_chunk if i + 1 != nchunks else nstacks))
         hdu[0].data = data[_slice].astype(numpy.float32)
         hdu[0].header['CRVAL%d' % (naxis - axis)] = crval + i * cdelt * each_chunk
         hdu[0].header['CRPIX%d' % (naxis - axis)] = 1
         outfile = '%s-%04d.fits' % (prefix, i)
         outfiles.append(outfile)
-        print("Making chunk %d : %s. File is %s" % (i, repr(_slice[axis]), outfile))
+        print(("Making chunk %d : %s. File is %s" % (i, repr(_slice[axis]), outfile)))
         hdu.writeto(outfile, clobber=True)
     hdu.close()
 
@@ -167,7 +167,7 @@ def reorder(fitsname, order=[], outfile=None):
     hdu = pyfits.open(fitsname)
     hdr0 = hdu[0].header
     ndim = hdr0["NAXIS"]
-    order0 = range(1, ndim + 1)
+    order0 = list(range(1, ndim + 1))
 
     def fits2py(a):
         if isinstance(a, (list, tuple)):
@@ -184,7 +184,7 @@ def reorder(fitsname, order=[], outfile=None):
     # Ok, Lock and Load
     data = hdu[0].data.astype(numpy.float32)
     # First re-order data
-    hdu[0].data = numpy.transpose(data, list((ndim - numpy.array(order))[range(ndim - 1, -1, -1)]))
+    hdu[0].data = numpy.transpose(data, list((ndim - numpy.array(order))[list(range(ndim - 1, -1, -1))]))
 
     hdr = hdr0.copy()
     mendatory = "CTYPE CRVAL CDELT CRPIX".split()
@@ -211,7 +211,7 @@ def reorder(fitsname, order=[], outfile=None):
 
     hdu[0].header = hdr
     outfile = outfile or "reodered_" + fitsname
-    print("Successfully re-ordered axes in FITS image. Output image is at %s" % outfile)
+    print(("Successfully re-ordered axes in FITS image. Output image is at %s" % outfile))
     hdu.writeto(outfile, clobber=True)
 
 
@@ -357,21 +357,21 @@ def main():
                 hdu[0].header["%s%d" % ((_mendatory + _optional)[i], ndim + 1)] = value
 
             hdu.writeto(imagenames[0], clobber=True)
-            print("Successfully added axis %s to %s" % (values[0], imagenames[0]))
+            print(("Successfully added axis %s to %s" % (values[0], imagenames[0])))
 
     if options.reorder:
         for image in imagenames:
-            order = map(int, options.reorder.split(","))
+            order = list(map(int, options.reorder.split(",")))
             reorder(image, order=order, outfile=image)
 
     if options.header:
         for filename, img in zip(imagenames, images):
             img.verify('silentfix')
             if len(imagenames) > 1:
-                print
+                print()
                 "======== FITS header for", filename
             for hdrline in img[0].header.cards:
-                print
+                print()
                 hdrline
 
     if options.replace:
@@ -400,7 +400,7 @@ def main():
             except:
                 images[0][0].header[key] = val
                 q = '"'
-        print
+        print()
         "Setting header %s=%s%s%s" % (key, q, val, q)
         updated = True
 
@@ -409,12 +409,12 @@ def main():
             del images[0][0].header[key]
         except KeyError:
             raise "Key '%s' not found in FITS header" % key
-        print
+        print()
         "Deleting key '%s' header" % key
         updated = True
 
     if options.sanitize is not None:
-        print
+        print()
         "Sanitizing: replacing INF/NAN with", options.sanitize
         for img in images:
             d = img[0].data
@@ -424,7 +424,7 @@ def main():
             updated = True
 
     if options.zero_to_nan:
-        print
+        print()
         "Replacing zeros with NaNs"
         for img in images:
             d = img[0].data
@@ -434,13 +434,13 @@ def main():
             updated = True
 
     if options.nonneg:
-        print
+        print()
         "Replacing negative value by 0"
         for img, name in zip(images, imagenames)[:1]:
             d = img[0].data
             wh = d < 0
             d[wh] = 0
-            print
+            print()
             "Image %s: replaced %d points" % (name, wh.sum())
         updated = True
 
@@ -449,7 +449,7 @@ def main():
             parser.error("The --transfer option requires exactly two input images.")
         if autoname:
             outname = "xfer_" + outname
-        print
+        print()
         "Transferring %s into coordinate system of %s" % (imagenames[1], imagenames[0])
         images[0][0].data = images[1][0].data
         updated = True
@@ -458,7 +458,7 @@ def main():
             parser.error("The --diff option requires exactly two input images.")
         if autoname:
             outname = "diff_" + outname
-        print
+        print()
         "Computing difference"
         data = images[0][0].data
         data -= images[1][0].data
@@ -466,7 +466,7 @@ def main():
     elif options.sum:
         if autoname:
             outname = "sum_" + outname
-        print
+        print()
         "Computing sum"
         data = images[0][0].data
         for d in images[1:]:
@@ -477,7 +477,7 @@ def main():
             parser.error("The --ratio option requires exactly two input images.")
         if autoname:
             outname = "ratio_" + outname
-        print
+        print()
         "Computing ratio"
         data = images[0][0].data
         data /= images[1][0].data
@@ -485,7 +485,7 @@ def main():
     elif options.prod:
         if autoname:
             outname = "prod_" + outname
-        print
+        print()
         "Computing product"
         data = images[0][0].data
         for d in images[1:]:
@@ -494,7 +494,7 @@ def main():
     elif options.mean:
         if autoname:
             outname = "mean%d_" % len(images) + outname
-        print
+        print()
         "Computing mean"
         data = images[0][0].data
         for img in images[1:]:
@@ -523,7 +523,7 @@ def main():
         hdr["CRPIX1"] = zdata.shape[-1] / 2
         hdr["CRPIX2"] = zdata.shape[-2] / 2
 
-        print
+        print()
         "Making zoomed image of shape", "x".join(map(str, zdata.shape))
         images = [pyfits.PrimaryHDU(zdata, hdr)]
         updated = True
@@ -534,7 +534,7 @@ def main():
         if len(images) > 1:
             "Too many input images specified for this operation, at most 1 expected"
             sys.exit(2)
-        print
+        print()
         "Applying scaling factor of %f to image values" % options.rescale
         images[0][0].data *= options.rescale
         updated = True
@@ -549,18 +549,18 @@ def main():
             sum = data.sum()
             mean = sum / data.size
             std = math.sqrt(((data - mean) ** 2).mean())
-            print
+            print()
             "%s: min %g, max %g, sum %g, np %d, mean %g, std %g" % (filename, min, max, sum, data.size, mean, std)
         sys.exit(0)
 
     if updated:
-        print
+        print()
         "Writing output image", outname
         if os.path.exists(outname) and not options.force:
-            print
+            print()
             "Output image exists, rerun with the -f switch to overwrite."
             sys.exit(1)
         images[0].writeto(outname, clobber=True)
     elif not (options.header or options.stack or options.add_axis or options.reorder):
-        print
+        print()
         "No operations specified. Use --help for help."
