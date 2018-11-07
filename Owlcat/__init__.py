@@ -27,10 +27,10 @@
 import __main__
 setattr(__main__,"_meow_verbosity",0);
 
-## ugly hack to get around UGLY FSCKING ARROGNAT (misspelling fully intentional) pyfits-2.3 bug
-## (just in case somebody imports pyfits somewhere)
-import Kittens.utils
-Kittens.utils.import_pyfits();
+# ## ugly hack to get around UGLY FSCKING ARROGNAT (misspelling fully intentional) pyfits-2.3 bug
+# ## (just in case somebody imports pyfits somewhere)
+# import Kittens.utils
+# Kittens.utils.import_pyfits();
 
 # import table class
 try:
