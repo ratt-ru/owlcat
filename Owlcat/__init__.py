@@ -25,7 +25,6 @@
 #
 
 import __main__
-
 setattr(__main__, "_meow_verbosity", 0)
 
 from astropy.io import fits as pyfits
