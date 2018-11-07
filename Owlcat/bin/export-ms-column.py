@@ -33,18 +33,18 @@ import gzip
 import cPickle
 import Owlcat
 
-flagger = parser = ms = msname = None;
+flagger = parser = ms = msname = None
 
 def error (message):
-  print "%s: %s"%(os.path.basename(sys.argv[0]),message);
-  sys.exit(1);
+  print "%s: %s"%(os.path.basename(sys.argv[0]),message)
+  sys.exit(1)
 
 def get_ms ():
-  global ms;
-  global msname;
+  global ms
+  global msname
   if not ms:
-    ms = Owlcat.table(msname);
-  return ms;
+    ms = Owlcat.table(msname)
+  return ms
 
 if __name__ == "__main__":
 
@@ -53,38 +53,38 @@ if __name__ == "__main__":
   from optparse import OptionParser,OptionGroup
   parser = OptionParser(usage="""%prog: [actions] [options] MS COLUMN FILENAME[.gz]""",
       description="Exports MS column to an external file, which can be reloaded with import-ms-column."
-  );
+  )
   parser.add_option("-r","--row-step",type="int",
-                    help="how many rows to step over at a time, default is %default");
+                    help="how many rows to step over at a time, default is %default")
 #  parser.add_option("-z","--gzip",action="store_true",
-#                    help="compress data with gzip");
+#                    help="compress data with gzip")
 #  parser.add_option("-v","--verbose",metavar="LEVEL",type="int",
-#                    help="verbosity level for messages. Higher is more verbose, default is 0.");
-  parser.set_defaults(verbose=0,row_step=200000);
+#                    help="verbosity level for messages. Higher is more verbose, default is 0.")
+  parser.set_defaults(verbose=0,row_step=200000)
 
   # parse args
-  (options,args) = parser.parse_args();
+  (options,args) = parser.parse_args()
   if len(args) != 3:
-    parser.error("Incorrect number of arguments. Use '-h' for help.");
-  msname,colname,filename = args;
+    parser.error("Incorrect number of arguments. Use '-h' for help.")
+  msname,colname,filename = args
 
   try:
-    gzf = gzip.GzipFile(filename,"w") if filename.endswith(".gz") else file(filename,"w");
+    gzf = gzip.GzipFile(filename,"w") if filename.endswith(".gz") else file(filename,"w")
     # write stuff
-    ms = get_ms();
-    print "Opened MS %s"%msname;
+    ms = get_ms()
+    print "Opened MS %s"%msname
     if colname not in ms.colnames():
-      error("Column %s not found"%colname);
-    nrows = ms.nrows();
-    print "Exporting %s to %s:"%(colname,filename);
-    cPickle.dump((options.row_step,nrows),gzf);
+      error("Column %s not found"%colname)
+    nrows = ms.nrows()
+    print "Exporting %s to %s:"%(colname,filename)
+    cPickle.dump((options.row_step,nrows),gzf)
     for r0 in range(0,nrows,options.row_step):
-      print "%d/%d"%(r0,nrows);
-      col = ms.getcol(colname,r0,options.row_step);
-      cPickle.dump(col,gzf);
-    ms.close();
-    gzf.close();
+      print "%d/%d"%(r0,nrows)
+      col = ms.getcol(colname,r0,options.row_step)
+      cPickle.dump(col,gzf)
+    ms.close()
+    gzf.close()
   except:
-    traceback.print_exc();
-    error("Error exporting %s to %s"%(colname,filename));
-  print "Column exported OK.";
+    traceback.print_exc()
+    error("Error exporting %s to %s"%(colname,filename))
+  print "Column exported OK."

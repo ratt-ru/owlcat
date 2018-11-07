@@ -131,9 +131,9 @@ while [ "$1" != "" ]; do
   elif [ "$1" == "-nr" ]; then
     img_remove_img=0
   elif [ "$1" == "-trial" ]; then
-    trial="echo 'Trial mode only, exiting'; exit 1";
+    trial="echo 'Trial mode only, exiting'; exit 1"
   elif [ "$1" == "-i" ]; then
-    confirm="echo 'Press Enter to continue with these settings, or Ctrl+C to stop'; read";
+    confirm="echo 'Press Enter to continue with these settings, or Ctrl+C to stop'; read"
   fi
   shift
 done
@@ -146,7 +146,7 @@ img_name_residual=`eval echo $img_name_prefix$img_name_residual$img_name_suffix`
 
 # MS must be set
 if [ -z "$img_ms" ]; then
-  echo "MS must be set with ms=name, or in $CONFFILE";
+  echo "MS must be set with ms=name, or in $CONFFILE"
   exit 1
 fi
 
@@ -251,11 +251,11 @@ make_image ()
   fi
   if [ "$img_channels" != "" ]; then
     declare -a chans=(${img_channels//,/ })
-    cmd="$cmd chanmode=channel nchan=${chans[0]} chanstart=${chans[1]} chanstep=${chans[2]}";
+    cmd="$cmd chanmode=channel nchan=${chans[0]} chanstart=${chans[1]} chanstep=${chans[2]}"
   fi
   if [ "$img_img_channels" != "" ]; then
     declare -a chans=(${img_img_channels//,/ })
-    cmd="$cmd img_nchan=${chans[0]} img_chanstart=${chans[1]} img_chanstep=${chans[2]}";
+    cmd="$cmd img_nchan=${chans[0]} img_chanstart=${chans[1]} img_chanstep=${chans[2]}"
   fi
   if [ "$img_select" != "" ]; then
     cmd="$cmd select='$img_select'"
@@ -278,12 +278,12 @@ make_image ()
     rm -fr $imgname_fits $imgname &>/dev/null
     echo "Making dirty image: " $cmd
   else
-    restored="$img_name_restored.img";
-    model="$img_name_model.img";
-    residual="$img_name_residual.img";
-    restored_fits="$img_name_restored.fits";
-    model_fits="$img_name_model.fits";
-    residual_fits="$img_name_residual.fits";
+    restored="$img_name_restored.img"
+    model="$img_name_model.img"
+    residual="$img_name_residual.img"
+    restored_fits="$img_name_restored.fits"
+    model_fits="$img_name_model.fits"
+    residual_fits="$img_name_residual.fits"
     rm -fr $restored_fits $model_fits $residual_fits $restored $model $residual &>/dev/null
     cmd="$cmd model=$model restored=$restored residual=$residual
       niter=$img_niter gain=$img_gain threshold=$img_threshold fixed=$img_fixed
@@ -315,7 +315,7 @@ make_image ()
     fi
     return 0
   else
-    echo "Imager failed";
+    echo "Imager failed"
     return 1
   fi
 }
