@@ -1,4 +1,19 @@
 language: python
+matrix:
+  include:
+  - env: TARGET=python2
+  - env: TARGET=pep8
+sudo: required
+services:
+- docker
+before_install:
+- true
+install:
+- docker build . -t ${TARGET} -f .travis/${TARGET}.docker
+before_script:
+- true
+script:
+- true
 python:
 - '2.7'
 install:
