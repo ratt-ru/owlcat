@@ -4,4 +4,4 @@ RUN docker-apt-install python3-pip
 RUN pip3 install pycodestyle
 ADD . /code
 WORKDIR /code
-RUN pycodestyle --ignore --statistics Owlcat
+RUN pycodestyle --ignore=E122,E127,E128,E123,E251,E262,E265,E266,E301,E303,E402,E501,E502,E703,E711,E712,E722,E731,E741 --statistics Owlcat
