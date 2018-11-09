@@ -5,4 +5,4 @@ RUN pip install --upgrade pip setuptools
 ADD . /code
 WORKDIR /code
 RUN pip install .[complete]
-RUN py.test -s -vvv /code/Owlcat
+#RUN py.test -s -vvv /code/Owlcat
