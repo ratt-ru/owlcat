@@ -14,8 +14,6 @@ before_script:
 - true
 script:
 - true
-python:
-- '2.7'
 install:
 - python setup.py install
 script:
@@ -27,3 +25,5 @@ deploy:
     secure: xDkz2ilo/rG1U1dSfhAJoFXAVcmw+L0uk7DUuAtRhDh/ShpULlU9F3MPtVHo2fGmzgjVy1Joiya1iTveHdLvnwMpd10QZcygq712GjS6Z4Oum1poUwzFXfgyU97xYWoYsgfv/5n4Ae6zhMemHrp3qvDybFWJzmPPPh1GNba3pVQ=
   on:
     tags: true
+    distributions: sdist bdist_wheel
+    repo: ska-sa/owlcat
