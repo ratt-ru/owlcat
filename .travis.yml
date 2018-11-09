@@ -14,10 +14,6 @@ before_script:
 - true
 script:
 - true
-install:
-- python setup.py install
-script:
-- true
 deploy:
   provider: pypi
   user: gijzelaerr
