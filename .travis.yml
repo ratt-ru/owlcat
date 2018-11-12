@@ -1,8 +1,17 @@
 language: python
-python:
-- '2.7'
+matrix:
+  include:
+  - env: TARGET=python2
+  - env: TARGET=pep8
+sudo: required
+services:
+- docker
+before_install:
+- true
 install:
-- python setup.py install
+- docker build . -t ${TARGET} -f .travis/${TARGET}.docker
+before_script:
+- true
 script:
 - true
 deploy:
@@ -12,3 +21,5 @@ deploy:
     secure: xDkz2ilo/rG1U1dSfhAJoFXAVcmw+L0uk7DUuAtRhDh/ShpULlU9F3MPtVHo2fGmzgjVy1Joiya1iTveHdLvnwMpd10QZcygq712GjS6Z4Oum1poUwzFXfgyU97xYWoYsgfv/5n4Ae6zhMemHrp3qvDybFWJzmPPPh1GNba3pVQ=
   on:
     tags: true
+    distributions: sdist bdist_wheel
+    repo: ska-sa/owlcat

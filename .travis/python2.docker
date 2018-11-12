@@ -1,0 +1,8 @@
+FROM kernsuite/base:3
+RUN docker-apt-install casacore-dev python-numpy
+RUN docker-apt-install python-pip python-casacore
+RUN pip install --upgrade pip setuptools
+ADD . /code
+WORKDIR /code
+RUN pip install .[complete]
+#RUN py.test -s -vvv /code/Owlcat
