@@ -13,4 +13,4 @@ RUN docker-apt-install \
 
 ADD . /code
 WORKDIR /code
-RUN pip install ".[complete]"
+RUN pip install .

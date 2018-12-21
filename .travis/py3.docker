@@ -13,4 +13,4 @@ RUN docker-apt-install \
 
 ADD . /code
 WORKDIR /code
-RUN pip3 install ".[complete]"
+RUN pip3 install .
