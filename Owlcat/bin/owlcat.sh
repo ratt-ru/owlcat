@@ -35,7 +35,7 @@ if [ ! -f $cmdfile ]; then
 fi
 
 listCmds() {
-  cmds="`cut -d " " -f 1 $cmdfile`";
+  cmds="`cut -d " " -f 1 $cmdfile`"
   echo $cmds
 }
 
@@ -58,19 +58,19 @@ usage() {
 
 if [ $# -lt 1 ]; then
    usage
-   exit 1;
+   exit 1
 fi
 
 if [ "$1" == "-h" ]; then
    usage
-   exit 0;
+   exit 0
 fi
 
 commands="`listCmds`"
 
 if [ "$1" == "-l" ]; then
    echo $commands
-   exit 0;
+   exit 0
 fi
 
 # make sure only valid commands from the list are executed
@@ -80,8 +80,8 @@ for cmd in $commands; do
     if [ ! -x ${script} ]; then
       script=${dir}/$1.sh
       if [ ! -x ${script} ]; then
-        echo "Unexpected error: missing script for command $1. Please report this as a bug.";
-        exit 1;
+        echo "Unexpected error: missing script for command $1. Please report this as a bug."
+        exit 1
       fi
     fi
     shift
@@ -91,4 +91,4 @@ done
 
 echo "Unknown command $1"
 usage
-exit 1;
+exit 1

@@ -1,7 +1,20 @@
 #!/usr/bin/env python
 
 import os
-from distutils.core import setup
+from setuptools import setup
+
+install_requires = [
+      'astropy',
+      'numpy',
+      'matplotlib',
+      'python-casacore',
+      'meqtrees_cattery',
+      'scipy',
+      'astlib',
+      'astro-kittens',
+      'six',
+      'future',
+]
 
 setup(name='owlcat',
       version='1.4.3',
@@ -10,7 +23,7 @@ setup(name='owlcat',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',
       url='https://github.com/ska-sa/owlcat',
       packages=['Owlcat'],
-      requires=['pyfits', 'numpy', 'matplotlib', 'pyrap', 'meqtrees_cattery'],
+      install_requires=install_requires,
       scripts=['Owlcat/bin/' + i for i in os.listdir('Owlcat/bin')],
       data_files=[('Owlcat/bin/', ['Owlcat/bin/commands.list'])],
-     )
+)
