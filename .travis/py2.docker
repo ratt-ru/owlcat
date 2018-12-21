@@ -1,0 +1,16 @@
+FROM kernsuite/base:4
+RUN docker-apt-install \
+    casacore-dev \
+    python-numpy \
+    python-pip \
+    python-astropy \
+    python-casacore \
+    python-matplotlib \
+    python-scipy \
+    python-astlib \
+    python-six \
+    python-future
+
+ADD . /code
+WORKDIR /code
+RUN pip install ".[complete]"

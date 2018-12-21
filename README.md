@@ -51,3 +51,8 @@ Questions or problems?
 
 Just e-mail Oleg Smirnov <osmirnov@gmail.com> or open an issue on Github.
 
+
+Development
+-----------
+
+[![Build Status](https://travis-ci.org/ska-sa/owlcat.svg?branch=master)](https://travis-ci.org/ska-sa/owlcat)
