@@ -24,7 +24,7 @@
 # or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-
+from __future__ import print_function
 import sys
 import re
 import os.path
@@ -92,7 +92,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     hdr['CRVAL%d' % fits_ind] = crval
     hdr['CRPIX%d' % fits_ind] = 1
 
-    pyfits.writeto(outname, data.astype(numpy.float32), hdr, clobber=True)
+    pyfits.writeto(outname, data.astype(numpy.float32), hdr, overwrite=True)
     print(("Successfully stacked images. Output image is %s" % outname))
 
     # remove old files
@@ -144,7 +144,7 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fit
         outfile = '%s-%04d.fits' % (prefix, i)
         outfiles.append(outfile)
         print(("Making chunk %d : %s. File is %s" % (i, repr(_slice[axis]), outfile)))
-        hdu.writeto(outfile, clobber=True)
+        hdu.writeto(outfile, overwrite=True)
     hdu.close()
 
     if keep_old == False:
@@ -212,7 +212,7 @@ def reorder(fitsname, order=[], outfile=None):
     hdu[0].header = hdr
     outfile = outfile or "reodered_" + fitsname
     print(("Successfully re-ordered axes in FITS image. Output image is at %s" % outfile))
-    hdu.writeto(outfile, clobber=True)
+    hdu.writeto(outfile, overwrite=True)
 
 
 def main():
@@ -356,7 +356,7 @@ def main():
 
                 hdu[0].header["%s%d" % ((_mendatory + _optional)[i], ndim + 1)] = value
 
-            hdu.writeto(imagenames[0], clobber=True)
+            hdu.writeto(imagenames[0], overwrite=True)
             print(("Successfully added axis %s to %s" % (values[0], imagenames[0])))
 
     if options.reorder:
@@ -368,11 +368,9 @@ def main():
         for filename, img in zip(imagenames, images):
             img.verify('silentfix')
             if len(imagenames) > 1:
-                print()
-                "======== FITS header for", filename
+                print("======== FITS header for", filename)
             for hdrline in img[0].header.cards:
-                print()
-                hdrline
+                print(hdrline)
 
     if options.replace:
         if options.output:
@@ -508,23 +506,25 @@ def main():
         if autoname:
             outname = "zoom%d_" % z + outname
         if len(images) > 1:
-            "Too many input images specified for this operation, at most 1 expected"
+            print("Too many input images specified for this operation, at most 1 expected")
             sys.exit(2)
         data = images[0][0].data
-        nx = data.shape[-2]
-        ny = data.shape[-1]
-        zdata = data[:, :, (nx - z) / 2:(nx + z) / 2, (ny - z) / 2:(ny + z) / 2]
+        nx = data.shape[-1]
+        ny = data.shape[-2]
+        zx0, zy0 = (nx - z)//2, (ny - z)//2
+        zcen = z//2
+        zdata = data[..., zy0:zy0+z, zx0:zx0+z]
         # update header
         hdr = images[0][0].header
         wcs = WCS(hdr, mode="pyfits")
-        cr1, cr2 = wcs.pix2wcs(ny / 2, nx / 2)
+        cr1, cr2 = wcs.pix2wcs(zx0 + zcen, zy0 + zcen)  # get WCS of center pixel
         hdr["CRVAL1"] = cr1
         hdr["CRVAL2"] = cr2
-        hdr["CRPIX1"] = zdata.shape[-1] / 2
-        hdr["CRPIX2"] = zdata.shape[-2] / 2
+        hdr["CRPIX1"] = zcen + 1
+        hdr["CRPIX2"] = zcen + 1
 
-        print()
-        "Making zoomed image of shape", "x".join(map(str, zdata.shape))
+        print("Making zoomed image of shape", "x".join(map(str, zdata.shape)))
+
         images = [pyfits.PrimaryHDU(zdata, hdr)]
         updated = True
 
@@ -560,7 +560,7 @@ def main():
             print()
             "Output image exists, rerun with the -f switch to overwrite."
             sys.exit(1)
-        images[0].writeto(outname, clobber=True)
+        images[0].writeto(outname, overwrite=True)
     elif not (options.header or options.stack or options.add_axis or options.reorder):
         print()
         "No operations specified. Use --help for help."
