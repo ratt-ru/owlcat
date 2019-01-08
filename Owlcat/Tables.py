@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import print_function
 from six.moves import cPickle
 import gzip
 
@@ -40,11 +40,10 @@ class TableDump(object):
         for i0 in rng:
             cPickle.dump(tab.getcol(colname, i0, maxrows), self.stream)
         if verbose:
-            print()
-            "  %s: %d chunk(s)%s%s" % (colname, len(rng),
+            print("  %s: %d chunk(s)%s%s" % (colname, len(rng),
                                        ", array column shape %s" % "x".join(
                                            map(str, row0.shape[1:])) if row0.ndim > 2 else "scalar column",
-                                       ", %d keywords" % len(kws) if kws else "")
+                                       ", %d keywords" % len(kws) if kws else ""))
 
     def load(self, tab, verbose):
         """Loads all columns from the dump file"""
@@ -67,5 +66,4 @@ class TableDump(object):
                     tab.putcol(colname, col, row0, col.shape[0])
                     row0 += col.shape[0]
                 if verbose:
-                    print()
-                    "  %s: %d chunks%s" % (colname, nchunks, ", %d keywords" % len(kws) if kws else "")
+                    print("  %s: %d chunks%s" % (colname, nchunks, ", %d keywords" % len(kws) if kws else ""))

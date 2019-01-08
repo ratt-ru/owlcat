@@ -21,8 +21,8 @@
 # or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
+from __future__ import print_function
 import matplotlib
-
 matplotlib.use('Agg')
 import pylab
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
@@ -212,13 +212,11 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
     # apply subsets
     if subset:
         src = subset.split()
-        print()
-        "applying subset '%s' to sources" % src, srcnames
+        print("applying subset '%s' to sources" % (src, srcnames))
         srcnames = [x for x in srcnames if any([fnmatch.fnmatch(x, patt) for patt in src])]
     if ant:
         ant = ant.split()
-        print()
-        "applying subset '%s' to antennas" % ant, antennas
+        print("applying subset '%s' to antennas" % (ant, antennas))
         antennas = [x for x in antennas if any([fnmatch.fnmatch(x, patt) for patt in ant])]
 
     if not srcnames or not antennas:

@@ -643,8 +643,7 @@ if __name__ == '__main__':
     from . import FunkOps
 
     if len(sys.argv) < 2:
-        print()
-        "Pass in an fmep table to read its stats"
+        print("Pass in an fmep table to read its stats")
     else:
         verbose(3)
         pt = ParmTab(sys.argv[1])

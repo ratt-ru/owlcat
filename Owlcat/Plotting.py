@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import numpy
 import numpy.ma
 import math
@@ -146,8 +147,7 @@ class PlotCollection(object):
                         # print dd
                     except:
                         traceback.print_exc()
-                        print()
-                        "Error plotting data for", key
+                        print("Error plotting data for", key)
                         continue
                     if self.label[key]:
                         # figure out where to place text label
@@ -202,8 +202,7 @@ class PlotCollection(object):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print()
-            "===> Wrote", save
+            print("===> Wrote", save)
         return fig
 
 
@@ -276,8 +275,7 @@ class PlotCollectionSep(PlotCollection):
                         plt.plot(dd, ',', color=colors[ikey % len(colors)], label=self.label[key])
                     except:
                         traceback.print_exc()
-                        print()
-                        "Error plotting data for", key
+                        print("Error plotting data for", key)
                         continue
             # add text labels
             # legend is not quite functional in matplotlib 0.98, so use text() instead
@@ -334,8 +332,7 @@ class PlotCollectionSep(PlotCollection):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print()
-            "===> Wrote", save
+            print("===> Wrote", save)
         return fig
 
 
@@ -412,8 +409,7 @@ class ComplexCirclePlot(PlotCollection):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print()
-            "===> Wrote", save
+            print("===> Wrote", save)
         return fig
 
 
@@ -473,8 +469,7 @@ class ScatterPlot(object):
                 plt.plot(x, y, "-x", zorder=0)
             except:
                 traceback.print_exc()
-                print()
-                "Error plotting data for", key
+                print("Error plotting data for", key)
                 continue
             # plot text labels
             if labels.get(key):
@@ -499,8 +494,7 @@ class ScatterPlot(object):
         if save:
             fig.savefig(save, papertype=papertype, dpi=dpi,
                         orientation='portrait' if not landscape else 'landscape')
-            print()
-            "===> Wrote", save
+            print("===> Wrote", save)
         return fig
 
 
@@ -556,8 +550,7 @@ class MultigridPlot(AbstractBasePlot):
             try:
                 y0, y1 = list(map(float, options.y_lock.split(",")))
             except:
-                print()
-                "Error parsing --y-lock option, --y-lock MIN,MAX expected."
+                print("Error parsing --y-lock option, --y-lock MIN,MAX expected.")
                 sys.exit(1)
             self.ylock = y0, y1
         else:
@@ -664,8 +657,7 @@ class MultigridPlot(AbstractBasePlot):
             # exit if figure already exists, and we're not refreshing
             if os.path.exists(
                     save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-                print()
-                save, "exists, not redoing"
+                print(save, "exists, not redoing")
                 return save
         else:
             save = None
@@ -808,8 +800,7 @@ class MultigridPlot(AbstractBasePlot):
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
             fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
                         orientation=orientation)
-            print()
-            "Wrote", save, "in", orientation, "orientation"
+            print("Wrote", save, "in", orientation, "orientation")
             fig = None
             pyplot.close("all")
         return save
@@ -893,8 +884,7 @@ class SkyPlot(AbstractBasePlot):
             # exit if figure already exists, and we're not refreshing
             if os.path.exists(
                     save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-                print()
-                save, "exists, not redoing"
+                print(save, "exists, not redoing")
                 return save
         else:
             save = None
@@ -965,8 +955,7 @@ class SkyPlot(AbstractBasePlot):
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
             fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
                         orientation=orientation)
-            print()
-            "Wrote", save, "in", orientation, "orientation"
+            print("Wrote", save, "in", orientation, "orientation")
             fig = None
             pyplot.close("all")
         return save

@@ -398,8 +398,7 @@ def main():
             except:
                 images[0][0].header[key] = val
                 q = '"'
-        print()
-        "Setting header %s=%s%s%s" % (key, q, val, q)
+        print("Setting header %s=%s%s%s" % (key, q, val, q))
         updated = True
 
     for key in options.delete_header:
@@ -407,13 +406,11 @@ def main():
             del images[0][0].header[key]
         except KeyError:
             raise "Key '%s' not found in FITS header" % key
-        print()
-        "Deleting key '%s' header" % key
+        print("Deleting key '%s' header" % key)
         updated = True
 
     if options.sanitize is not None:
-        print()
-        "Sanitizing: replacing INF/NAN with", options.sanitize
+        print("Sanitizing: replacing INF/NAN with", options.sanitize)
         for img in images:
             d = img[0].data
             d[numpy.isnan(d) + numpy.isinf(d)] = options.sanitize
@@ -422,8 +419,7 @@ def main():
             updated = True
 
     if options.zero_to_nan:
-        print()
-        "Replacing zeros with NaNs"
+        print("Replacing zeros with NaNs")
         for img in images:
             d = img[0].data
             d[d == 0] = numpy.nan
@@ -432,14 +428,12 @@ def main():
             updated = True
 
     if options.nonneg:
-        print()
-        "Replacing negative value by 0"
+        print("Replacing negative value by 0")
         for img, name in zip(images, imagenames)[:1]:
             d = img[0].data
             wh = d < 0
             d[wh] = 0
-            print()
-            "Image %s: replaced %d points" % (name, wh.sum())
+            print("Image %s: replaced %d points" % (name, wh.sum()))
         updated = True
 
     if options.transfer:
@@ -447,8 +441,7 @@ def main():
             parser.error("The --transfer option requires exactly two input images.")
         if autoname:
             outname = "xfer_" + outname
-        print()
-        "Transferring %s into coordinate system of %s" % (imagenames[1], imagenames[0])
+        print("Transferring %s into coordinate system of %s" % (imagenames[1], imagenames[0]))
         images[0][0].data = images[1][0].data
         updated = True
     elif options.diff:
@@ -456,16 +449,14 @@ def main():
             parser.error("The --diff option requires exactly two input images.")
         if autoname:
             outname = "diff_" + outname
-        print()
-        "Computing difference"
+        print("Computing difference")
         data = images[0][0].data
         data -= images[1][0].data
         updated = True
     elif options.sum:
         if autoname:
             outname = "sum_" + outname
-        print()
-        "Computing sum"
+        print("Computing sum")
         data = images[0][0].data
         for d in images[1:]:
             data += d[0].data
@@ -475,16 +466,14 @@ def main():
             parser.error("The --ratio option requires exactly two input images.")
         if autoname:
             outname = "ratio_" + outname
-        print()
-        "Computing ratio"
+        print("Computing ratio")
         data = images[0][0].data
         data /= images[1][0].data
         updated = True
     elif options.prod:
         if autoname:
             outname = "prod_" + outname
-        print()
-        "Computing product"
+        print("Computing product")
         data = images[0][0].data
         for d in images[1:]:
             data *= d[0].data
@@ -492,8 +481,7 @@ def main():
     elif options.mean:
         if autoname:
             outname = "mean%d_" % len(images) + outname
-        print()
-        "Computing mean"
+        print("Computing mean")
         data = images[0][0].data
         for img in images[1:]:
             data += img[0].data
@@ -534,8 +522,7 @@ def main():
         if len(images) > 1:
             "Too many input images specified for this operation, at most 1 expected"
             sys.exit(2)
-        print()
-        "Applying scaling factor of %f to image values" % options.rescale
+        print("Applying scaling factor of %f to image values" % options.rescale)
         images[0][0].data *= options.rescale
         updated = True
 
@@ -549,18 +536,14 @@ def main():
             sum = data.sum()
             mean = sum / data.size
             std = math.sqrt(((data - mean) ** 2).mean())
-            print()
-            "%s: min %g, max %g, sum %g, np %d, mean %g, std %g" % (filename, min, max, sum, data.size, mean, std)
+            print("%s: min %g, max %g, sum %g, np %d, mean %g, std %g" % (filename, min, max, sum, data.size, mean, std))
         sys.exit(0)
 
     if updated:
-        print()
-        "Writing output image", outname
+        print("Writing output image", outname)
         if os.path.exists(outname) and not options.force:
-            print()
-            "Output image exists, rerun with the -f switch to overwrite."
+            print("Output image exists, rerun with the -f switch to overwrite.")
             sys.exit(1)
         images[0].writeto(outname, overwrite=True)
     elif not (options.header or options.stack or options.add_axis or options.reorder):
-        print()
-        "No operations specified. Use --help for help."
+        print("No operations specified. Use --help for help.")
