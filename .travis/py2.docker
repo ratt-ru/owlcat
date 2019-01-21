@@ -14,7 +14,8 @@ RUN docker-apt-install \
 # test dependencies
 RUN docker-apt-install \
     wget \
-    makems
+    makems \
+    meqtrees-timba
 
 ADD . /code
 WORKDIR /code
