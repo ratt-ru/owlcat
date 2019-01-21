@@ -1,4 +1,4 @@
-FROM kernsuite/base:4
+FROM kernsuite/base:5
 RUN docker-apt-install \
     casacore-dev \
     python3-numpy \
@@ -11,6 +11,25 @@ RUN docker-apt-install \
     python3-six \
     python3-future
 
+# test dependencies
+RUN docker-apt-install \
+    wget \
+    makems
+
 ADD . /code
 WORKDIR /code
 RUN pip3 install .
+
+# get the test from pyxis
+RUN wget https://github.com/ska-sa/pyxis/archive/v1.6.2.tar.gz
+RUN tar -xvf v1.6.2.tar.gz
+WORKDIR /code/pyxis-1.6.2
+RUN pip3 install -U .
+
+# run test when built
+RUN pip3 install nose
+WORKDIR /usr/local/lib/python3.6/dist-packages/Pyxis/recipies/meqtrees-batch-test
+RUN python3.6 -m "nose"
+
+ENTRYPOINT ["meqtree-pipeliner.py"]
+CMD ["--help"]
