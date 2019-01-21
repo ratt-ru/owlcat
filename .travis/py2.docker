@@ -16,7 +16,8 @@ RUN docker-apt-install \
     wget \
     makems \
     meqtrees-timba \
-    astro-tigger
+    meqtrees-cattery \
+    python-tigger
 
 ADD . /code
 WORKDIR /code
