@@ -11,13 +11,18 @@ RUN docker-apt-install \
     python3-six \
     python3-future
 
-# test dependencies
 RUN docker-apt-install \
     wget \
     makems \
     meqtrees-timba \
-    meqtrees-cattery \
-    python-tigger
+    libboost-python-dev \
+    python-casacore \
+    casacore-dev \
+    wcslib-dev \
+    libcfitsio-dev
+
+RUN pip3 install meqtrees-cattery
+RUN pip3 install owlcat
 
 ADD . /code
 WORKDIR /code

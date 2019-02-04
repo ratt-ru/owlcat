@@ -11,13 +11,14 @@ RUN docker-apt-install \
     python-six \
     python-future
 
-# test dependencies
 RUN docker-apt-install \
     wget \
     makems \
     meqtrees-timba \
-    meqtrees-cattery \
-    python-tigger
+    libboost-python-dev \
+    python-casacore \
+    python-astro-tigger \
+    python-meqtrees-cattery
 
 ADD . /code
 WORKDIR /code
@@ -33,6 +34,3 @@ RUN pip install -U .
 RUN pip install nose
 WORKDIR /usr/local/lib/python2.7/dist-packages/Pyxis/recipies/meqtrees-batch-test
 RUN python2.7 -m "nose"
-
-ENTRYPOINT ["meqtree-pipeliner.py"]
-CMD ["--help"]
