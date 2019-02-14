@@ -121,7 +121,7 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
         ant2 = ms.getcol('ANTENNA2')
 
         IFRS = sorted(set([(p, q) for p, q in zip(ant1, ant2)]))
-        print("%d baselines" % len(IFRS))
+        print(("%d baselines" % len(IFRS)))
         groups = []
 
         for i, (p, q) in enumerate(IFRS):
@@ -147,7 +147,7 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
         if options.list:
             baselist = ["%dm (%s)" % (round(length), " ".join(["%s-%s" % (p, q) for p, q in mem]))
                         for length, mem in groups]
-            print("Found %d non-redundant baselines:" % len(baselist), ", ".join(baselist))
+            print(("Found %d non-redundant baselines:" % len(baselist), ", ".join(baselist)))
             sys.exit(0)
 
         # make a dictionary of per-IFR weights
@@ -155,8 +155,8 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
         weight = dict([((p, q), 1.) for p, q in IFRS])
         for baseline, members in groups:
             if len(members) > 1:
-                print("Baseline %dm, %d ifrs: %s" % (round(baseline), len(members),
-                                                     " ".join(["%d-%d" % (p, q) for p, q in members])))
+                print(("Baseline %dm, %d ifrs: %s" % (round(baseline), len(members),
+                                                     " ".join(["%d-%d" % (p, q) for p, q in members]))))
                 have_redundancy = True
                 for p, q in members:
                     weight[p, q] = 1.0 / len(members)

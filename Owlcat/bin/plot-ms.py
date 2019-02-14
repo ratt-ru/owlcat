@@ -217,7 +217,7 @@ more information on available plots. If no plots are specified, CORRECTED_DATA:I
     if options.list_plots:
         print("Available plot types:\n")
         for p in Plotters:
-            print("   %-16s%s" % (p[0], p[1]))
+            print(("   %-16s%s" % (p[0], p[1])))
         print("""
 By default, specifying "DATA:XX" is the same as "DATA:XX.mean", producing a plot of mean |XX|
 in time or frequency (depending on choice of X axis). Use "DATA.mean:XX" to plot |mean XX|
@@ -256,7 +256,7 @@ BITFLAG/FLAG columns are shared among all data columns.
     if not args:
         parser.error("MS not specified. Use '-h' for help.")
     msname = args[0]
-    print("===> Attaching to MS %s" % msname)
+    print(("===> Attaching to MS %s" % msname))
     ms = Owlcat.table(msname)
 
     # get flagmask, use a Flagger for this
@@ -271,7 +271,7 @@ BITFLAG/FLAG columns are shared among all data columns.
         flagmask = flagger.lookup_flagmask(options.flagmask)
         flagger.close()
         flagger = None
-        print("===> Flagmask is %s (you specified '%s')" % (Flagger.flagmaskstr(flagmask), options.flagmask))
+        print(("===> Flagmask is %s (you specified '%s')" % (Flagger.flagmaskstr(flagmask), options.flagmask)))
         if not flagmask & Flagger.LEGACY:
             print("===> NB: legacy FLAG/FLAG_ROW columns will be ignored with this flagmask")
     else:
@@ -281,12 +281,12 @@ BITFLAG/FLAG columns are shared among all data columns.
     # parse slice specs
     try:
         freqslice = Parsing.parse_slice(options.freqslice)
-        print("===> Channel selection is ", freqslice)
+        print(("===> Channel selection is ", freqslice))
     except:
         parser.error("Invalid -L/--channels option. Start:end[:step] or start~end[:step] expected.")
     try:
         timeslice = Parsing.parse_slice(options.timeslice)
-        print("===> Timeslot selection is ", timeslice)
+        print(("===> Timeslot selection is ", timeslice))
     except:
         parser.error("Invalid -T/--timeslots option. Start:end[:step] start~end[:step] expected.")
 
@@ -349,13 +349,13 @@ BITFLAG/FLAG columns are shared among all data columns.
     if options.ifrs:
         if options.ifrs == "help":
             # print help string, but trim away RTF tags
-            print(re.sub("<[^>]+>", "", ifrset.subset_doc).replace("&lt;", "<").replace("&gt;", ">"))
+            print((re.sub("<[^>]+>", "", ifrset.subset_doc).replace("&lt;", "<").replace("&gt;", ">")))
             sys.exit(0)
         ifrset = ifrset.subset(options.ifrs)
         taqls.append(ifrset.taql_string())
-        print("===> Selected %d of %d interferometers " % (len(ifrset.ifrs()), tot_ifrs))
+        print(("===> Selected %d of %d interferometers " % (len(ifrset.ifrs()), tot_ifrs)))
     else:
-        print("===> Selected all %d interferometers " % tot_ifrs)
+        print(("===> Selected all %d interferometers " % tot_ifrs))
 
     # select DDIDs
     ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'))
@@ -363,7 +363,7 @@ BITFLAG/FLAG columns are shared among all data columns.
     ddid_str = options.ddid.strip().lower()
     if ddid_str == 'first':
         ddids = [ms.getcol('DATA_DESC_ID', 0, 1)[0]]
-        print("===> Using first DATA_DESC_ID (%d)" % ddids[0])
+        print(("===> Using first DATA_DESC_ID (%d)" % ddids[0]))
     # else see if it's a single int
     elif re.match('^\d+$', ddid_str):
         ddids = [int(options.ddid)]
@@ -390,17 +390,17 @@ BITFLAG/FLAG columns are shared among all data columns.
     # select field
     if options.field is not None:
         taqls.append("FIELD_ID==%d" % options.field)
-        print("===> Selecting FIELD_ID %d" % options.field)
+        print(("===> Selecting FIELD_ID %d" % options.field))
 
     # select TaQL
     if options.taql:
         taqls.append(options.taql)
-        print("===> Additional TaQL query is \"%s\"" % options.taql)
+        print(("===> Additional TaQL query is \"%s\"" % options.taql))
 
     # apply accumulated selection
     if taqls:
         ms = ms.query("( " + " ) && ( ".join(taqls) + " )")
-        print("===> Selected %d rows from MS" % ms.nrows())
+        print(("===> Selected %d rows from MS" % ms.nrows()))
     if not ms.nrows():
         print("""MS selection is empty. You may have specified it incorrectly: please check your
 DATA_DESC_ID (option -D/--ddid), field (-F/--field), interferometer subset (-I/--ifrs)
@@ -487,8 +487,8 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
         subms = ms.query("DATA_DESC_ID==%d" % ddid)
         datashape = [subms.nrows(), nchan[spwids[ddid]], len(corrs[polids[ddid]])]
 
-        print("===> Processing DATA_DESC_ID %d (%d MHz): %dx%d by %d rows" % (
-            ddid, round(ref_freq[spwids[ddid]] * 1e-6), datashape[1], datashape[2], datashape[0]))
+        print(("===> Processing DATA_DESC_ID %d (%d MHz): %dx%d by %d rows" % (
+            ddid, round(ref_freq[spwids[ddid]] * 1e-6), datashape[1], datashape[2], datashape[0])))
 
         if not subms.nrows():
             continue
@@ -511,7 +511,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
                 flagcol |= ((bfr & bitflags) != 0)[:, numpy.newaxis, numpy.newaxis]
         flagcol = flagcol[:, freqslice, :]
         nf = flagcol.sum()
-        print("===> %d of %d (%.2g%%) visibilities are flagged " % (nf, flagcol.size, (nf / float(flagcol.size)) * 100))
+        print(("===> %d of %d (%.2g%%) visibilities are flagged " % (nf, flagcol.size, (nf / float(flagcol.size)) * 100)))
 
         # get antenna indices, and make dict per-ifr masks
         a1, a2 = subms.getcol('ANTENNA1'), subms.getcol('ANTENNA2')
@@ -527,7 +527,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
             else:
                 labelattrs['plot'] = plotwhat
             colname0 = colname
-            print("===> Making plot", plotdesc)
+            print(("===> Making plot", plotdesc))
             # read in data column, if not already read
             if colname:
                 # do we already have a reduced version of the column cached?
@@ -607,7 +607,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
     datacols = flagcol = dc = None
 
     # make list of active IFRS (as p,q pairs), sorted by baseline length
-    print("===> Found data for %d interferometers" % len(active_ifrs))
+    print(("===> Found data for %d interferometers" % len(active_ifrs)))
     if not average_ifrs:
         keyranges[2] = sorted(active_ifrs,
                               lambda a, b: cmp((round(ifrset.baseline(*a)), a), (round(ifrset.baseline(*b)), b)))
@@ -685,7 +685,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
                 title0 += " " + plots[nplot][1]
         # split keylist if needed
         if options.group_redundant:
-            print("===> Grouping by %d unique baselines" % len(baselines))
+            print(("===> Grouping by %d unique baselines" % len(baselines)))
             ppp = options.ppp
             baselines = sorted(baselines)
             for nkey0 in range(0, len(baselines), ppp):

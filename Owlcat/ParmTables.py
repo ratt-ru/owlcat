@@ -64,8 +64,8 @@ class _AxisStats(object):
     def update(self):
         if self.cells:
             # axis range
-            self.minmax = min([x0 - dx / 2 for x0, dx in self.cells.items()]), max(
-                [x0 + dx / 2 for x0, dx in self.cells.items()])
+            self.minmax = min([x0 - dx / 2 for x0, dx in list(self.cells.items())]), max(
+                [x0 + dx / 2 for x0, dx in list(self.cells.items())])
             # grid is simply a sorted list of cell values
             self.grid = list(self.cells.keys())
             self.grid.sort()
@@ -199,7 +199,7 @@ class FunkSet(object):
         else:
             index = list(index)
         # set additional indices from keywords
-        for axis, num in axes.items():
+        for axis, num in list(axes.items()):
             index[mequtils.get_axis_number(axis)] = num
         # build up list of full indices corresponding to specified slice
         slice_iaxis = []
@@ -208,7 +208,7 @@ class FunkSet(object):
             stats = self.pt.axis_stats(iaxis)
             # for empty axes, or axes specifed in our call, append number to all indices as is
             if axis_idx is not None or stats.empty():
-                list(map(lambda idx: idx.append(axis_idx), indices))
+                list([idx.append(axis_idx) for idx in indices])
             # non-empty axes NOT specified in our call will be part of the slice
             else:
                 slice_iaxis.append(iaxis)
@@ -514,7 +514,7 @@ class ParmTab(object):
             dprintf(2, "collecting axis stats\n")
             self._axes = {}
             for domain in self._domain_list:
-                for axis, rng in domain.items():
+                for axis, rng in list(domain.items()):
                     if str(axis) != 'axis_map':
                         self._axis_stats[mequtils.get_axis_number(axis)].add_cell(*rng)
             dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)
@@ -534,7 +534,7 @@ class ParmTab(object):
             self._domain_reverse_index = {}
             for idom, domain in enumerate(self._domain_list):
                 index = [None] * mequtils.max_axis
-                for axis, rng in domain.items():
+                for axis, rng in list(domain.items()):
                     if str(axis) != 'axis_map':
                         iaxis = mequtils.get_axis_number(axis)
                         index[iaxis] = self._axis_stats[iaxis].lookup_cell(*rng)

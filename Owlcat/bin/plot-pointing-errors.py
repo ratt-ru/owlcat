@@ -94,7 +94,7 @@ if __name__ == "__main__":
     # scan funklet names to build up sets of keys
     oldtable = False
     pt = ParmTab(args[0])
-    print("Table contains:", pt.funklet_names())
+    print(("Table contains:", pt.funklet_names()))
     for name in pt.funklet_names():
         if name.startswith("E::dlm::dl"):
             options.prefix = "E::dlm::"
@@ -104,16 +104,16 @@ if __name__ == "__main__":
             ANTS.add(fields[-1])
     ts_slice = slice(getattr(options, 'from'), options.to if options.to >= 0 else None)
     NTIMES = len(pt.funkset(pt.funklet_names()[0]).get_slice()[ts_slice])
-    print("%d timeslots found in table %s" % (NTIMES, args[0]))
+    print(("%d timeslots found in table %s" % (NTIMES, args[0])))
 
     ANTS = sorted(ANTS)
     if not ANTS:
-        print("No pointing offset solutions found in MEP table %s." % args[0])
+        print(("No pointing offset solutions found in MEP table %s." % args[0]))
         sys.exit(1)
 
     if options.list:
-        print("MEP table %s contains pointing offsets for" % args[0])
-        print("  %d antennas: %s" % (len(ANTS), " ".join(ANTS)))
+        print(("MEP table %s contains pointing offsets for" % args[0]))
+        print(("  %d antennas: %s" % (len(ANTS), " ".join(ANTS))))
 
     # source subset selection
     import fnmatch
@@ -125,13 +125,13 @@ if __name__ == "__main__":
             if subset:
                 ants.update(subset)
             else:
-                print("WARNING: \"%s\" does not match any antenna names in MEP table %s." % (a, args[0]))
+                print(("WARNING: \"%s\" does not match any antenna names in MEP table %s." % (a, args[0])))
         ANTS = sorted(ants)
         if not ANTS:
             print("No antennas were selected, check your --antennas option.")
             sys.exit(1)
 
-    print("Using %d antennas: %s" % (len(ANTS), " ".join(ANTS)))
+    print(("Using %d antennas: %s" % (len(ANTS), " ".join(ANTS))))
 
     interval = None
 
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     beam_sizes = 0
 
     for spw, tabname in enumerate(args):
-        print("Reading", tabname)
+        print(("Reading", tabname))
         pt = ParmTab(tabname)
         for i, ant in enumerate(ANTS):
             # fill times
@@ -167,8 +167,8 @@ if __name__ == "__main__":
                 fsl = pt.funkset('%sdl:%s' % (options.prefix, ant)).get_slice()[ts_slice]
                 fsm = pt.funkset('%sdm:%s' % (options.prefix, ant)).get_slice()[ts_slice]
             if len(fsl) != len(fsm) or len(fsl) != NTIMES:
-                print("Error: table contains %d funklets for dl and %d for dm; %d expected" % (
-                len(fsl), len(fsm), NTIMES))
+                print(("Error: table contains %d funklets for dl and %d for dm; %d expected" % (
+                len(fsl), len(fsm), NTIMES)))
                 sys.exit(1)
             if not i:
                 t0 = numpy.array([funklet.domain.time[0] for funklet in fsl])
@@ -188,7 +188,7 @@ if __name__ == "__main__":
                         bsz[ixy, ilm, spw, i, :] = list(map(c00, fs))
 
     interval = round((interval or 60) / 60)
-    print("Solution interval is", interval, "minutes; total time", (interval * NTIMES) / 60, "hours")
+    print(("Solution interval is", interval, "minutes; total time", (interval * NTIMES) / 60, "hours"))
 
     # write cache
     if options.cache:
@@ -196,13 +196,13 @@ if __name__ == "__main__":
 
         cachefile = options.cache + '.cache'
         pickle.dump((dlm, bsz, beam_sizes), file(cachefile, 'w'))
-        print("Cached all structures to file", cachefile)
+        print(("Cached all structures to file", cachefile))
 
     if options.wind:
         import pickle
 
         wind_time, wind_dir, wind_speed = pickle.load(file(options.wind))
-        print("Loaded %d wind samples from %s" % (len(wind_time), options.wind))
+        print(("Loaded %d wind samples from %s" % (len(wind_time), options.wind)))
         # get wind data for each interval
         wsp_mean = numpy.zeros(NTIMES, float)
         wsp_std = numpy.zeros(NTIMES, float)
@@ -210,7 +210,7 @@ if __name__ == "__main__":
             i0 = wind_time.searchsorted(t0[itime])
             i1 = wind_time.searchsorted(t1[itime])
             if i1 - i0 <= 0:
-                print("No wind data for interval %d, cannot plot wind" % itime)
+                print(("No wind data for interval %d, cannot plot wind" % itime))
                 sys.exit(1)
             wsp_mean[itime] = wind_speed[i0:i1].mean()
             wsp_std[itime] = wind_speed[i0:i1].std()
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     bsz_fmean = bsz.mean(4)
     bsz_fstd = bsz.std(4)
 
-    print("Read %d parmtables" % len(args))
+    print(("Read %d parmtables" % len(args)))
 
     from Owlcat.Plotting import MultigridPlot, PLOT_SINGLE, PLOT_MULTI, PLOT_ERRORBARS, PLOT_BARPLOT
 
@@ -278,7 +278,7 @@ if __name__ == "__main__":
                     save="Epnt_wind")
 
     for iant, ant in enumerate(ANTS):
-        print("mean offset %s: %6.2f %6.2f" % (ant, dlm_mean[0, iant, :].mean(), dlm_mean[1, iant, :].mean()))
+        print(("mean offset %s: %6.2f %6.2f" % (ant, dlm_mean[0, iant, :].mean(), dlm_mean[1, iant, :].mean())))
 
     if options.ft:
         import numpy.fft

@@ -134,7 +134,7 @@ def makeParmEntityList(parmnames):
     while new_entity_list:
         entity_dict, ncomp, func, props = new_entity_list[0]
         # see if we have recipe for making compound objects based on last parmname qualifier
-        nqlist = [name.rsplit(':', 1) for name in entity_dict.keys()]
+        nqlist = [name.rsplit(':', 1) for name in list(entity_dict.keys())]
         # set of basenames and set of all occurring qualifiers
         basenames = set([nq[0] for nq in nqlist])
         quals = set([nq[1] for nq in nqlist])
@@ -268,19 +268,19 @@ if __name__ == "__main__":
     entity_list = makeParmEntityList(name_list)
 
     if options.list:
-        print("\nTable contains %d funklets. We can plot the following things:\n" % len(name_list))
+        print(("\nTable contains %d funklets. We can plot the following things:\n" % len(name_list)))
         for i, (entity_dict, ncomp, func, props) in enumerate(entity_list):
-            names = namesToSetNotation(iter(entity_dict.keys()))
+            names = namesToSetNotation(iter(list(entity_dict.keys())))
             plts = ",".join([p[0] for p in props.plottables])
             plts = plts and ("/{%s}" % plts if len(props.plottables) > 1 else "/%s" % plts)
-            print("  %s: %s%s%s" % (props.name, names, plts, ("" if i else " (plotted by default)")))
+            print(("  %s: %s%s%s" % (props.name, names, plts, ("" if i else " (plotted by default)"))))
         print("\nValid axes are:\n")
         cells = pt.envelope_cells()
         for iaxis in range(mequtils.max_axis):
             axis = mequtils.get_axis_id(iaxis)
             grid = cells.grid.get(axis)
             if grid is not None:
-                print("  %s: %d points from %g to %g" % (axis, len(grid), grid[0], grid[-1]))
+                print(("  %s: %d points from %g to %g" % (axis, len(grid), grid[0], grid[-1])))
         print("")
         sys.exit(0)
 
@@ -345,7 +345,7 @@ if __name__ == "__main__":
                                 plotfuncs = [props.plottables_dict.get(what)]
                                 plotfunc, plotfunc2 = plotfuncs[0], None
                             if not all(plotfuncs):
-                                print("%s/%s cannot be plotted. Use the -l option to see what can." % (name, what))
+                                print(("%s/%s cannot be plotted. Use the -l option to see what can." % (name, what)))
                                 sys.exit(2)
                         # if 'what' not given, use first item in list
                         else:
@@ -363,12 +363,12 @@ if __name__ == "__main__":
                 progress("Plot %d: %s%s%s" % (len(Plots), namesToSetNotation([e[0] for e in plot_entlist]),
                                               "/" + what if what else "", " (second axis)" if secondplot else ""))
             else:
-                print("Nothing found to match '%s', ignoring." % plotspec)
+                print(("Nothing found to match '%s', ignoring." % plotspec))
     # if no plot options supplied, default is to take first group of plottables.
     else:
         entity_dict, ncomp, func, props = entity_list[0]
         what, plotfunc = props.plottables[0]
-        progress("Plot 1: %s%s" % (namesToSetNotation(iter(entity_dict.keys())), "/" + what if what else ""))
+        progress("Plot 1: %s%s" % (namesToSetNotation(iter(list(entity_dict.keys()))), "/" + what if what else ""))
         Plots.append(
             ["", [(name, comps, func, plotfunc, None) for name, comps in sorted(entity_dict.items())], None, False])
 

@@ -86,9 +86,9 @@ def _setPackagePath(package):
     path = os.environ.get(varname, None)
     if path:
         if not _tryPackageDir(path, package):
-            print("Warning: your %s environment variable is set to" % varname)
-            print("%s, but this is not a valid directory." % path)
-            print("The %s package will not be available." % package)
+            print(("Warning: your %s environment variable is set to" % varname))
+            print(("%s, but this is not a valid directory." % path))
+            print(("The %s package will not be available." % package))
         return
     # else look in standard places
     for path in _PackageLocations:
@@ -96,8 +96,8 @@ def _setPackagePath(package):
         if _tryPackageDir(os.path.join(path, package), package):
             return
     # none found
-    print("Warning: No %s package found." % package)
-    print("If you have %s in a non-standard location, please set the %s environment" % (package, varname))
+    print(("Warning: No %s package found." % package))
+    print(("If you have %s in a non-standard location, please set the %s environment" % (package, varname)))
     print("variable to point to it.")
 
 

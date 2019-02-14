@@ -165,7 +165,7 @@ if __name__ == "__main__":
                 msname = mss[0]
             else:
                 msname = options.ms
-            print("Using MS %s for coordinates information" % msname)
+            print(("Using MS %s for coordinates information" % msname))
             _ms = pyrap.tables.table(msname)
             _msant = pyrap.tables.table(_ms.getkeyword('ANTENNA'))
         return _ms, _msant
@@ -193,7 +193,7 @@ if __name__ == "__main__":
             # make plot of average dE to model
             sys.path.append(os.getenv('HOME'))
             import Tigger
-        print("Using LSM file %s" % lsm_filename)
+        print(("Using LSM file %s" % lsm_filename))
         model = Tigger.load(lsm_filename)
         lsm_timestamp = os.path.getmtime(lsm_filename)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         import pyrap.tables
 
         radec0 = pyrap.tables.table(ms.getkeyword('FIELD')).getcol('PHASE_DIR')[0][0]
-        print("Phase center is at", radec0)
+        print(("Phase center is at", radec0))
     else:
         model = None
 
@@ -289,18 +289,18 @@ if __name__ == "__main__":
                     funklet_counts[src, ant, corr] = ntime, nfreq
 
         if not funklet_counts:
-            print("No dE solutions found in MEP table %s" % args[0])
+            print(("No dE solutions found in MEP table %s" % args[0]))
             sys.exit(1)
 
-        NTIMES = max([fc[0] for fc in funklet_counts.values()])
-        NFREQS = max([fc[1] for fc in funklet_counts.values()])
+        NTIMES = max([fc[0] for fc in list(funklet_counts.values())])
+        NFREQS = max([fc[1] for fc in list(funklet_counts.values())])
 
         if options.list:
-            print("MEP table %s contains dE's for:" % args[0])
-            print("%d correlations: %s" % (len(CORRS), " ".join(CORRS)))
-            print("%d antennas: %s" % (len(ANTS), " ".join(ANTS)))
-            print("%d sources: %s" % (len(SRCS), " ".join(["%d:%s" % (i, src) for i, src in enumerate(SRCS)])))
-            print("%d timeslots, %d frequencies" % (NTIMES, NFREQS))
+            print(("MEP table %s contains dE's for:" % args[0]))
+            print(("%d correlations: %s" % (len(CORRS), " ".join(CORRS))))
+            print(("%d antennas: %s" % (len(ANTS), " ".join(ANTS))))
+            print(("%d sources: %s" % (len(SRCS), " ".join(["%d:%s" % (i, src) for i, src in enumerate(SRCS)]))))
+            print(("%d timeslots, %d frequencies" % (NTIMES, NFREQS)))
 
             if options.list > 1:
                 print("Per-source, per-antenna dE solution counts:")
@@ -309,8 +309,8 @@ if __name__ == "__main__":
                         for k, corr in enumerate(CORRS):
                             rr = pt.funkset(make_funklet_name(src, ant, corr, "r")).get_slice().array()
                             ii = pt.funkset(make_funklet_name(src, ant, corr, "i")).get_slice().array()
-                            print(
-                                "  %s: %s real, %s imaginary" % (make_funklet_name(src, ant, corr), rr.shape, ii.shape))
+                            print((
+                                "  %s: %s real, %s imaginary" % (make_funklet_name(src, ant, corr), rr.shape, ii.shape)))
 
             sys.exit(0)
 
@@ -324,13 +324,13 @@ if __name__ == "__main__":
                 if subset:
                     srcs.update(subset)
                 else:
-                    print("WARNING: \"%s\" does not match any source names in MEP table %s." % (ss, args[0]))
+                    print(("WARNING: \"%s\" does not match any source names in MEP table %s." % (ss, args[0])))
                 srcs.update(fnmatch.filter(SRCS, ss))
             SRCS = sorted(srcs)
             if not SRCS:
                 print("No sources were selected, check your --sources option.")
                 sys.exit(1)
-        print("Using %d sources: %s" % (len(SRCS), " ".join(SRCS)))
+        print(("Using %d sources: %s" % (len(SRCS), " ".join(SRCS))))
 
         # antenna subset selection
         if options.antennas:
@@ -340,18 +340,18 @@ if __name__ == "__main__":
                 if subset:
                     ants.update(subset)
                 else:
-                    print("WARNING: \"%s\" does not match any antenna names in MEP table %s." % (a, args[0]))
+                    print(("WARNING: \"%s\" does not match any antenna names in MEP table %s." % (a, args[0])))
             ANTS = sorted(ants)
             if not ANTS:
                 print("No antennas were selected, check your --antennas option.")
                 sys.exit(1)
-        print("Using %d antennas: %s" % (len(ANTS), " ".join(ANTS)))
+        print(("Using %d antennas: %s" % (len(ANTS), " ".join(ANTS))))
 
         # check that antenna positions are known
         if ANTX_dict:
             unknown_antennas = [p for p in ANTS if p not in ANTX_dict]
             if unknown_antennas:
-                print("Don't have positions for antenna(s) %s" % ",".join(unknown_antennas))
+                print(("Don't have positions for antenna(s) %s" % ",".join(unknown_antennas)))
                 print("Perhaps you should specify a proper MS with --ms?")
                 sys.exit(1)
 
@@ -407,7 +407,7 @@ if __name__ == "__main__":
         # de = numpy.ma.masked_array(de,mask,fill_value=1.0)
 
         for spw, tabname in enumerate(args):
-            print("Reading", tabname)
+            print(("Reading", tabname))
             pt = ParmTab(tabname)
             mep_timestamp = max(mep_timestamp, os.path.getmtime(tabname))
             fq0 = numpy.zeros(NFREQS, float)
@@ -418,24 +418,24 @@ if __name__ == "__main__":
 
         #    print de[0,0,0,0,:]
         SPWS = list(range(len(SPWS) * NFREQS))
-        print("Read %d parmtables, %d timeslots, %d frequencies" % (len(args), NTIMES, len(SPWS)))
-        print("Frequencies are %s MHz" % ",".join(["%d" % round(f * 1e-6) for f in freq0]))
+        print(("Read %d parmtables, %d timeslots, %d frequencies" % (len(args), NTIMES, len(SPWS))))
+        print(("Frequencies are %s MHz" % ",".join(["%d" % round(f * 1e-6) for f in freq0])))
 
         # write cache
         if options.cache:
             cachefile = options.cache + '.cache'
             pickle.dump((freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX), file(cachefile, 'w'))
-            print("Cached all structures to file", cachefile)
+            print(("Cached all structures to file", cachefile))
 
     #
     # ========================== read cache file
     #
     else:
-        print("Reading cache file", args[0])
+        print(("Reading cache file", args[0]))
         freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX = pickle.load(file(args[0]))
-        print("Read %s: %d spws, %d srcs, %d ants, %d corrs, %d times" % (args[0],
+        print(("Read %s: %d spws, %d srcs, %d ants, %d corrs, %d times" % (args[0],
                                                                           len(SPWS), len(SRCS), len(ANTS), len(CORRS),
-                                                                          NTIMES))
+                                                                          NTIMES)))
 
     # check options that specify antennas by name, to make sure antenna is known
     for ant in 'circle_ampl_ant', 'circle_phase_ant':
@@ -456,9 +456,9 @@ if __name__ == "__main__":
         # pe_bsz is 2 x 2 x NSPW x NANT x NTIME
         if pe_dlm.shape != (2, len(SPWS), len(ANTS), NTIMES) or \
                 pe_bsz.shape != (2, 2, len(SPWS), len(ANTS), NTIMES):
-            print("Shape of cached arrays in file %s does not match: %s, %s" % (options.pe, pe_dlm.shape, pe_bsz_shape))
+            print(("Shape of cached arrays in file %s does not match: %s, %s" % (options.pe, pe_dlm.shape, pe_bsz_shape)))
             sys.exit(1)
-        print("Read pointing errors and %d beam extent(s) from %s" % (pe_beam_sizes, options.pe))
+        print(("Read pointing errors and %d beam extent(s) from %s" % (pe_beam_sizes, options.pe)))
         if pe_beam_sizes > 1:
             print("WARNING: more than 1 beam extent is not currently supported")
 
@@ -470,14 +470,14 @@ if __name__ == "__main__":
     MEAN = len(ANTS);  # index of "mean" antenna
     for C1, C2 in ('xx', 'yy'), ('XX', 'YY'), ('rr', 'll'), ('RR', 'LL'):
         if C1 in CORRS and C2 in CORRS:
-            print("Using %s/%s Jones elements" % (C1, C2))
+            print(("Using %s/%s Jones elements" % (C1, C2)))
             XX = CORRS.index(C1)
             YY = CORRS.index(C2)
             break
     else:
         if len(CORRS) == 1:
             XX = YY = 0
-            print("Single-polarization data, using %s Jones element" % CORRS[0])
+            print(("Single-polarization data, using %s Jones element" % CORRS[0]))
         else:
             print("Can't find xx/yy or rr/ll correlations in MEP table")
             sys.exit(1)
@@ -491,7 +491,7 @@ if __name__ == "__main__":
     dey = abs(de[:, :, :-1, YY, :]).mean(2).mean(2).mean(0)
     print("=== Mean |dExx|, |dEyy|:")
     for isrc, src in enumerate(SRCS):
-        print("%8s=[%16.8f,%16.8f]," % (src, dex[isrc], dey[isrc]))
+        print(("%8s=[%16.8f,%16.8f]," % (src, dex[isrc], dey[isrc])))
 
     # take mean along antenna axis
     de[:, :, MEAN, :, :] = de1 = numpy.mean(de[:, :, 0:len(ANTS), :, :], 2)
@@ -704,8 +704,8 @@ if __name__ == "__main__":
         for isrc, src in enumerate(SRCS):
             # flip sign of phase offset, since phase is -(ul+vm+w(n-1))
             x, res, rank, sing = linalg.lstsq(uv, -p0wl[isrc, :])
-            print(
-                "%8s=[%16.8g,%16.8g],     # %.2f\", %.2f\"" % (src, x[0], x[1], x[0] / ARCMIN * 60, x[1] / ARCMIN * 60))
+            print((
+                "%8s=[%16.8g,%16.8g],     # %.2f\", %.2f\"" % (src, x[0], x[1], x[0] / ARCMIN * 60, x[1] / ARCMIN * 60)))
             dlm[isrc, :] = x
         # shape is now 2xNSRC
         dlm = dlm.transpose()
@@ -997,7 +997,7 @@ if __name__ == "__main__":
                     img.paste(subimg, (x0 * plotsize, y0 * plotsize))
                 outname = "%sdE_ant_gallery.png" % output_prefix
                 img.save(outname, "PNG")
-                print("Wrote", outname)
+                print(("Wrote", outname))
 
     #
     # ============================ ROGUES GALLERY ANIMATION
@@ -1040,7 +1040,7 @@ if __name__ == "__main__":
                       (" ".join([f + ".gif" for f in frames + frames[-1::-1]]),
                        outname))
             os.system("rm -f %s" % " ".join([f + ".gif" for f in frames]))
-            print("Wrote", outname)
+            print(("Wrote", outname))
 
     #
     # ============================ UPDATE LSM
@@ -1062,17 +1062,17 @@ if __name__ == "__main__":
                         I, Q = src.flux.I, src.flux.Q
                         src.flux.I = A[isrc] * I + B[isrc] * Q
                         src.flux.Q = A[isrc] * Q + B[isrc] * I
-                        print("%8s I=%f Q=%f --> I=%f Q=%f" % (src.name, I, Q, src.flux.I, src.flux.Q))
+                        print(("%8s I=%f Q=%f --> I=%f Q=%f" % (src.name, I, Q, src.flux.I, src.flux.Q)))
                     if dlm_offsets is not None:
                         ra, dec = src.pos.ra, src.pos.dec
                         l, m, n = Coordinates.radec_to_lmn(ra, dec, *radec0)
                         l += dlm_offsets[isrc, 0]
                         m += dlm_offsets[isrc, 1]
                         src.pos.ra, src.pos.dec = Coordinates.lm_to_radec(l, m, *radec0)
-                        print("%8s position %.8f,%.8f --> %.8f %.8f" % (src.name, ra, dec, src.pos.ra, src.pos.dec))
+                        print(("%8s position %.8f,%.8f --> %.8f %.8f" % (src.name, ra, dec, src.pos.ra, src.pos.dec)))
         newname = "updated-" + lsm_filename
         model.save(newname)
-        print("Wrote updated sky model", newname)
+        print(("Wrote updated sky model", newname))
 
     if options.output_type.upper() == "X11":
         from pylab import plt

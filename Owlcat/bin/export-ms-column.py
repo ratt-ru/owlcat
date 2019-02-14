@@ -37,7 +37,7 @@ flagger = parser = ms = msname = None
 
 
 def error(message):
-    print("%s: %s" % (os.path.basename(sys.argv[0]), message))
+    print(("%s: %s" % (os.path.basename(sys.argv[0]), message)))
     sys.exit(1)
 
 
@@ -76,14 +76,14 @@ if __name__ == "__main__":
         gzf = gzip.GzipFile(filename, "w") if filename.endswith(".gz") else file(filename, "w")
         # write stuff
         ms = get_ms()
-        print("Opened MS %s" % msname)
+        print(("Opened MS %s" % msname))
         if colname not in ms.colnames():
             error("Column %s not found" % colname)
         nrows = ms.nrows()
-        print("Exporting %s to %s:" % (colname, filename))
+        print(("Exporting %s to %s:" % (colname, filename)))
         pickle.dump((options.row_step, nrows), gzf)
         for r0 in range(0, nrows, options.row_step):
-            print("%d/%d" % (r0, nrows))
+            print(("%d/%d" % (r0, nrows)))
             col = ms.getcol(colname, r0, options.row_step)
             pickle.dump(col, gzf)
         ms.close()

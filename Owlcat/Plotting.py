@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
+
 import numpy
 import numpy.ma
 import math
@@ -351,7 +351,7 @@ class ComplexCirclePlot(PlotCollection):
         if keylist:
             datalist = [(key, self.data.get(key)) for key in keylist]
         else:
-            datalist = iter(data.items())
+            datalist = iter(list(data.items()))
         # margin sizes. We want to keep them fixed in absolute terms,
         # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
         # we rescale them accordingly.
@@ -364,7 +364,7 @@ class ComplexCirclePlot(PlotCollection):
         height = (1 - mtop - mbottom)
         plt = fig.add_axes([mleft, mbottom, width, height])
         # find length of common prefix of labels
-        labels = [lab for lab in self.label.values() if lab]
+        labels = [lab for lab in list(self.label.values()) if lab]
         if labels:
             prefix = 1
             while len(labels[0]) > prefix and all([lab.startswith(labels[0][:prefix]) for lab in labels]):
@@ -388,7 +388,7 @@ class ComplexCirclePlot(PlotCollection):
         # plot arrow to means
         for icorr in range(ncorr):
             color = self.colors[icorr]
-            datameans = [d[..., icorr].mean() for d in self.data.values() if d.shape[-1] > icorr]
+            datameans = [d[..., icorr].mean() for d in list(self.data.values()) if d.shape[-1] > icorr]
             meanval = sum(datameans) / len(datameans) if datameans else 0
             plt.arrow(0, 0, meanval.real, meanval.imag, color=color)
             # plot circle
@@ -457,13 +457,13 @@ class ScatterPlot(object):
         if self.label:
             lab0 = list(self.label.values())[0]
             prefix = 1
-            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in self.label.values()]):
+            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in list(self.label.values())]):
                 prefix += 1
-            labels = dict([(key, label[prefix - 1:]) for key, label in self.label.items()])
+            labels = dict([(key, label[prefix - 1:]) for key, label in list(self.label.items())])
         else:
             labels = None
         # plot data over text labels
-        for key, (x, y) in self.data.items():
+        for key, (x, y) in list(self.data.items()):
             # plot data
             try:
                 plt.plot(x, y, "-x", zorder=0)

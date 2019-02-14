@@ -1088,7 +1088,7 @@ class Flagger(Timba.dmi.verbosity):
         def _setmethod(self, methodname, kwargs):
             argdict = getattr(self, '_%s_dict' % methodname)
             args = []
-            for kw, value in kwargs.items():
+            for kw, value in list(kwargs.items()):
                 if value is not None:
                     format = argdict.get(kw, None)
                     if format is None:
@@ -1122,7 +1122,7 @@ class Flagger(Timba.dmi.verbosity):
                 kw["mode"] = "channel"
             # else if any other arguments are specified, set mode to "spwids", as this effectively
             # causes the flagger to select on everything except channels
-            elif [x for x in kw.values() if x is not None]:
+            elif [x for x in list(kw.values()) if x is not None]:
                 kw["mode"] = "spwids"
             self._cmd(self._setmethod('setdata', kw))
 

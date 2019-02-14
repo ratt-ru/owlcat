@@ -21,7 +21,7 @@
 # or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-from __future__ import print_function
+
 import matplotlib
 matplotlib.use('Agg')
 import pylab
@@ -429,11 +429,11 @@ def make_ifrgain_plots(filename,
     antennas = set([p for p, q in list(ig.keys())])
     # plot RR vs LL offsets
     crl_diag = [("%s-%s" % (p, q), _normifrgain(rr), _normifrgain(ll))
-                for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rr, ll)]
+                for (p, q), (rr, rl, lr, ll) in list(ig.items()) if not _is_unity(rr, ll)]
     have_diag = bool(crl_diag)
     # plot RL vs LR offsets, if present
     crl_offdiag = [("%s-%s" % (p, q), _normifrgain(rl), _normifrgain(lr))
-                   for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rl, lr)]
+                   for (p, q), (rr, rl, lr, ll) in list(ig.items()) if not _is_unity(rl, lr)]
     have_offdiag = bool(crl_offdiag)
 
     # plot size and layout
@@ -449,13 +449,13 @@ def make_ifrgain_plots(filename,
         plot_hist(crl_diag, "IFR gain histogram for %s and %s" % feeds[:2])
         crl = [("%s-%s:%s" % (p, q, feeds[0].upper()), "%s-%s:%s" % (p, q, feeds[1].upper()), _complexifrgain(rr),
                 _complexifrgain(ll))
-               for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rr, ll)]
+               for (p, q), (rr, rl, lr, ll) in list(ig.items()) if not _is_unity(rr, ll)]
         pylab.subplot(NR, NC, 1)
         plot_complex(crl, "IFR complex %s %s gains" % feeds[:2])
         igpa = {}
         igpa0 = {}
         igpa0_means = []
-        for (p, q), (rr, rl, lr, ll) in ig.items():
+        for (p, q), (rr, rl, lr, ll) in list(ig.items()):
             rr0 = abs(numpy.array(rr) - 1)
             ll0 = abs(numpy.array(ll) - 1)
             rr0 = numpy.ma.masked_array(rr0, rr0 == 0)
@@ -519,11 +519,11 @@ def make_ifrgain_plots(filename,
         plot_hist(crl_diag, "IFR offset histogram for %s and %s" % feeds[2:])
         crl = [("%s-%s:%s" % (p, q, feeds[0].upper()), "%s-%s:%s" % (p, q, feeds[1].upper()), _complexifrgain(rl),
                 _complexifrgain(lr))
-               for (p, q), (rr, rl, lr, ll) in ig.items() if not _is_unity(rl, lr)]
+               for (p, q), (rr, rl, lr, ll) in list(ig.items()) if not _is_unity(rl, lr)]
         pylab.subplot(NR, NC, 1)
         plot_complex(crl_diag, "IFR complex %s %s offsets" % feeds[2:])
         igpa = {}
-        for (p, q), (rr, rl, lr, ll) in ig.items():
+        for (p, q), (rr, rl, lr, ll) in list(ig.items()):
             rr, ll = _normifrgain(rl), _normifrgain(lr)
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[2]), 'blue', rr))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[2]), 'blue', rr))
