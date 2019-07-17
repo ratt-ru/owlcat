@@ -1,4 +1,4 @@
-FROM kernsuite/base:4
+FROM kernsuite/base:5
 RUN docker-apt-install \
     casacore-dev \
     python-numpy \
@@ -11,6 +11,26 @@ RUN docker-apt-install \
     python-six \
     python-future
 
+RUN docker-apt-install \
+    wget \
+    makems \
+    meqtrees-timba \
+    libboost-python-dev \
+    python-casacore \
+    python-astro-tigger \
+    python-meqtrees-cattery
+
 ADD . /code
 WORKDIR /code
 RUN pip install .
+
+# get the test from pyxis
+RUN wget https://github.com/ska-sa/pyxis/archive/v1.6.2.tar.gz
+RUN tar -xvf v1.6.2.tar.gz
+WORKDIR /code/pyxis-1.6.2
+RUN pip install -U .
+
+# run test when built
+RUN pip install nose
+WORKDIR /usr/local/lib/python2.7/dist-packages/Pyxis/recipies/meqtrees-batch-test
+RUN python2.7 -m "nose"
