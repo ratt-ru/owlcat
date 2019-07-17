@@ -374,7 +374,7 @@ if __name__ == "__main__":
                 print("===> WARNING: flagset(s) %s not found, ignoring" % ",".join(remove_flagsets - all_flagsets))
             # build flagmask of remaining flagsets
             retain = all_flagsets - remove_flagsets
-            if not retain:
+            if retain == all_flagsets:
                 # if names_not_found:
                 # error("No such flagset(s): %s"%",".join(names_not_found))
                 print("===> WARNING: no flagsets to remove, exiting")
