@@ -425,11 +425,14 @@ if __name__ == "__main__":
         if options.stats:
             print("===> --stats in effect, showing per-flagset statistics")
             printed_header = False
+            get_stats_only = {}
             for flagset in list(flagger.flagsets.names()) + ["+L"]:
-                # get stats for this flagset
-                subset['flagmask'] = flagger.lookup_flagmask(flagset)
-                totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(**subset)
-                percent = 100.0 / sel_nvis if sel_nvis else 0
+                get_stats_only[flagset] = flagger.lookup_flagmask(flagset)
+
+            totrows, sel_nrow, sel_nvis, nvis_A, stats, nvis_C = flagger.xflag(get_stats_only=get_stats_only, **subset)
+            percent = 100.0 / sel_nvis if sel_nvis else 0
+            for flagset in list(flagger.flagsets.names()) + ["+L"]:
+                nvis_B = stats[flagset]
                 # print them
                 if flagset is "+L":
                     label = "legacy FLAG/FLAG_ROW"

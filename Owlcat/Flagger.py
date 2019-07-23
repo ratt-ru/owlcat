@@ -657,7 +657,8 @@ class Flagger(Timba.dmi.verbosity):
               data_fm_below=None,  # amplitude across all frequencies
               data_column='CORRECTED_DATA',  # data column for clip_above and clip_below
               data_flagmask=-1,  # flagmask to apply to data column when computing mean
-
+              # if True, dict of {name: mask} bitflags for which statistics will be collected
+              get_stats_only=None,
               # other options
               flag_allcorr=True,  # flag all correlations if at least one is flagged
               progress_callback=None,  # callback, called with (n,nmax) to report progress
@@ -678,7 +679,9 @@ class Flagger(Timba.dmi.verbosity):
         unflag = unflag or 0
         if not self.has_bitflags and (flag | unflag) & self.BITMASK_ALL:
             raise RuntimeError("no BITFLAG column in this MS, can't change bitflags")
-        # stats
+        # stats accumulator
+        if get_stats_only:
+            stats = { name: 0 for name in get_stats_only.keys() }
         # total number of rows
         totrows = ms.nrows()
         # rows and visibilities in the row subset
@@ -832,7 +835,16 @@ class Flagger(Timba.dmi.verbosity):
                 nv = vismask.sum()
                 nvis_A += vismask.sum()
                 self.dprintf(2, "subset A (freq/corr slicing) leaves %d visibilities\n", nv)
-                # read flags if selecting subset D on them (and also if clipping data)
+                # stats-only mode
+                if get_stats_only:
+                    vf = visflags()
+                    for name, mask in get_stats_only.items():
+                        nv = ((vf & mask) != 0).sum()
+                        stats[name] += nv
+                        self.dprintf(3, "flagset %s flags %d visibilities\n", name, nv)
+                    continue
+
+                # normal read flags if selecting subset on them (and also if clipping data)
                 if flagsubsets:
                     vf = visflags()
                     # apply them to the rowmask
@@ -938,7 +950,7 @@ class Flagger(Timba.dmi.verbosity):
         self.dprintf(1, "flag selection leaves    %8s       %8d visibilities\n", '', nvis_B)
         self.dprintf(1, "data clipping leaves     %8s       %8d visibilities\n", '', nvis_C)
 
-        return totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C
+        return totrows, sel_nrow, sel_nvis, nvis_A, (stats if get_stats_only else nvis_B), nvis_C
 
     def set_legacy_flags(self, flags, progress_callback=None, purr=True):
         """Fills the legacy FLAG/FLAG_ROW column by applying the specified flagmask
