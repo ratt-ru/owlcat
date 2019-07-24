@@ -631,6 +631,7 @@ class Flagger(Timba.dmi.verbosity):
               # the xflag() simply returns stats without doing anything
               flag=None,  # set the flagmask (or flagset name, optionally "+L")
               unflag=None,  # clear the flagmask (or flagset name, optionally "+L")
+              copy=None,    # copy to flagmask (or flagset name, optionally "+L")
               create=False,  # if True and 'flag' is a string, creates new flagset as needed
               fill_legacy=None,  # if not None, legacy flags will be filled (within all of subset A)
               # using this mask
@@ -668,9 +669,9 @@ class Flagger(Timba.dmi.verbosity):
         """Alternative flag interface, works on the in/out principle."""
         if not self.purrpipe:
             purr = False
-        ms = self._reopen(flag or unflag or fill_legacy is not None)
+        ms = self._reopen(flag or unflag or copy or fill_legacy is not None)
         # lookup flagset names
-        for var in 'flag', 'unflag', 'flagmask', 'flagmask_all', 'flagmask_none', 'data_flagmask', 'fill_legacy':
+        for var in 'flag', 'unflag', 'copy', 'flagmask', 'flagmask_all', 'flagmask_none', 'data_flagmask', 'fill_legacy':
             flagval = locals()[var]
             locals()[var] = fm = self.lookup_flagmask(flagval, create=(var == 'flag'))
             if flagval is not None:
@@ -678,7 +679,8 @@ class Flagger(Timba.dmi.verbosity):
         # for these two masks, it's more convenient that they're set to 0 if missing
         flag = flag or 0
         unflag = unflag or 0
-        if not self.has_bitflags and (flag | unflag) & self.BITMASK_ALL:
+        copy = copy or 0
+        if not self.has_bitflags and (flag | unflag |copy) & self.BITMASK_ALL:
             raise RuntimeError("no BITFLAG column in this MS, can't change bitflags")
         # stats accumulator
         if get_stats_only:
@@ -797,32 +799,32 @@ class Flagger(Timba.dmi.verbosity):
                     # rowmask will be True for all selected rows
                     rowmask = np.ones(nrows, bool)
                 # read legacy flags to get a datashape
-                lf = ms.getcol('FLAG', row0, nrows)
-                datashape = lf.shape
+                legacy_flag_column = ms.getcol('FLAG', row0, nrows)
+                datashape = legacy_flag_column.shape
                 nv_per_row = datashape[1] * datashape[2]
                 # rowflags and visflags will be constructed on-demand below. Make helper functions for this
                 self._rowflags = self._visflags = None
 
                 def rowflags():
+                    """returns tuple of FLAG_ROW, BITFLAG_ROW"""
                     if self._rowflags is None:
                         # read legacy flags and convert them to bitmask, then add bitflags
                         lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                        self._rowflags = lfr * self.LEGACY
                         if self.has_bitflags:
-                            self._rowflags |= ms.getcol('BITFLAG_ROW', row0, nrows)
-                    return self._rowflags
+                            bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
+                        else:
+                            bfr = None
+                    return lfr, bfr
 
-                def visflags():
+                def bitflags():
+                    """Reads BITFLAG column on demand. If no such column, forms up zero array"""
                     if self._visflags is None:
-                        self.dprint(2, "forming bitwise flags")
-                        self._visflags = np.zeros(lf.shape, self.BF_DTYPE)
-                        self._visflags[lf] = self.LEGACY
-                        self.dprint(2, "type of visflags is {}".format(self._visflags.dtype))
                         if self.has_bitflags:
-                            bf = ms.getcol('BITFLAG', row0, nrows)
-                            self._bitflag_dtype = bf.dtype
-                            self._visflags |= bf
-                        self.dprint(2, "read BITFLAG column")
+                            self._visflags = ms.getcol('BITFLAG', row0, nrows)
+                            self.dprint(2, "read BITFLAG column")
+                        else:
+                            self._visflags = np.zeros_like(legacy_flag_column, self.BF_DTYPE)
+                            self.dprint(2, "formed empty BITFLAGs")
                     return self._visflags
 
                 # apply stats
@@ -843,30 +845,47 @@ class Flagger(Timba.dmi.verbosity):
                 self.dprintf(2, "subset A (freq/corr slicing) leaves %d visibilities\n", nv)
                 # stats-only mode
                 if get_stats_only:
-                    vf = visflags()
-                    vf1 = np.zeros_like(vf, np.bool)
                     for name, mask in get_stats_only.items():
-                        self.dprint(3, "shape is {}".format(vf.shape))
-                        np.bitwise_and(vf, mask, out=vf1, casting='unsafe')
-                        nv = np.count_nonzero(vf1)
+                        if mask is None:
+                            nv = np.count_nonzero(legacy_flag_column)
+                        else:
+                            vf1 = bitflags()&mask
+                            nv = np.count_nonzero(vf1)
                         stats[name] += nv
                         self.dprintf(3, "flagset %s flags %d visibilities\n", name, nv)
-                    continue
+                    continue  # to top of loop to get next chunk
 
-                # normal read flags if selecting subset on them (and also if clipping data)
+                # select based on flag state
                 if flagsubsets:
-                    vf = visflags()
-                    vf1 = np.zeros_like(vf, np.bool)
-                    # apply them to the rowmask
+                    # select using the "any" scheme
                     if flagmask is not None:
-                        vf1 = np.bitwise_and(vf, flagmask,  out=vf1, casting='unsafe')
-                        vismask &= vf1
+                        if flagmask == self.LEGACY:
+                            vismask &= legacy_flag_column
+                        else:
+                            bf1 = (bitflags()&flagmask) != 0
+                            if flagmask&self.LEGACY:
+                                bf1 |= legacy_flag_column
+                            vismask &= bf1
+                    # select using the "all" scheme
                     if flagmask_all is not None:
-                        vismask &= ((vf & flagmask_all) == flagmask_all)
+                        if flagmask_all == self.LEGACY:
+                            vismask &= legacy_flag_column
+                        else:
+                            fm = flagmask_all & ~self.LEGACY
+                            bf1 = (bitflags()&fm) == fm
+                            if flagmask_all&self.LEGACY:
+                                bf1 &= legacy_flag_column
+                            vismask &= bf1
+                    # select using the "None" scheme
                     if flagmask_none is not None:
-                        vf1 = np.bitwise_and(vf, flagmask_none,  out=vf1, casting='unsafe')
-                        vf1 = np.logical_not(vf1, out=vf1)
-                        vismask &= vf1
+                        if flagmask_none == self.LEGACY:
+                            vismask &= ~legacy_flag_column
+                        else:
+                            fm = flagmask_none & ~self.LEGACY
+                            bf1 = (bitflags()&flagmask_none) == 0
+                            if flagmask_none&self.LEGACY:
+                                bf1 &= ~legacy_flag_column
+                            vismask &= bf1
                 nv = vismask.sum()
                 nvis_B += nv
                 self.dprintf(2, "subset B (flag-based selection) leaves %d visibilities\n", nv)
@@ -877,7 +896,7 @@ class Flagger(Timba.dmi.verbosity):
                     datamask = ~vismask
                     # and mask stuff in data_flagmask
                     if data_flagmask is not None:
-                        datamask |= ((visflags() & data_flagmask) != 0)
+                        datamask |= ((bitflags() & data_flagmask) != 0)
                     datacol = np.ma.masked_array(datacol, datamask)
                     self.dprintf(4, "datamask contains %d masked visibilities\n", datamask.sum())
                     self.dprintf(3, "At start of clipping we have %d visibilities\n", vismask.sum())
@@ -913,21 +932,39 @@ class Flagger(Timba.dmi.verbosity):
                     self.dprintf(2, "which extends to %d visibilities with flag_allcorr in effect\n", nv)
                 nvis_C += nv
 
+                # ok, at this point vismask is a boolean array of things to flag or unflag.
+                # BITFLAGS would only have been read in if necessary
+
                 # now, do the actual flagging
-                if flag or unflag or fill_legacy is not None:
-                    rf = rowflags()
-                    vf = visflags()
-                    self.dprint(4, "doing flag/unflag")
+                if flag or unflag or copy or fill_legacy is not None:
+                    changing_legacy_flags = fill_legacy is not None or (flag|unflag|copy)&self.LEGACY
+                    rf, rfl = rowflags()
                     # flag/unflag visibilities
                     if flag:
-                        vf[vismask] |= flag
+                        self.dprint(4, "doing flag")
+                        if flag&self.LEGACY:
+                            legacy_flag_column[vismask] = True
+                        if flag&~self.LEGACY:
+                            bitflags()[vismask] |= flag&~self.LEGACY
+                    if copy:
+                        self.dprint(4, "doing flag-copy")
+                        if copy&self.LEGACY:
+                            legacy_flag_column = vismask
+                        if copy&~self.LEGACY:
+                            bf = bitflags()
+                            bf &= ~(copy&~self.LEGACY)
+                            bf[vismask] |= copy&~self.LEGACY
+                        import pdb; pdb.set_trace()
                     if unflag:
-                        vf[vismask] &= ~unflag
+                        self.dprint(4, "doing unflag")
+                        if unflag&self.LEGACY:
+                            legacy_flag_column[unflag] = False
+                        if unflag&~self.LEGACY:
+                            bitflags()[vismask] &= ~(unflag&~self.LEGACY)
                     # fill legacy flags
-                    self.dprint(4, "filling legacy")
                     if fill_legacy is not None:
-                        vf[rowmask] &= ~self.LEGACY
-                        vf[rowmask] |= np.where(vf[rowmask, ...] & fill_legacy, self.LEGACY, 0)
+                        self.dprint(4, "filling legacy flags")
+                        legacy_flag_column[rowmask,...] = (bitflags()[rowmask,...] & fill_legacy) != 0
                     # adjust the rowflags
                     self.dprint(4, "adjusting rowflags")
                     ## in principle we need to bitwise_and.reduce both axes of vf[rowmask,:,:], and set the rowflags from that
@@ -937,20 +974,21 @@ class Flagger(Timba.dmi.verbosity):
                     #   for nbit in range(self.NBITS):
                     #     rf[rowmask] |= (1<<nbit)*np.logical_and.reduce(np.logical_and.reduce(vf[rowmask,:,:]&(1<<nbit),2),1)
                     ## and here's a shorter one:
-                    rf[rowmask] = ~np.bitwise_or.reduce(np.bitwise_or.reduce(~vf[rowmask, :, :], 2), 1)
-                    # mask bitflag, convert back to bitflag type and write out
-                    if self.has_bitflags and (flag | unflag) & self.BITMASK_ALL:
-                        self.dprint(4, "computing bitflags")
-                        bf = np.asarray(vf & self.BITMASK_ALL, self._bitflag_dtype)
-                        bfr = np.asarray(rf & self.BITMASK_ALL, self._bitflag_dtype)
-                        self.dprintf(4, "filling bitflags for rows %d:%d\n" % (row0, row0 + nrows))
-                        ms.putcol('BITFLAG', bf, row0, nrows)
-                        ms.putcol('BITFLAG_ROW', bfr, row0, nrows)
+                    if flag or unflag:
+                        rf[rowmask] = ~np.bitwise_or.reduce(np.bitwise_or.reduce(~bitflags()[rowmask, :, :], 2), 1)
+
+                    # were any bitflag manipulations done -- write bitflags
+                    if self.has_bitflags and (flag|unflag|copy) & ~self.LEGACY:
+                        bf_row = ~np.bitwise_or.reduce(~bitflags(), axis=(1,2))
+                        ms.putcol('BITFLAG', bitflags(), row0, nrows)
+                        ms.putcol('BITFLAG_ROW', bf_row, row0, nrows)
+                        self.dprint(4, "wrote BITFLAG")
                     # write legacy flags
-                    if fill_legacy is not None or (flag | unflag) & self.LEGACY:
+                    if changing_legacy_flags:
                         self.dprintf(4, "filling legacy flags for rows %d:%d\n" % (row0, row0 + nrows))
-                        ms.putcol('FLAG', (vf & self.LEGACY) != 0, row0, nrows)
-                        ms.putcol('FLAG_ROW', (rf & self.LEGACY) != 0, row0, nrows)
+                        ms.putcol('FLAG', legacy_flag_column, row0, nrows)
+                        ms.putcol('FLAG_ROW', legacy_flag_column.all(axis=(1, 2)), row0, nrows)
+                        self.dprint(4, "wrote FLAG")
                 self.dprint(4, "done with this chunk")
         if progress_callback:
             progress_callback(99, 100)
@@ -963,7 +1001,11 @@ class Flagger(Timba.dmi.verbosity):
         self.dprintf(1, "flag selection leaves    %8s       %8d visibilities\n", '', nvis_B)
         self.dprintf(1, "data clipping leaves     %8s       %8d visibilities\n", '', nvis_C)
 
-        return totrows, sel_nrow, sel_nvis, nvis_A, (stats if get_stats_only else nvis_B), nvis_C
+        if get_stats_only:
+            for name, nv in stats.items():
+                get_stats_only[name] = nv
+
+        return totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C
 
     def set_legacy_flags(self, flags, progress_callback=None, purr=True):
         """Fills the legacy FLAG/FLAG_ROW column by applying the specified flagmask
