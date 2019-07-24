@@ -954,7 +954,6 @@ class Flagger(Timba.dmi.verbosity):
                             bf = bitflags()
                             bf &= ~(copy&~self.LEGACY)
                             bf[vismask] |= copy&~self.LEGACY
-                        import pdb; pdb.set_trace()
                     if unflag:
                         self.dprint(4, "doing unflag")
                         if unflag&self.LEGACY:
@@ -967,19 +966,10 @@ class Flagger(Timba.dmi.verbosity):
                         legacy_flag_column[rowmask,...] = (bitflags()[rowmask,...] & fill_legacy) != 0
                     # adjust the rowflags
                     self.dprint(4, "adjusting rowflags")
-                    ## in principle we need to bitwise_and.reduce both axes of vf[rowmask,:,:], and set the rowflags from that
-                    ## but bitwise_and.reduce is broken, see https://github.com/np/np/issues/5250
-                    ## so here's a lengthy workaround:
-                    #   rf[rowmask] = 0
-                    #   for nbit in range(self.NBITS):
-                    #     rf[rowmask] |= (1<<nbit)*np.logical_and.reduce(np.logical_and.reduce(vf[rowmask,:,:]&(1<<nbit),2),1)
-                    ## and here's a shorter one:
-                    if flag or unflag:
-                        rf[rowmask] = ~np.bitwise_or.reduce(np.bitwise_or.reduce(~bitflags()[rowmask, :, :], 2), 1)
 
                     # were any bitflag manipulations done -- write bitflags
                     if self.has_bitflags and (flag|unflag|copy) & ~self.LEGACY:
-                        bf_row = ~np.bitwise_or.reduce(~bitflags(), axis=(1,2))
+                        bf_row = np.bitwise_and.reduce(bitflags(), axis=(1,2))
                         ms.putcol('BITFLAG', bitflags(), row0, nrows)
                         ms.putcol('BITFLAG_ROW', bf_row, row0, nrows)
                         self.dprint(4, "wrote BITFLAG")

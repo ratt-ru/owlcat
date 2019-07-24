@@ -436,8 +436,9 @@ if __name__ == "__main__":
             print("===> --stats in effect, showing per-flagset statistics")
             printed_header = False
             stats = {}
-            for flagset in list(flagger.flagsets.names()):
-                stats[flagset] = flagger.lookup_flagmask(flagset)
+            if flagger.flagsets.names():
+                for flagset in list(flagger.flagsets.names()):
+                    stats[flagset] = flagger.lookup_flagmask(flagset)
             stats["+L"] = None
 
             totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(get_stats_only=stats, **subset)
