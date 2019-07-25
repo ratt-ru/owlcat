@@ -493,7 +493,6 @@ if __name__ == "__main__":
         totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = \
             flagger.xflag(flag=options.flag, unflag=options.unflag, copy=options.copy, fill_legacy=options.fill_legacy,
                           flag_allcorr=options.extend_all_corr,
-                          initializing_bitflags=init_bitflags or reinit_bitflags,
                           **subset)
 
         # print stats

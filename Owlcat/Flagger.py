@@ -512,7 +512,6 @@ class Flagger(Timba.dmi.verbosity):
               # if True, dict of {name: mask} bitflags for which statistics will be collected
               get_stats_only=None,
               # other options
-              initializing_bitflags=False,  # if True, bitflags are being initialized -- ignore read errors
               flag_allcorr=True,  # flag all correlations if at least one is flagged
               progress_callback=None,  # callback, called with (n,nmax) to report progress
               purr=False  # if True, writes comments to purrpipe
@@ -660,19 +659,14 @@ class Flagger(Timba.dmi.verbosity):
                 def bitflags():
                     """Reads BITFLAG column on demand. If no such column, forms up zero array"""
                     if self._visflags is None:
-                        if self.has_bitflags:
-                            try:
-                                self._visflags = ms.getcol('BITFLAG', row0, nrows)
-                                self.dprint(2, "read BITFLAG column")
-                                self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
-                                self.bf_type = self._visflags.dtype.type
-                            except RuntimeError:
-                                if not self._initializing_bitflags:
-                                    raise
-                                self.dprint(2, "error reading BITFLAG column, but we're initializing it anyway")
-                        if self._visflags is None:
+                        if not self.has_bitflags or self._initializing_bitflags:
                             self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
-                            self.dprint(2, "formed empty BITFLAGs")
+                            self.dprint(2, "formed empty BITFLAGs (type {})".format(self.flagsets.dtype))
+                        else:
+                            self._visflags = ms.getcol('BITFLAG', row0, nrows)
+                            self.dprint(2, "read BITFLAG column")
+                            self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
+                            self.bf_type = self._visflags.dtype.type
                         self._bf_type = self._visflags.dtype.type
                     return self._visflags
 
