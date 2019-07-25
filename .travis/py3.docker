@@ -9,9 +9,7 @@ RUN docker-apt-install \
     python3-scipy \
     python3-astlib \
     python3-six \
-    python3-future
-
-RUN docker-apt-install \
+    python3-future \
     wget \
     makems \
     meqtrees-timba \
