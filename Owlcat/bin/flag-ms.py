@@ -44,7 +44,7 @@ def get_ms(readonly=True):
     global ms
     global msname
     if not ms:
-        ms = Owlcat.table(msname, readonly=readonly)
+        ms = Owlcat.table(msname, readonly=readonly, ack=False)
     return ms
 
 
@@ -291,38 +291,43 @@ if __name__ == "__main__":
     import Owlcat.Flagger
     from Owlcat.Flagger import Flagger
 
-    flagger = None
+    flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
 
     # init/reinit bitflags
     init_bitflags = int(options.init_bitflags)
     reinit_bitflags = int(options.reinit_bitflags)
+    init_nbits = reinit_bitflags or init_bitflags
 
-    if init_bitflags or reinit_bitflags:
-        flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
+    if init_nbits:
         if reinit_bitflags:
+            print("{}: removing existing bitflag columns, if any".format(msname))
             flagger.remove_bitflags()
-        flagger.add_bitflags(bits=reinit_bitflags or init_bitflags)
+        else:
+            if flagger.has_bitflags:
+                if flagger.flagsets.NBITS != init_nbits:
+                    error("this MS already has a bitflag column of an incompatible bitsize {}".format(flagger.flagsets.NBITS))
+                else:
+                    print("{}: bitflag columns seem to be in place".format(msname))
+        if not flagger.has_bitflags:
+            print("{}: inserting bitflag columns (size {} bits)".format(msname, init_nbits))
+            flagger.add_bitflags(bits=init_nbits)
 
     # now, skip most of the actions below if we're in statonly mode and exporting
     if not (statonly and options.export):
-        # create flagger object
-        if flagger is None:
-            flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
-
         #
         # -l/--list: list MS info
         #
         if options.list:
             ms = get_ms()
-            ants = Owlcat.table(ms.getkeyword('ANTENNA')).getcol('NAME')
-            ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'))
+            ants = Owlcat.table(ms.getkeyword('ANTENNA'), ack=False).getcol('NAME')
+            ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'), ack=False)
             spwids = ddid_tab.getcol('SPECTRAL_WINDOW_ID')
             polids = ddid_tab.getcol('POLARIZATION_ID')
-            corrs = Owlcat.table(ms.getkeyword('POLARIZATION')).getcol('CORR_TYPE')
-            spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'))
+            corrs = Owlcat.table(ms.getkeyword('POLARIZATION'), ack=False).getcol('CORR_TYPE')
+            spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'), ack=False)
             ref_freq = spw_tab.getcol('REF_FREQUENCY')
             nchan = spw_tab.getcol('NUM_CHAN')
-            fields = Owlcat.table(ms.getkeyword('FIELD')).getcol('NAME')
+            fields = Owlcat.table(ms.getkeyword('FIELD'), ack=False).getcol('NAME')
 
             print("===> MS is %s" % msname)
             print("  %d antennas: %s" % (len(ants), " ".join(ants)))
@@ -331,7 +336,7 @@ if __name__ == "__main__":
                 print("    %d: %.3f MHz, %d chans x %d correlations" % (
                 i, ref_freq[spw] * 1e-6, nchan[spw], len(corrs[pol, :])))
             print("  %d field(s): %s" % (len(fields), ", ".join(["%d: %s" % ff for ff in enumerate(fields)])))
-            if not flagger.bitflag_dtype:
+            if not flagger.has_bitflags:
                 print("No BITFLAG/BITFLAG_ROW columns in this MS. Use the 'addbitflagcol' command to add them.")
             else:
                 names = flagger.flagsets.names()
@@ -371,12 +376,14 @@ if __name__ == "__main__":
         for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none', 'flag', 'copy', 'unflag', 'fill_legacy':
             value = getattr(options, opt)
             can_create = opt in ('flag', 'copy')
+            # reopen for writing, if creating MS
+            if can_create:
+                flagger._reopen(True)
             try:
-                flagmask = flagger.lookup_flagmask(value, create=(can_create and options.create))
+                flagmask = flagger.lookup_flagmask(value, create=can_create and options.create)
             except Exception as exc:
-                raise
                 msg = str(exc)
-                if can_create and not options.create:
+                if not options.create:
                     msg += "\nPerhaps you forgot the -c/--create option?"
                 error(msg)
             setattr(options, opt, flagmask)
