@@ -229,6 +229,10 @@ if __name__ == "__main__":
     parser.add_option_group(group)
 
     group = OptionGroup(parser, "Other options")
+    group.add_option("--init-bitflags", type="choice", choices=["0", "8", "16", "32"], default=0,
+                     help="initializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
+    group.add_option("--reinit-bitflags", type="choice", choices=["0", "8", "16", "32"], default=0,
+                     help="removes (if any) and reinitializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
     group.add_option("-l", "--list", action="store_true",
                      help="lists various info about the MS, including its flagsets.")
     group.add_option("-s", "--stats", action="store_true",
@@ -287,10 +291,23 @@ if __name__ == "__main__":
     import Owlcat.Flagger
     from Owlcat.Flagger import Flagger
 
+    flagger = None
+
+    # init/reinit bitflags
+    init_bitflags = int(options.init_bitflags)
+    reinit_bitflags = int(options.reinit_bitflags)
+
+    if init_bitflags or reinit_bitflags:
+        flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
+        if reinit_bitflags:
+            flagger.remove_bitflags()
+        flagger.add_bitflags(bits=reinit_bitflags or init_bitflags)
+
     # now, skip most of the actions below if we're in statonly mode and exporting
     if not (statonly and options.export):
         # create flagger object
-        flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
+        if flagger is None:
+            flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
 
         #
         # -l/--list: list MS info
@@ -314,7 +331,7 @@ if __name__ == "__main__":
                 print("    %d: %.3f MHz, %d chans x %d correlations" % (
                 i, ref_freq[spw] * 1e-6, nchan[spw], len(corrs[pol, :])))
             print("  %d field(s): %s" % (len(fields), ", ".join(["%d: %s" % ff for ff in enumerate(fields)])))
-            if not flagger.has_bitflags:
+            if not flagger.bitflag_dtype:
                 print("No BITFLAG/BITFLAG_ROW columns in this MS. Use the 'addbitflagcol' command to add them.")
             else:
                 names = flagger.flagsets.names()
@@ -353,11 +370,13 @@ if __name__ == "__main__":
         # convert all the various FLAGS to flagmasks (or Nones)
         for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none', 'flag', 'copy', 'unflag', 'fill_legacy':
             value = getattr(options, opt)
+            can_create = opt in ('flag', 'copy')
             try:
-                flagmask = flagger.lookup_flagmask(value, create=(opt == 'flag' and options.create))
+                flagmask = flagger.lookup_flagmask(value, create=(can_create and options.create))
             except Exception as exc:
+                raise
                 msg = str(exc)
-                if opt == 'flag' and not options.create:
+                if can_create and not options.create:
                     msg += "\nPerhaps you forgot the -c/--create option?"
                 error(msg)
             setattr(options, opt, flagmask)
@@ -464,10 +483,10 @@ if __name__ == "__main__":
             sys.exit(0)
 
         # else not stats mode, do the actual flagging job
-        print(options)
         totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = \
             flagger.xflag(flag=options.flag, unflag=options.unflag, copy=options.copy, fill_legacy=options.fill_legacy,
                           flag_allcorr=options.extend_all_corr,
+                          initializing_bitflags=init_bitflags or reinit_bitflags,
                           **subset)
 
         # print stats

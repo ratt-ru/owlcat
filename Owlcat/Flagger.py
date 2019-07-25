@@ -10,22 +10,21 @@ import Meow.MSUtils
 
 try:
     import Purr.Pipe
-
     has_purr = True
 except:
     has_purr = False
 
 from Meow.MSUtils import TABLE
 
-_gli = Meow.MSUtils.find_exec('glish')
-if _gli:
-    _GLISH = 'glish'
-    Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
-else:
-    _GLISH = None
-    Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
+_gli = None # Meow.MSUtils.find_exec('glish')
+# if _gli:
+#     _GLISH = 'glish'
+#     Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
+# else:
+#     _GLISH = None
+#     Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
 
-_addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
+# _addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
 
 
 # Various argument-formatting methods to use with the Flagger.AutoFlagger class
@@ -147,7 +146,16 @@ class Flagger(Timba.dmi.verbosity):
             self.ms = ms = TABLE(self.msname, readonly=not readwrite)
             self.readwrite = readwrite
             self.dprintf(1, "opened MS %s, %d rows\n", ms.name(), ms.nrows())
-            self.has_bitflags = 'BITFLAG' in ms.colnames()
+            has_bf = 'BITFLAG' in ms.colnames()
+            has_bfr = 'BITFLAG_ROW' in ms.colnames()
+            self.bitflag_dtype = has_bf and has_bfr
+            if self.bitflag_dtype:
+                self.bitflag_dtype = self.ms.getcoldesc("BITFLAG")['valueType']
+                self.dprint(1, "this MS has proper bitflag columns of type '%s'"%self.bitflag_dtype)
+            else:
+                if has_bf or has_bfr:
+                    self.dprint(0, "WARNING: bitflag columns only partially initialized. Try --reinit-bitflags?")
+            Meow.MSUtils._flagset_map = {}  # reset map, else flagsets stay cached
             self.flagsets = Meow.MSUtils.get_flagsets(ms)
             self.dprintf(1, "flagsets are %s\n", self.flagsets.names())
             self.purrpipe = Purr.Pipe.Pipe(self.msname) if has_purr else None
@@ -156,21 +164,63 @@ class Flagger(Timba.dmi.verbosity):
             self.readwrite = readwrite
         return self.ms
 
-    def add_bitflags(self, wait=True, purr=True):
-        if not self.has_bitflags:
-            global _addbitflagcol
-            if not _addbitflagcol:
-                raise RuntimeError("cannot find addbitflagcol utility in $PATH")
+    def _add_column(self, col_name, like_col="DATA", like_type=None):
+        """
+        Inserts a new column into the measurement set.
+
+        Args:
+            col_name (str):
+                Name of target column.
+            like_col (str, optional):
+                Column will be patterned on the named column.
+            like_type (str or None, optional):
+                If set, column type will be changed.
+
+        Returns:
+            bool:
+                True if a new column was inserted, else False.
+        """
+
+        if col_name in self.ms.colnames():
+            return False
+        self._reopen(True)
+        # new column needs to be inserted -- get column description from column 'like_col'
+        desc = self.ms.getcoldesc(like_col)
+        desc['name'] = col_name
+        desc['comment'] = desc['comment'].replace(" ", "_")  # casacore not fond of spaces...
+        dminfo = self.ms.getdminfo(like_col)
+        dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], col_name)
+        # if a different type is specified, insert that
+        if like_type:
+            desc['valueType'] = like_type
+        self.dprint(0, "inserting new column %s of type '%s'" % (col_name, desc['valueType']))
+        self.ms.addcols(desc, dminfo)
+        return True
+
+    def remove_bitflags(self):
+        removecols = [col for col in ("BITFLAG", "BITFLAG_ROW") if col in self.ms.colnames()]
+        if removecols:
+            self._reopen(True)
+            self.dprint(0, "removing columns", ", ".join(removecols))
+            self.ms.removecols(removecols)
             self.close()
-            self.dprintf(1, "running addbitflagcol\n")
-            if os.spawnvp(os.P_WAIT, _addbitflagcol, ['addbitflagcol', self.msname]):
-                raise RuntimeError("addbitflagcol failed")
-            # report to purr
-            if purr and self.purrpipe:
-                self.purrpipe.title("Flagging").comment("Adding bitflag columns.")
-            # reopen and close to pick up new BITFLAG column
             self._reopen()
+
+    def add_bitflags(self, wait=True, purr=True, bits=32):
+        if not self.bitflag_dtype:
+            self._reopen(True)
+            if bits == 32:
+                dtype = 'int'
+            elif bits == 16:
+                dtype = 'short'
+            elif bits == 8:
+                dtype = 'uchar'
+            else:
+                raise ValueError("invalid bits setting. 8, 16 or 32 expected.")
+            self._add_column("BITFLAG", "FLAG", dtype)
+            self._add_column("BITFLAG_ROW", "FLAG_ROW", dtype)
             self.close()
+            self._reopen()
 
     def remove_flagset(self, *fsnames, **kw):
         self._reopen(True)
@@ -293,7 +343,7 @@ class Flagger(Timba.dmi.verbosity):
         if not self.purrpipe:
             purr = False
         ms = self._reopen(True)
-        if not self.has_bitflags:
+        if not self.bitflag_dtype:
             if transfer:
                 raise TypeError("MS does not contain a BITFLAG column, cannot use flagsets""")
             if get_stats and flag:
@@ -480,7 +530,7 @@ class Flagger(Timba.dmi.verbosity):
                     ms.putcol('BITFLAG', bf, row0, nrows)
                 # else, are we flagging whole rows?
                 elif flagrows:
-                    if self.has_bitflags:
+                    if self.bitflag_dtype:
                         bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
                         bf = self._get_bitflag_col(ms, row0, nrows)
                         if unflag:
@@ -539,7 +589,7 @@ class Flagger(Timba.dmi.verbosity):
                     # mask of affected rows
                     rmask = mask.any(2).any(1)
                     # apply flags
-                    if self.has_bitflags:
+                    if self.bitflag_dtype:
                         bf = self._get_bitflag_col(ms, row0, nrows)
                         bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
                         if unflag:
@@ -633,8 +683,7 @@ class Flagger(Timba.dmi.verbosity):
               unflag=None,  # clear the flagmask (or flagset name, optionally "+L")
               copy=None,    # copy to flagmask (or flagset name, optionally "+L")
               create=False,  # if True and 'flag' is a string, creates new flagset as needed
-              fill_legacy=None,  # if not None, legacy flags will be filled (within all of subset A)
-              # using this mask
+              fill_legacy=None,  # if not None, legacy flags will be filled (within all of subset A) using this mask
 
               # The following options restrict the subset to be flagged. Effect is cumulative.
               # Row subset. Data selection by whole rows
@@ -662,6 +711,7 @@ class Flagger(Timba.dmi.verbosity):
               # if True, dict of {name: mask} bitflags for which statistics will be collected
               get_stats_only=None,
               # other options
+              initializing_bitflags=False,  # if True, bitflags are being initialized -- ignore read errors
               flag_allcorr=True,  # flag all correlations if at least one is flagged
               progress_callback=None,  # callback, called with (n,nmax) to report progress
               purr=False  # if True, writes comments to purrpipe
@@ -680,7 +730,7 @@ class Flagger(Timba.dmi.verbosity):
         flag = flag or 0
         unflag = unflag or 0
         copy = copy or 0
-        if not self.has_bitflags and (flag | unflag |copy) & self.BITMASK_ALL:
+        if not self.bitflag_dtype and (flag | unflag | copy) & self.BITMASK_ALL:
             raise RuntimeError("no BITFLAG column in this MS, can't change bitflags")
         # stats accumulator
         if get_stats_only:
@@ -810,8 +860,14 @@ class Flagger(Timba.dmi.verbosity):
                     if self._rowflags is None:
                         # read legacy flags and convert them to bitmask, then add bitflags
                         lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                        if self.has_bitflags:
-                            bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
+                        if self.bitflag_dtype:
+                            try:
+                                bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
+                            except RuntimeError:
+                                if not initializing_bitflags:
+                                    raise
+                                self.dprint(2,"error reading BITFLAG_ROW, assuming need to initialize")
+                                bfr = np.zeros_like()
                         else:
                             bfr = None
                     return lfr, bfr
@@ -819,7 +875,7 @@ class Flagger(Timba.dmi.verbosity):
                 def bitflags():
                     """Reads BITFLAG column on demand. If no such column, forms up zero array"""
                     if self._visflags is None:
-                        if self.has_bitflags:
+                        if self.bitflag_dtype:
                             self._visflags = ms.getcol('BITFLAG', row0, nrows)
                             self.dprint(2, "read BITFLAG column")
                         else:
@@ -968,7 +1024,7 @@ class Flagger(Timba.dmi.verbosity):
                     self.dprint(4, "adjusting rowflags")
 
                     # were any bitflag manipulations done -- write bitflags
-                    if self.has_bitflags and (flag|unflag|copy) & ~self.LEGACY:
+                    if self.bitflag_dtype and (flag | unflag | copy) & ~self.LEGACY:
                         bf_row = np.bitwise_and.reduce(bitflags(), axis=(1,2))
                         ms.putcol('BITFLAG', bitflags(), row0, nrows)
                         ms.putcol('BITFLAG_ROW', bf_row, row0, nrows)
@@ -1007,7 +1063,7 @@ class Flagger(Timba.dmi.verbosity):
         if not self.purrpipe:
             purr = False
         ms = self._reopen()
-        if not self.has_bitflags:
+        if not self.bitflag_dtype:
             raise TypeError("MS does not contain a BITFLAG column, cannot use bitflags""")
         if isinstance(flags, str):
             flagmask = self.flagsets.flagmask(flags)
