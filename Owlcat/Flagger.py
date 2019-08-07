@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import Timba.dmi
 import re
 import tempfile
 import os
 from functools import cmp_to_key
 
 import Owlcat
+from Kittens.utils import verbosity
 
 try:
     import Purr.Pipe
@@ -89,8 +89,8 @@ def _format_plotchan(arg, argname):
 def _format_2N(arg, argname):
     if isinstance(arg, (list, tuple)):
         return "%s" % arg
-    elif Timba.dmi.is_array(arg):
-        if arg.dtype == Timba.array.int32:
+    elif numpy.isarray(arg):
+        if arg.dtype is np.int32:
             a = arg + 1
         else:
             a = arg
@@ -297,9 +297,9 @@ class Flagsets(object):
         return mask
 
 
-class Flagger(Timba.dmi.verbosity):
+class Flagger(verbosity):
     def __init__(self, msname, verbose=0, timestamps=False, chunksize=200000):
-        Timba.dmi.verbosity.__init__(self, name="Flagger")
+        verbosity.__init__(self, name="Flagger")
         self.set_verbose(verbose)
         if timestamps:
             self.enable_timestamps(modulo=10000)

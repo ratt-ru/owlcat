@@ -469,7 +469,7 @@ if __name__ == "__main__":
 
             totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(get_stats_only=stats, **subset)
             percent = 100.0 / sel_nvis if sel_nvis else 0
-            for flagset in list(flagger.flagsets.names()) + ["+L"]:
+            for flagset in list(flagger.flagsets.names() or []) + ["+L"]:
                 nv = stats[flagset]
                 # print them
                 if flagset is "+L":
