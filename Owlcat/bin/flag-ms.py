@@ -388,9 +388,9 @@ if __name__ == "__main__":
                 error(msg)
             setattr(options, opt, flagmask)
 
-        # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
-        if options.fill_legacy is not None:
-            options.fill_legacy &= ~Flagger.LEGACY
+        ## # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
+        ## if options.fill_legacy is not None:
+        ##    options.fill_legacy &= ~Flagger.LEGACY
 
         #
         # -r/--remove: remove flagsets
@@ -416,9 +416,9 @@ if __name__ == "__main__":
             for name in retain:
                 flagmask |= flagger.flagsets.flagmask(name)
             print("===> removing flagset(s) %s" % ",".join(all_flagsets - retain))
-            print("===> and clearing flagmask %s" % Flagger.flagmaskstr(~flagmask))
+            print("===> and clearing flagmask %s" % flagger.flagmaskstr(~flagmask))
             if options.fill_legacy is not None:
-                print("===> and filling FLAG/FLAG_ROW using flagmask %s" % Flagger.flagmaskstr(options.fill_legacy))
+                print("===> and filling FLAG/FLAG_ROW using flagmask %s" % flagger.flagmaskstr(options.fill_legacy))
             flagger.xflag(unflag=~flagmask, fill_legacy=options.fill_legacy)
             flagger.flagsets.remove_flagset(*list(all_flagsets - retain))
             sys.exit(0)
