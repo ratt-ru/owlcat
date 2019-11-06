@@ -342,7 +342,7 @@ BITFLAG/FLAG columns are shared among all data columns.
     taqls = []
 
     # get IFR set
-    import Meow.IfrSet
+    from Cattery import Meow.IfrSet
 
     ifrset = Meow.IfrSet.from_ms(ms)
     tot_ifrs = len(ifrset.ifrs())
@@ -608,9 +608,11 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
 
     # make list of active IFRS (as p,q pairs), sorted by baseline length
     print(("===> Found data for %d interferometers" % len(active_ifrs)))
+    from past.builtins import cmp
+    from functools import cmp_to_key
     if not average_ifrs:
         keyranges[2] = sorted(active_ifrs,
-                              lambda a, b: cmp((round(ifrset.baseline(*a)), a), (round(ifrset.baseline(*b)), b)))
+                              key=cmp_to_key(lambda a, b: cmp((round(ifrset.baseline(*a)), a), (round(ifrset.baseline(*b)), b))))
 
     if not active_ifrs:
         print("===> Nothing to be plotted. Check your data selection.")

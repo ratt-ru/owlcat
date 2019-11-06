@@ -5,8 +5,8 @@ import re
 import tempfile
 import os
 
-import Meow
-import Meow.MSUtils
+from Cattery import Meow
+from Cattery import Meow.MSUtils
 
 try:
     import Purr.Pipe
@@ -15,7 +15,7 @@ try:
 except:
     has_purr = False
 
-from Meow.MSUtils import TABLE
+from Cattery.Meow.MSUtils import TABLE
 
 _gli = Meow.MSUtils.find_exec('glish')
 if _gli:

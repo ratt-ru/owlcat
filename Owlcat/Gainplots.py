@@ -31,6 +31,7 @@ import numpy
 import math
 import cmath
 from past.builtins import cmp
+from functools import cmp_to_key
 from future.utils import raise_with_traceback
 
 
@@ -84,9 +85,9 @@ def make_gain_plots(filename, prefix=None, gain_label="G",
     # solutions are stored either as [antenna,{0,1}] for diagonal Jones, or [antenna][{0,1,2,3}] for 2x2 Jones
     diagonal = all([type(k) is tuple and len(k) == 2 and k[1] in (0, 1) for k in solkeys])
     if diagonal:
-        antennas = antennas0 = sorted(set([k[0] for k in solkeys]), _cmp_antenna)
+        antennas = antennas0 = sorted(set([k[0] for k in solkeys]), key=cmp_to_key(_cmp_antenna))
     else:
-        antennas = antennas0 = sorted(solkeys, _cmp_antenna)
+        antennas = antennas0 = sorted(solkeys, key=cmp_to_key(_cmp_antenna))
 
     NANT = len(antennas)
     print(("loaded solutions for %d antennas, diagonal=%s" % (NANT, diagonal)))
@@ -204,7 +205,9 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
 
     DG = DG0['gains']
     srcnames = sorted(DG.keys())
-    antennas = sorted(list(DG[srcnames[0]]['solutions'].keys()), _cmp_antenna)
+    from past.builtins import cmp
+    from functools import cmp_to_key
+    antennas = sorted(list(DG[srcnames[0]]['solutions'].keys()), key=cmp_to_key(_cmp_antenna))
 
     NANT = len(antennas)
     prefix = prefix or filename + "_diffgains"
@@ -471,7 +474,9 @@ def make_ifrgain_plots(filename,
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[0]), 'blue', rr))
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[1]), 'red', ll))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[1]), 'red', ll))
-        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), cmp=_cmp_antenna)]
+        from past.builtins import cmp
+        from functools import cmp_to_key
+        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), key=cmp_to_key(_cmp_antenna))]
         pylab.subplot(NR, NC, 2)
         plot_ants(content, "IFR %s %s gain amplitudes per antenna" % feeds[:2])
         if baseline:
@@ -481,7 +486,7 @@ def make_ifrgain_plots(filename,
         pylab.savefig(outname, dpi=75)
         print(("generated plot %s" % outname))
         # make per-antenna figure
-        antennas = sorted(list(igpa0.keys()), _cmp_antenna)
+        antennas = sorted(list(igpa0.keys()), key=cmp_to_key(_cmp_antenna))
         NC = 4
         NR = int(math.ceil(len(antennas) / float(NC)))
         offset = numpy.median(igpa0_means)
@@ -489,7 +494,7 @@ def make_ifrgain_plots(filename,
         for iant, pant in enumerate(antennas):
             pylab.subplot(NR, NC, iant + 1)
             ig = igpa0[pant]
-            ants1 = sorted(list(ig.keys()), _cmp_antenna)
+            ants1 = sorted(list(ig.keys()), key=cmp_to_key(_cmp_antenna))
             rr, ll = ig[ants1[0]]
             for i, qant in enumerate(ants1):
                 rr, ll = ig[qant]
@@ -529,7 +534,9 @@ def make_ifrgain_plots(filename,
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[2]), 'blue', rr))
             igpa.setdefault(p, []).append(("%s:%s" % (q, feeds[3]), 'red', ll))
             igpa.setdefault(q, []).append(("%s:%s" % (p, feeds[3]), 'red', ll))
-        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), cmp=_cmp_antenna)]
+        from past.builtins import cmp
+        from functools import cmp_to_key
+        content = [(p, igpa[p]) for p in sorted(list(igpa.keys()), key=cmp_to_key(_cmp_antenna))]
         pylab.subplot(NR, NC, 2)
         plot_ants(content, "IFR %s %s offset amplitudes per antenna" % feeds[2:])
         if baseline:

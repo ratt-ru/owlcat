@@ -98,7 +98,7 @@ def parse_subset_options(options):
             parser.error("Invalid -S/--stations option")
     # IFR set
     if options.ifrs is not None:
-        import Meow.IfrSet
+        from Cattery import Meow.IfrSet
         ifrset = Meow.IfrSet.from_ms(get_ms())
         # print help and exit
         if options.ifrs == "help":
