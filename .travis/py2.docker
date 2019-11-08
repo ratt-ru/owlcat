@@ -28,7 +28,7 @@ RUN pip install .
 RUN wget https://github.com/ska-sa/pyxis/archive/v1.6.2.tar.gz
 RUN tar -xvf v1.6.2.tar.gz
 WORKDIR /code/pyxis-1.6.2
-RUN pip install -U .
+RUN pip install .
 
 # run test when built
 RUN pip install nose
