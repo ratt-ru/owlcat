@@ -242,7 +242,7 @@ class FunkSet(object):
         arr = None
         if os.path.exists(cachefile) and os.path.getmtime(cachefile) >= self.pt.mtime:
             try:
-                arr = pickle.load(open(cachefile))
+                arr = pickle.load(open(cachefile, 'rb'))
                 dprintf(2, "read cache %s\n" % cachefile)
             except:
                 dprintf(0, "error reading cached array %s, will regenerate\n" % cachefile)
@@ -255,7 +255,7 @@ class FunkSet(object):
             arr = fullslice.array(coeff, fill_value=0, masked=True, collapse=False)
             # write to cache
             try:
-                pickle.dump(arr, open(cachefile, "w"))
+                pickle.dump(arr, open(cachefile, "wb"))
             except:
                 if verbosity.get_verbose() > 0:
                     traceback.print_exc()
@@ -496,7 +496,7 @@ class ParmTab(object):
                 dprintf(2, "loading index cache\n")
                 self._funklet_names, self._domain_list, self._axis_stats, self._name_components, \
                 self._domain_fullset, self._domain_cell_index, self._domain_reverse_index \
-                    = pickle.load(open(cachepath))
+                    = pickle.load(open(cachepath, 'rb'))
                 dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)
                 t0 = time.time()
                 return
@@ -567,7 +567,7 @@ class ParmTab(object):
                 pickle.dump((
                     self._funklet_names, self._domain_list, self._axis_stats, self._name_components, \
                     self._domain_fullset, self._domain_cell_index, self._domain_reverse_index \
-                    ), open(cachepath, 'w')
+                    ), open(cachepath, 'wb')
                 )
             except:
                 if verbosity.get_verbose() > 0:

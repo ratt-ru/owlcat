@@ -450,7 +450,7 @@ if __name__ == "__main__":
 
     # read pointing errors cache
     if options.pe:
-        pe_dlm, pe_bsz, pe_beam_sizes = pickle.load(open(options.pe))
+        pe_dlm, pe_bsz, pe_beam_sizes = pickle.load(open(options.pe,'rb'))
 
         # pe_dlm is 2 x NSPW x NANT x NTIME
         # pe_bsz is 2 x 2 x NSPW x NANT x NTIME

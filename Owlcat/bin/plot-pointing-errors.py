@@ -195,13 +195,13 @@ if __name__ == "__main__":
         import pickle
 
         cachefile = options.cache + '.cache'
-        pickle.dump((dlm, bsz, beam_sizes), open(cachefile, 'w'))
+        pickle.dump((dlm, bsz, beam_sizes), open(cachefile, 'wb'))
         print(("Cached all structures to file", cachefile))
 
     if options.wind:
         import pickle
 
-        wind_time, wind_dir, wind_speed = pickle.load(open(options.wind))
+        wind_time, wind_dir, wind_speed = pickle.load(open(options.wind, 'rb'))
         print(("Loaded %d wind samples from %s" % (len(wind_time), options.wind)))
         # get wind data for each interval
         wsp_mean = numpy.zeros(NTIMES, float)
