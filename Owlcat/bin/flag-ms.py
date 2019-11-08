@@ -64,36 +64,36 @@ def parse_subset_options(options):
     if options.ddid is not None:
         try:
             subset['ddid'] = list(map(int, options.ddid.split(",")))
-            print(("  ===> DATA_DESC_ID:", subset['ddid']))
+            print("  ===> DATA_DESC_ID:", subset['ddid'])
         except:
             parser.error("Invalid -D/--ddid option")
     if options.field is not None:
         try:
             subset['fieldid'] = list(map(int, options.field.split(",")))
-            print(("  ===> FIELD_ID:", subset['fieldid']))
+            print("  ===> FIELD_ID:", subset['fieldid'])
         except:
             parser.error("Invalid -F/--field option")
     # taql
     taqls = []
     if options.taql:
         taqls.append(options.taql)
-        print(("  ===> TaQL query:", options.taql))
+        print("  ===> TaQL query:", options.taql)
     # channels
     if options.channels:
         subset['channels'] = list(map(Parsing.parse_slice, options.channels.split(",")))
-        print(("  ===> channels:", subset['channels']))
+        print("  ===> channels:", subset['channels'])
     # corr list
     if options.corrs is not None:
         try:
             subset['corrs'] = list(map(int, options.corrs.split(',')))
-            print(("  ===> correlations:", subset['corrs']))
+            print("  ===> correlations:", subset['corrs'])
         except:
             parser.error("Invalid -X/--corrs option")
     # station list
     if options.stations is not None:
         try:
             subset['antennas'] = list(map(int, options.stations.split(',')))
-            print(("  ===> stations:", subset['antennas']))
+            print("  ===> stations:", subset['antennas'])
         except:
             parser.error("Invalid -S/--stations option")
     # IFR set
@@ -103,11 +103,11 @@ def parse_subset_options(options):
         # print help and exit
         if options.ifrs == "help":
             # print help string, but trim away RTF tags
-            print((re.sub("<[^>]+>", "", ifrset.subset_doc).replace("&lt;", "<").replace("&gt;", ">")))
+            print(re.sub("<[^>]+>", "", ifrset.subset_doc).replace("&lt;", "<").replace("&gt;", ">"))
             sys.exit(0)
         try:
             ifrset = ifrset.subset(options.ifrs)
-            print(("  ===> ifrs:", " ".join([ifrset.ifr_label(ip, iq) for (ip, p), (iq, q) in ifrset.ifr_index()])))
+            print("  ===> ifrs:", " ".join([ifrset.ifr_label(ip, iq) for (ip, p), (iq, q) in ifrset.ifr_index()]))
             if not ifrset.ifrs():
                 return None
         except:
@@ -117,19 +117,19 @@ def parse_subset_options(options):
     subset['data_column'] = options.data_column
     if options.nan:
         subset['data_nan'] = True
-        print(("  ===> select %s = NAN or INF" % options.data_column))
+        print("  ===> select %s = NAN or INF" % options.data_column)
     if options.above is not None:
         subset['data_above'] = options.above
-        print(("  ===> select |%s|>%f" % (options.data_column, options.above)))
+        print("  ===> select |%s|>%f" % (options.data_column, options.above))
     if options.below is not None:
         subset['data_below'] = options.below
-        print(("  ===> select |%s|<%f" % (options.data_column, options.below)))
+        print("  ===> select |%s|<%f" % (options.data_column, options.below))
     if options.fm_above is not None:
         subset['data_fm_above'] = options.fm_above
-        print(("  ===> select mean|%s|>%f" % (options.data_column, options.fm_above)))
+        print("  ===> select mean|%s|>%f" % (options.data_column, options.fm_above))
     if options.fm_below is not None:
         subset['data_fm_below'] = options.fm_below
-        print(("  ===> select mean|%s|<%f" % (options.data_column, options.fm_below)))
+        print("  ===> select mean|%s|<%f" % (options.data_column, options.fm_below))
     # join taql queries
     if taqls:
         subset['taql'] = "( " + " ) && ( ".join(taqls) + " )"
@@ -211,9 +211,13 @@ if __name__ == "__main__":
     group.add_option("-x", "--extend-all-corr", action="store_true",
                      help="apply selection to all correlations if at least one is selected")
     group.add_option("-f", "--flag", metavar="FLAGS", type="string",
-                     help="raise the specified FLAGS")
+                     help="raise the specified FLAGS (selection added to output FLAGS)")
     group.add_option("-u", "--unflag", metavar="FLAGS", type="string",
-                     help="clear the specified flags")
+                     help="clear the specified flags (selection removed from output FLAGS)")
+    group.add_option("-y", "--copy", metavar="FLAGS", type="string",
+                     help="copies to the the specified FLAGS (selection replaces output FLAGS)")
+    group.add_option("--copy-legacy", metavar="FLAGS", type="string",
+                     help="shortcut for --flagged-any +L --copy FLAGS --fill-legacy -")
     group.add_option("-g", "--fill-legacy", metavar="FLAGS", type="string",
                      help="fills legacy FLAG/FLAG_ROW columns using the specified FLAGS. When -f/--flag or -u/--unflag "
                           "or -r/--remove is used, legacy flags are implicitly reset using all bitflags: use '-g -' "
@@ -245,7 +249,7 @@ if __name__ == "__main__":
 
     parser.set_defaults(data_column="CORRECTED_DATA", data_flagmask="ALL",
                         flagged_any=None, flaged_all=None, flagged_none=None,
-                        flag=None, unflag=None, fill_legacy=None,
+                        flag=None, unflag=None, copy=None, copy_legacy=None, fill_legacy=None,
                         verbose=0)
 
     # parse args
@@ -263,7 +267,7 @@ if __name__ == "__main__":
         try:
             dump = Owlcat.Tables.TableDump(options._import, compress=True)
             ms = get_ms(readonly=False)
-            print(("Importing flags from %s:" % options._import))
+            print("Importing flags from %s:" % options._import)
             dump.load(ms, verbose=True)
             dump.close()
             ms.close()
@@ -273,15 +277,13 @@ if __name__ == "__main__":
         print("Flags imported OK.")
 
     # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
-    if not (options.flag or options.unflag or options.fill_legacy):
+    if not (options.flag or options.unflag or options.copy or options.fill_legacy):
         if options._import:
             sys.exit(0)
         statonly = True
     else:
         statonly = False
 
-    import numpy
-    import numpy.ma
     import Owlcat.Flagger
     from Owlcat.Flagger import Flagger
 
@@ -305,38 +307,43 @@ if __name__ == "__main__":
             nchan = spw_tab.getcol('NUM_CHAN')
             fields = Owlcat.table(ms.getkeyword('FIELD')).getcol('NAME')
 
-            print(("===> MS is %s" % msname))
-            print(("  %d antennas: %s" % (len(ants), " ".join(ants))))
-            print(("  %d DATA_DESC_ID(s): " % len(spwids)))
+            print("===> MS is %s" % msname)
+            print("  %d antennas: %s" % (len(ants), " ".join(ants)))
+            print("  %d DATA_DESC_ID(s): " % len(spwids))
             for i, (spw, pol) in enumerate(zip(spwids, polids)):
-                print(("    %d: %.3f MHz, %d chans x %d correlations" % (
-                i, ref_freq[spw] * 1e-6, nchan[spw], len(corrs[pol, :]))))
-            print(("  %d field(s): %s" % (len(fields), ", ".join(["%d: %s" % ff for ff in enumerate(fields)]))))
+                print("    %d: %.3f MHz, %d chans x %d correlations" % (
+                i, ref_freq[spw] * 1e-6, nchan[spw], len(corrs[pol, :])))
+            print("  %d field(s): %s" % (len(fields), ", ".join(["%d: %s" % ff for ff in enumerate(fields)])))
             if not flagger.has_bitflags:
                 print("No BITFLAG/BITFLAG_ROW columns in this MS. Use the 'addbitflagcol' command to add them.")
             else:
                 names = flagger.flagsets.names()
                 if names:
-                    print(("  %d flagset(s): " % len(names)))
+                    print("  %d flagset(s): " % len(names))
                     for name in names:
                         mask = flagger.flagsets.flagmask(name)
-                        print(("    '%s': %d (0x%02X)" % (name, mask, mask)))
+                        print("    '%s': %d (0x%02X)" % (name, mask, mask))
                 else:
                     print("  No flagsets.")
             print("")
-            if options.flag or options.unflag or options.fill_legacy or options.remove:
+            if options.flag or options.unflag or options.copy or options.fill_legacy or options.remove:
                 print("-l/--list was in effect, so all other options were ignored.")
             sys.exit(0)
 
+        if options.copy_legacy:
+            options.copy = options.copy_legacy
+            options.fill_legacy = "-"
+            options.flagmask = "+L"
+
         # --flag/--unflag/--remove implies '-g all' by default, '-g -' skips the fill-legacy step
-        if options.flag or options.unflag or options.remove:
+        if options.flag or options.unflag or options.copy or options.remove:
             if options.fill_legacy is None:
                 options.fill_legacy = 'all'
             elif options.fill_legacy == '-':
                 options.fill_legacy = None
 
         # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
-        if not (options.flag or options.unflag or options.fill_legacy):
+        if not (options.flag or options.unflag or options.copy or options.fill_legacy):
             if options._import:
                 sys.exit(0)
             statonly = not options.export
@@ -344,7 +351,7 @@ if __name__ == "__main__":
             statonly = False
 
         # convert all the various FLAGS to flagmasks (or Nones)
-        for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none', 'flag', 'unflag', 'fill_legacy':
+        for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none', 'flag', 'copy', 'unflag', 'fill_legacy':
             value = getattr(options, opt)
             try:
                 flagmask = flagger.lookup_flagmask(value, create=(opt == 'flag' and options.create))
@@ -363,18 +370,18 @@ if __name__ == "__main__":
         # -r/--remove: remove flagsets
         #
         if options.remove is not None:
-            if options.flag or options.unflag:
-                error("Can't combine -r/--remove with --f/--flag or -u/--unflag.")
+            if options.flag or options.unflag or options.copy:
+                error("Can't combine -r/--remove with --f/--flag or -u/--unflag or -C/--copy")
             # get set of flagsets to remove
             remove_flagsets = set(options.remove.split(","))
             # get set of all flagsets
             all_flagsets = set(flagger.flagsets.names())
             # warn if any named flagsets were not found
             if remove_flagsets - all_flagsets:
-                print(("===> WARNING: flagset(s) %s not found, ignoring" % ",".join(remove_flagsets - all_flagsets)))
+                print("===> WARNING: flagset(s) %s not found, ignoring" % ",".join(remove_flagsets - all_flagsets))
             # build flagmask of remaining flagsets
             retain = all_flagsets - remove_flagsets
-            if not retain:
+            if retain == all_flagsets:
                 # if names_not_found:
                 # error("No such flagset(s): %s"%",".join(names_not_found))
                 print("===> WARNING: no flagsets to remove, exiting")
@@ -382,10 +389,10 @@ if __name__ == "__main__":
             flagmask = 0
             for name in retain:
                 flagmask |= flagger.flagsets.flagmask(name)
-            print(("===> removing flagset(s) %s" % ",".join(all_flagsets - retain)))
-            print(("===> and clearing flagmask %s" % Flagger.flagmaskstr(~flagmask)))
+            print("===> removing flagset(s) %s" % ",".join(all_flagsets - retain))
+            print("===> and clearing flagmask %s" % Flagger.flagmaskstr(~flagmask))
             if options.fill_legacy is not None:
-                print(("===> and filling FLAG/FLAG_ROW using flagmask %s" % Flagger.flagmaskstr(options.fill_legacy)))
+                print("===> and filling FLAG/FLAG_ROW using flagmask %s" % Flagger.flagmaskstr(options.fill_legacy))
             flagger.xflag(unflag=~flagmask, fill_legacy=options.fill_legacy)
             flagger.flagsets.remove_flagset(*list(all_flagsets - retain))
             sys.exit(0)
@@ -407,29 +414,37 @@ if __name__ == "__main__":
             time0 -= times[0]
             time1 -= times[0]
             subset['reltime'] = time0, time1
-            print(("  ===> select timeslots %s (reltime %g~%g s)" % (tslice, time0, time1)))
+            print("  ===> select timeslots %s (reltime %g~%g s)" % (tslice, time0, time1))
 
         # at this stage all remaining options are handled the same way
         flagstr = unflagstr = legacystr = None
         if options.flag is not None:
             flagstr = flagger.flagmaskstr(options.flag)
-            print(("===> flagging with flagmask %s" % flagstr))
+            print("===> flagging with flagmask %s" % flagstr)
         if options.unflag is not None:
             unflagstr = flagger.flagmaskstr(options.unflag)
-            print(("===> unflagging with flagmask %s" % unflagstr))
+            print("===> unflagging with flagmask %s" % unflagstr)
+        if options.copy is not None:
+            copyflagstr = flagger.flagmaskstr(options.copy)
+            print("===> copying to flagmask %s" % copyflagstr)
         if options.fill_legacy is not None:
             legacystr = flagger.flagmaskstr(options.fill_legacy)
-            print(("===> filling legacy flags with flagmask %s" % legacystr))
+            print("===> filling legacy flags with flagmask %s" % legacystr)
 
         # if --stats in effect, loop over all flagsets and print stats
         if options.stats:
             print("===> --stats in effect, showing per-flagset statistics")
             printed_header = False
+            stats = {}
+            if flagger.flagsets.names():
+                for flagset in list(flagger.flagsets.names()):
+                    stats[flagset] = flagger.lookup_flagmask(flagset)
+            stats["+L"] = None
+
+            totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(get_stats_only=stats, **subset)
+            percent = 100.0 / sel_nvis if sel_nvis else 0
             for flagset in list(flagger.flagsets.names()) + ["+L"]:
-                # get stats for this flagset
-                subset['flagmask'] = flagger.lookup_flagmask(flagset)
-                totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(**subset)
-                percent = 100.0 / sel_nvis if sel_nvis else 0
+                nv = stats[flagset]
                 # print them
                 if flagset is "+L":
                     label = "legacy FLAG/FLAG_ROW"
@@ -438,19 +453,20 @@ if __name__ == "__main__":
                 if not printed_header:
                     printed_header = True
                     rpc = 100.0 / totrows if totrows else 0
-                    print(("===>   MS size:               %8d rows" % totrows))
-                    print(("===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)" % (
-                    sel_nrow, sel_nvis, sel_nrow * rpc)))
+                    print("===>   MS size:               %8d rows" % totrows)
+                    print("===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)" % (
+                    sel_nrow, sel_nvis, sel_nrow * rpc))
                     if options.channels or options.corrs:
-                        print(("===>   Chan/corr slicing reduces this to    %12d visibilities (%.3g%% of selection)" % (
-                        nvis_A, nvis_A * percent)))
-                print((
-                    "===>   %-29s includes %10d visibilities (%.3g%% of selection)" % (label, nvis_B, nvis_B * percent)))
+                        print("===>   Chan/corr slicing reduces this to    %12d visibilities (%.3g%% of selection)" % (
+                        nvis_A, nvis_A * percent))
+                print(
+                    "===>   %-29s includes %10d visibilities (%.3g%% of selection)" % (label, nv, nv * percent))
             sys.exit(0)
 
         # else not stats mode, do the actual flagging job
+        print(options)
         totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = \
-            flagger.xflag(flag=options.flag, unflag=options.unflag, fill_legacy=options.fill_legacy,
+            flagger.xflag(flag=options.flag, unflag=options.unflag, copy=options.copy, fill_legacy=options.fill_legacy,
                           flag_allcorr=options.extend_all_corr,
                           **subset)
 
@@ -460,27 +476,27 @@ if __name__ == "__main__":
         else:
             print("===> Flagging stats:")
         rpc = 100.0 / totrows if totrows else 0
-        print(("===>   MS size:               %8d rows" % totrows))
-        print(("===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)" % (
-        sel_nrow, sel_nvis, sel_nrow * rpc)))
+        print("===>   MS size:               %8d rows" % totrows)
+        print("===>   Data/time selection:   %8d rows, %10d visibilities (%.3g%% of MS rows)" % (
+        sel_nrow, sel_nvis, sel_nrow * rpc))
         if legacystr:
-            print(("===>     (over which legacy flags were filled using flagmask %s)" % legacystr))
+            print("===>     (over which legacy flags were filled using flagmask %s)" % legacystr)
 
         percent = 100.0 / sel_nvis if sel_nvis else 0
         if options.channels or options.corrs:
-            print(("===>   Chan/corr slicing reduces this to     %10d visibilities (%.3g%% of selection)" % (
-            nvis_A, nvis_A * percent)))
+            print("===>   Chan/corr slicing reduces this to     %10d visibilities (%.3g%% of selection)" % (
+            nvis_A, nvis_A * percent))
         if not (options.flagmask is None and options.flagmask_all is None and options.flagmask_none is None):
-            print(("===>   Flag selection reduces this to        %10d visibilities (%.3g%% of selection)" % (
-            nvis_B, nvis_B * percent)))
+            print("===>   Flag selection reduces this to        %10d visibilities (%.3g%% of selection)" % (
+            nvis_B, nvis_B * percent))
         if options.nan or options.above is not None or options.below is not None or \
                 options.fm_above is not None or options.fm_below is not None:
-            print(("===>   Data selection reduces this to         %10d visibilities (%.3g%% of selection)" % (
-            nvis_C, nvis_C * percent)))
+            print("===>   Data selection reduces this to         %10d visibilities (%.3g%% of selection)" % (
+            nvis_C, nvis_C * percent))
         if unflagstr:
-            print(("===>     (which were unflagged using flagmask %s)" % unflagstr))
+            print("===>     (which were unflagged using flagmask %s)" % unflagstr)
         if flagstr:
-            print(("===>     (which were flagged using flagmask %s)" % flagstr))
+            print("===>     (which were flagged using flagmask %s)" % flagstr)
 
         flagger.close()
 
@@ -490,7 +506,7 @@ if __name__ == "__main__":
             dump = Owlcat.Tables.TableDump(options.export, write=True, compress=True)
             ms = get_ms()
             colnames = set(ms.colnames())
-            print(("Exporting flags to %s, %d rows:" % (options.export, ms.nrows())))
+            print("Exporting flags to %s, %d rows:" % (options.export, ms.nrows()))
             for colname in FLAGCOLS:
                 if colname in colnames:
                     dump.dump_column(ms, colname, verbose=True)

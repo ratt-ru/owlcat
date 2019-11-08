@@ -9,16 +9,16 @@ RUN docker-apt-install \
     python-scipy \
     python-astlib \
     python-six \
-    python-future
-
-RUN docker-apt-install \
+    python-future \
     wget \
     makems \
     meqtrees-timba \
     libboost-python-dev \
     python-casacore \
     python-astro-tigger \
-    python-meqtrees-cattery
+    python-meqtrees-cattery \
+    wcslib-dev \
+    libccfits-dev
 
 ADD . /code
 WORKDIR /code
