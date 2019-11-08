@@ -73,7 +73,7 @@ if __name__ == "__main__":
     msname, colname, filename = args
 
     try:
-        gzf = gzip.GzipFile(filename, "w") if filename.endswith(".gz") else file(filename, "w")
+        gzf = gzip.GzipFile(filename, "w") if filename.endswith(".gz") else open(filename, "w")
         # write stuff
         ms = get_ms()
         print(("Opened MS %s" % msname))
