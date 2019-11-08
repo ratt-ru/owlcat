@@ -424,7 +424,7 @@ if __name__ == "__main__":
         # write cache
         if options.cache:
             cachefile = options.cache + '.cache'
-            pickle.dump((freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX), file(cachefile, 'w'))
+            pickle.dump((freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX), open(cachefile, 'w'))
             print(("Cached all structures to file", cachefile))
 
     #
@@ -432,7 +432,7 @@ if __name__ == "__main__":
     #
     else:
         print(("Reading cache file", args[0]))
-        freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX = pickle.load(file(args[0]))
+        freq0, de, SPWS, SRCS, ANTS, CORRS, NTIMES, ANTX = pickle.load(open(args[0]))
         print(("Read %s: %d spws, %d srcs, %d ants, %d corrs, %d times" % (args[0],
                                                                           len(SPWS), len(SRCS), len(ANTS), len(CORRS),
                                                                           NTIMES)))
@@ -450,7 +450,7 @@ if __name__ == "__main__":
 
     # read pointing errors cache
     if options.pe:
-        pe_dlm, pe_bsz, pe_beam_sizes = pickle.load(file(options.pe))
+        pe_dlm, pe_bsz, pe_beam_sizes = pickle.load(open(options.pe))
 
         # pe_dlm is 2 x NSPW x NANT x NTIME
         # pe_bsz is 2 x 2 x NSPW x NANT x NTIME

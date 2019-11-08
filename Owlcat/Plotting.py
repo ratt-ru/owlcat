@@ -76,7 +76,7 @@ class PlotCollection(object):
         if not offset:
             stddevs = sorted(self.stddev.values())
             if stddevs:
-                offset = self.offset = offset_std * stddevs[len(stddevs) / 2]
+                offset = self.offset = offset_std * stddevs[len(stddevs) // 2]
         # if still not set, force to 1
         if not offset:
             offset = self.offset = 1
@@ -84,7 +84,7 @@ class PlotCollection(object):
         if dual:
             # split ifrs into two sets (if number is odd, make sure first subset has the extra 1)
             n = len(keylist)
-            n2 = len(keylist) / 2
+            n2 = len(keylist) // 2
             if n % 2:
                 n2 += 1
             keysets = [keylist[0:n2], keylist[n2:]]
@@ -151,7 +151,7 @@ class PlotCollection(object):
                         continue
                     if self.label[key]:
                         # figure out where to place text label
-                        ytext = dd[:nx / 10].mean()
+                        ytext = dd[:nx // 10].mean()
                         if numpy.isnan(ytext):
                             ytext = dd.mean()
                         # do not put too close to previous label

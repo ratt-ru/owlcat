@@ -342,9 +342,9 @@ BITFLAG/FLAG columns are shared among all data columns.
     taqls = []
 
     # get IFR set
-    from Cattery import Meow.IfrSet
+    from Cattery.Meow import IfrSet
 
-    ifrset = Meow.IfrSet.from_ms(ms)
+    ifrset = IfrSet.from_ms(ms)
     tot_ifrs = len(ifrset.ifrs())
     if options.ifrs:
         if options.ifrs == "help":

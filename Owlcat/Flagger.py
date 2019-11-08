@@ -6,7 +6,7 @@ import tempfile
 import os
 
 from Cattery import Meow
-from Cattery import Meow.MSUtils
+from Cattery.Meow import MSUtils
 
 try:
     import Purr.Pipe
@@ -17,7 +17,7 @@ except:
 
 from Cattery.Meow.MSUtils import TABLE
 
-_gli = Meow.MSUtils.find_exec('glish')
+_gli = MSUtils.find_exec('glish')
 if _gli:
     _GLISH = 'glish'
     Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
@@ -25,7 +25,7 @@ else:
     _GLISH = None
     Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
 
-_addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
+_addbitflagcol = MSUtils.find_exec('addbitflagcol')
 
 
 # Various argument-formatting methods to use with the Flagger.AutoFlagger class
@@ -148,7 +148,7 @@ class Flagger(Timba.dmi.verbosity):
             self.readwrite = readwrite
             self.dprintf(1, "opened MS %s, %d rows\n", ms.name(), ms.nrows())
             self.has_bitflags = 'BITFLAG' in ms.colnames()
-            self.flagsets = Meow.MSUtils.get_flagsets(ms)
+            self.flagsets = MSUtils.get_flagsets(ms)
             self.dprintf(1, "flagsets are %s\n", self.flagsets.names())
             self.purrpipe = Purr.Pipe.Pipe(self.msname) if has_purr else None
         elif self.readwrite != readwrite:
@@ -1146,7 +1146,7 @@ class Flagger(Timba.dmi.verbosity):
                 raise RuntimeError("glish not found, so cannot run autoflagger")
             # write commands to temporary file and run glish
             if cmdfile:
-                fobj = file(cmdfile, "wt")
+                fobj = open(cmdfile, "wt")
             else:
                 fh, cmdfile = tempfile.mkstemp(prefix="autoflag", suffix=".g")
                 fobj = os.fdopen(fh, "wt")
@@ -1164,11 +1164,11 @@ class Flagger(Timba.dmi.verbosity):
             return os.spawnvp(waitcode, _GLISH, ['glish', '-l', cmdfile])
 
         def save(self, filename='default.af'):
-            file(filename, "w").writelines([line + "\n" for line in self._cmds])
+            open(filename, "w").writelines([line + "\n" for line in self._cmds])
             self.flagger.dprintf(2, "saved autoflag command sequence to file %s\n", filename)
 
         def load(self, filename='default.af'):
-            self._cmds = file(filename).readlines()
+            self._cmds = open(filename).readlines()
             self.flagger.dprintf(2, "loaded autoflag command sequence from file %s\n", filename)
             self.flagger.dprint(2, "sequence is:")
             for cmd in self._cmds:

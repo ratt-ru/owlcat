@@ -201,7 +201,7 @@ def make_diffgain_plots(filename, prefix=None, ylim=None, subset=None, ant=None,
     'ant' can be set to a whitespace-separated list of antennas. Wildcard patterns are allowed in both cases"""
 
     print(("loading diffgain solutions from %s" % filename))
-    DG0 = cPickle.load(file(filename))
+    DG0 = cPickle.load(open(filename))
 
     DG = DG0['gains']
     srcnames = sorted(DG.keys())

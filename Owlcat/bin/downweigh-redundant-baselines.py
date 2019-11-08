@@ -102,9 +102,9 @@ IMAGING_WEIGHT) column of the MS, weighting the redundant baselines as 1/n. For 
     else:
         taqls = []
         # get IFR set
-        from Cattery import Meow.IfrSet
+        from Cattery.Meow import IfrSet
 
-        ifrset = Meow.IfrSet.from_ms(ms)
+        ifrset = IfrSet.from_ms(ms)
         if options.ifrs:
             ifrset = ifrset.subset(options.ifrs)
             taqls.append(ifrset.taql_string())
