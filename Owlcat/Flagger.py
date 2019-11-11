@@ -342,7 +342,7 @@ class Flagger(verbosity):
 
         return self.ms
 
-    def _add_column(self, col_name, like_col="DATA", like_type=None):
+    def _add_column(self, col_name, like_col="DATA", like_type=None, stman=None):
         """
         Inserts a new column into the measurement set.
 
@@ -368,10 +368,14 @@ class Flagger(verbosity):
         desc['comment'] = desc['comment'].replace(" ", "_")  # casacore not fond of spaces...
         dminfo = self.ms.getdminfo(like_col)
         dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], col_name)
+        if stman is not None:
+            dminfo["TYPE"] = stman
         # if a different type is specified, insert that
         if like_type:
             desc['valueType'] = like_type
-        self.dprint(0, "inserting new column %s of type '%s'" % (col_name, desc['valueType']))
+        self.dprint(0, "inserting new column %s of type '%s' based on %s" % (col_name, desc['valueType'], like_col))
+        if stman is not None:
+            self.dprint(0, "  using %s" % stman)
         self.ms.addcols(desc, dminfo)
         return True
 
@@ -384,7 +388,7 @@ class Flagger(verbosity):
             self.close()
             self._reopen()
 
-    def add_bitflags(self, wait=True, purr=True, bits=32):
+    def add_bitflags(self, wait=True, purr=True, bits=32, stman=None):
         if not self.has_bitflags:
             self._reopen(True)
             if bits == 32:
@@ -398,8 +402,8 @@ class Flagger(verbosity):
                 self.has_bitflags = np.uint16
             else:
                 raise ValueError("invalid bits setting. 8, 16 or 32 expected.")
-            self._add_column("BITFLAG", "FLAG", dtype)
-            self._add_column("BITFLAG_ROW", "FLAG_ROW", dtype)
+            self._add_column("BITFLAG", "DATA", dtype, stman=stman)
+            self._add_column("BITFLAG_ROW", "FLAG_ROW", dtype, stman=stman)
             self.close()
             self._reopen()
             self._initializing_bitflags = True

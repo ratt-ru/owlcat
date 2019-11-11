@@ -233,6 +233,8 @@ if __name__ == "__main__":
                      help="initializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
     group.add_option("--reinit-bitflags", type="choice", choices=["0", "8", "16", "32"], default=0,
                      help="removes (if any) and reinitializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
+    group.add_option("--incr-stman", action="store_true",
+                     help="force the use of the incremental storage manager for new BITFLAG columns. Default is to use same manager as DATA column.")
     group.add_option("-l", "--list", action="store_true",
                      help="lists various info about the MS, including its flagsets.")
     group.add_option("-s", "--stats", action="store_true",
@@ -310,7 +312,14 @@ if __name__ == "__main__":
                     print("{}: bitflag columns seem to be in place".format(msname))
         if not flagger.has_bitflags:
             print("{}: inserting bitflag columns (size {} bits)".format(msname, init_nbits))
-            flagger.add_bitflags(bits=init_nbits)
+            stman = None
+            if options.incr_stman:
+                stman = "IncrementalStMan"
+                print("  will use the {} storage manager".format(stman))
+            else:
+                print("  will use same storage manager as existing DATA column")
+            print("{}: inserting bitflag columns (size {} bits)".format(msname, init_nbits))
+            flagger.add_bitflags(bits=init_nbits, stman=stman)
 
     # now, skip most of the actions below if we're in statonly mode and exporting
     if not (statonly and options.export):

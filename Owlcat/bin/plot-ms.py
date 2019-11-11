@@ -275,7 +275,9 @@ BITFLAG/FLAG columns are shared among all data columns.
         if not flagmask & Flagger.LEGACY:
             print("===> NB: legacy FLAG/FLAG_ROW columns will be ignored with this flagmask")
     else:
-        flagmask = Flagger.BITMASK_ALL | Flagger.LEGACY
+        flagger = Flagger(msname)
+        flagmask = flagger.BITMASK_ALL | flagger.LEGACY
+        flagger.close()
         print("===> Using all flags")
 
     # parse slice specs
