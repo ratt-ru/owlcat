@@ -257,7 +257,7 @@ class FunkSet(object):
             try:
                 pickle.dump(arr, open(cachefile, "wb"))
             except:
-                if verbosity.get_verbose() > 0:
+                if verbosity.get_verbose() is not None and verbosity.get_verbose() > 0:
                     traceback.print_exc()
                 dprintf(0, "error writing cache array %s, but proceeding anyway\n" % cachefile)
         # now apply the masked and fill_value properties
@@ -570,7 +570,7 @@ class ParmTab(object):
                     ), open(cachepath, 'wb')
                 )
             except:
-                if verbosity.get_verbose() > 0:
+                if verbosity.get_verbose() is not None and verbosity.get_verbose() > 0:
                     traceback.print_exc()
                 dprintf(0, "%s: error writing stats to cache, will probably regenerate next time\n", self.filename)
             dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)
