@@ -1,31 +1,29 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import Timba.dmi
 import re
 import tempfile
 import os
+from functools import cmp_to_key
 
-import Meow
-import Meow.MSUtils
+import Owlcat
+from Kittens.utils import verbosity
 
 try:
     import Purr.Pipe
-
     has_purr = True
 except:
     has_purr = False
 
-from Meow.MSUtils import TABLE
+_gli = None # Meow.MSUtils.find_exec('glish')
 
-_gli = Meow.MSUtils.find_exec('glish')
-if _gli:
-    _GLISH = 'glish'
-    Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
-else:
-    _GLISH = None
-    Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
+# if _gli:
+#     _GLISH = 'glish'
+#     Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
+# else:
+#     _GLISH = None
+#     Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
 
-_addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
+# _addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
 
 
 # Various argument-formatting methods to use with the Flagger.AutoFlagger class
@@ -91,8 +89,8 @@ def _format_plotchan(arg, argname):
 def _format_2N(arg, argname):
     if isinstance(arg, (list, tuple)):
         return "%s" % arg
-    elif Timba.dmi.is_array(arg):
-        if arg.dtype == Timba.array.int32:
+    elif numpy.isarray(arg):
+        if arg.dtype is np.int32:
             a = arg + 1
         else:
             a = arg
@@ -122,18 +120,194 @@ def _format_clip(arg, argname):
     raise TypeError("invalid value for '%s' keyword (%s)" % (argname, arg))
 
 
-class Flagger(Timba.dmi.verbosity):
+# mapping from casacore table valueType to bit length
+BITFLAG_NBITS = dict(uchar=8, short=16, int=32)
+
+# mapping from casacore table valueType to numpy dtype
+BITFLAG_DTYPES = dict(uchar=np.uint8, short=np.int16, int=np.int32)
+
+
+
+class Flagsets(object):
+    """ Manage an measurement set's flagsets. Pasted from Cattery.Meow.MSUtils. """
+
+    def __init__(self, ms):
+        """
+        Initialises a Flagsets object for the measurement set.
+
+        Args:
+            ms (:obj:`~casacore.tables.table.table`):
+                A table object belonging to the measurement set.
+        """
+
+        self.ms = ms
+        if not 'BITFLAG' in ms.colnames():
+            self.order = None
+            self.bits = {}
+            self.NBITS = 8
+            self.dtype = np.uint8
+        else:
+            value_type = ms.getcoldesc('BITFLAG')['valueType']
+            self.NBITS = BITFLAG_NBITS[value_type]
+            self.dtype = BITFLAG_DTYPES[value_type]
+            kws = ms.colkeywordnames('BITFLAG')
+            self.bits = {}
+            # scan FLAGSET_xxx keywords and populate name->bitmask mappings
+            for kw in kws:
+                match = re.match('^FLAGSET_(.*)$', kw)
+                if match:
+                    name = match.group(1)
+                    bit = ms.getcolkeyword('BITFLAG', kw)
+                    if isinstance(bit, int):
+                        self.bits[name] = bit
+                    else:
+                        print("Warning: unexpected type (%s) for %s keyword of BITFLAG column," \
+                              " ignoring" % (type(bit), kw))
+            # have we found any FLAGSET_ specs?
+            if self.bits:
+                order = 'FLAGSETS' in kws and ms.getcolkeyword('BITFLAG', 'FLAGSETS')
+                if isinstance(order, str):
+                    order = order.split(',')
+                else:
+                    print("Warning: unexpected type (%s) for FLAGSETS keyword of BITFLAG column," \
+                          " ignoring" % type(order))
+                    order = []
+                # form up "natural" order by comparing bitmasks
+                bitwise_order = list(self.bits.keys())
+                bitwise_order.sort(key=cmp_to_key(lambda a, b: cmp(self.bits[a], self.bits[b])))
+                # if an order is specified, make sure it is actually valid,
+                # and add any elements from bitwise_order that are not present
+                self.order = [fs for fs in order if fs in self.bits] + \
+                             [fs for fs in bitwise_order if fs not in order]
+                # if order was fixed compared to what was in MS, write back to MS
+                if ms.iswritable() and self.order != order:
+                    ms._putkeyword('BITFLAG', 'FLAGSETS', -1, False, ','.join(self.order))
+                    ms.flush()
+            # else if no flagsets found, try the old-style NAMES keyword
+            elif 'NAMES' in kws:
+                names = ms.getcolkeyword('BITFLAG', 'NAMES')
+                if isinstance(names, (list, tuple)):
+                    self.order = list(map(str, names))
+                    bit = 1
+                    for name in self.order:
+                        self.bits[name] = bit
+                        bit <<= 1
+                    if ms.iswritable():
+                        ms._putkeyword('BITFLAG', 'FLAGSETS', -1, False, ','.join(self.order))
+                        for name, bit in self.bits.items():
+                            ms._putkeyword('BITFLAG', 'FLAGSET_%s' % name, -1, False, bit)
+                        ms.flush()
+            else:
+                self.order = []
+        self.LEGACY = 1 << self.NBITS
+        self.BITMASK_ALL = self.LEGACY - 1
+
+    def names(self):
+        """
+        Convenience function for determining active flagsets.
+
+        Returns:
+            list or None:
+                A list of flagset names, in the order in which they were created or None if BITFLAG
+                column is missing (so flagsets are unavailable.)
+        """
+
+        return self.order
+
+    def flagmask(self, name, create=False):
+        """
+        Flagmask corresponding to named flagset.
+
+        Args:
+            name (str):
+                Name of flagset.
+            create (bool, optional):
+                If True and flagset is missing, creates named flagset, else raises exception.
+
+        Raises:
+            TypeError:
+                If the MS does not contain a BITFLAG column.
+            ValueError:
+                If the named flagset is not found and create is False.
+            ValueError:
+                If there are too many flagsets to create a new one.
+        """
+
+        # Cludge for python2/3 interoperability.
+        name = str(name)
+
+        # lookup flagbit, return if found
+        if self.order is None:
+            raise TypeError("MS does not contain a BITFLAG column. Please run the addbitflagcol" \
+                            " utility on this MS.")
+        bit = self.bits.get(name, None)
+        if bit is not None:
+            return bit
+        # raise exception if not allowed to create a new one
+        if not create:
+            raise ValueError("Flagset '%s' not found" % name)
+        # find empty bit
+        for bitnum in range(self.NBITS):
+            bit = 1 << bitnum
+            if bit not in list(self.bits.values()):
+                self.order.append(name)
+                self.bits[name] = bit
+                self.ms._putkeyword('BITFLAG', 'FLAGSETS', -1, False, ','.join(self.order))
+                self.ms._putkeyword('BITFLAG', 'FLAGSET_%s' % name, -1, False, bit)
+                self.ms.flush()
+                return bit
+        # no free bit found, bummer
+        raise ValueError("Too many flagsets in MS, cannot create another one")
+
+    def remove_flagset(self, *fsnames):
+        """
+        Removes the named flagset(s).
+
+        Args:
+            fsnames (tuple):
+                Names of flagsets to be removed.
+
+        Returns:
+            int:
+                Flagmask corresponding to the removed flagsets.
+        """
+
+        # lookup all flagsets, raise error if any not found
+        if self.bits is None:
+            raise TypeError("MS does not contain a BITFLAG column, cannot use flagsets")
+        removing = []
+        for fs in fsnames:
+            bit = self.bits.get(fs, None)
+            if bit is None:
+                raise ValueError("Flagset '%s' not found" % fs)
+            removing.append((fs, bit))
+        if not removing:
+            return
+        # remove items, form up mask of bitflags to be cleared
+        mask = 0
+        for name, bit in removing:
+            mask |= bit
+            del self.bits[name]
+            del self.order[self.order.index(name)]
+            self.ms.removecolkeyword('BITFLAG', 'FLAGSET_%s' % name)
+        # write new list of bitflags
+        self.ms._putkeyword('BITFLAG', 'FLAGSETS', -1, False, ','.join(self.order))
+        self.ms.flush()
+
+        return mask
+
+
+class Flagger(verbosity):
     def __init__(self, msname, verbose=0, timestamps=False, chunksize=200000):
-        Timba.dmi.verbosity.__init__(self, name="Flagger")
+        verbosity.__init__(self, name="Flagger")
         self.set_verbose(verbose)
         if timestamps:
             self.enable_timestamps(modulo=10000)
-        if not TABLE:
-            raise RuntimeError("No tables module found. Please install pyrap and casacore")
         self.msname = msname
         self.ms = None
         self.readwrite = False
         self.chunksize = chunksize
+        self._initializing_bitflags = False  # will be true if initializing
         self._reopen()
 
     def close(self):
@@ -144,33 +318,95 @@ class Flagger(Timba.dmi.verbosity):
 
     def _reopen(self, readwrite=False):
         if self.ms is None:
-            self.ms = ms = TABLE(self.msname, readonly=not readwrite)
+            self.ms = ms = Owlcat.table(self.msname, readonly=not readwrite, ack=False)
             self.readwrite = readwrite
             self.dprintf(1, "opened MS %s, %d rows\n", ms.name(), ms.nrows())
-            self.has_bitflags = 'BITFLAG' in ms.colnames()
-            self.flagsets = Meow.MSUtils.get_flagsets(ms)
+            has_bf = 'BITFLAG' in ms.colnames()
+            has_bfr = 'BITFLAG_ROW' in ms.colnames()
+            self.has_bitflags = has_bf and has_bfr
+            if self.has_bitflags:
+                self.has_bitflags = self.ms.getcoldesc("BITFLAG")['valueType']
+                self.dprint(1, "this MS has proper bitflag columns of type '%s'" % self.has_bitflags)
+            else:
+                if has_bf or has_bfr:
+                    self.dprint(0, "WARNING: bitflag columns only partially initialized. Try --reinit-bitflags?")
+            self.flagsets = Flagsets(ms)
             self.dprintf(1, "flagsets are %s\n", self.flagsets.names())
             self.purrpipe = Purr.Pipe.Pipe(self.msname) if has_purr else None
+            self.LEGACY = self.flagsets.LEGACY
+            self.BITMASK_ALL = self.flagsets.BITMASK_ALL
+
         elif self.readwrite != readwrite:
-            self.ms = TABLE(self.msname, readonly=not readwrite)
+            self.ms = Owlcat.table(self.msname, readonly=not readwrite, ack=False)
             self.readwrite = readwrite
+
         return self.ms
 
-    def add_bitflags(self, wait=True, purr=True):
-        if not self.has_bitflags:
-            global _addbitflagcol
-            if not _addbitflagcol:
-                raise RuntimeError("cannot find addbitflagcol utility in $PATH")
+    def _add_column(self, col_name, like_col="DATA", like_type=None, stman=None):
+        """
+        Inserts a new column into the measurement set.
+
+        Args:
+            col_name (str):
+                Name of target column.
+            like_col (str, optional):
+                Column will be patterned on the named column.
+            like_type (str or None, optional):
+                If set, column type will be changed.
+
+        Returns:
+            bool:
+                True if a new column was inserted, else False.
+        """
+
+        if col_name in self.ms.colnames():
+            return False
+        self._reopen(True)
+        # new column needs to be inserted -- get column description from column 'like_col'
+        desc = self.ms.getcoldesc(like_col)
+        desc['name'] = col_name
+        desc['comment'] = desc['comment'].replace(" ", "_")  # casacore not fond of spaces...
+        dminfo = self.ms.getdminfo(like_col)
+        dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], col_name)
+        if stman is not None:
+            dminfo["TYPE"] = stman
+        # if a different type is specified, insert that
+        if like_type:
+            desc['valueType'] = like_type
+        self.dprint(0, "inserting new column %s of type '%s' based on %s" % (col_name, desc['valueType'], like_col))
+        if stman is not None:
+            self.dprint(0, "  using %s" % stman)
+        self.ms.addcols(desc, dminfo)
+        return True
+
+    def remove_bitflags(self):
+        removecols = [col for col in ("BITFLAG", "BITFLAG_ROW") if col in self.ms.colnames()]
+        if removecols:
+            self._reopen(True)
+            self.dprint(0, "removing columns", ", ".join(removecols))
+            self.ms.removecols(removecols)
             self.close()
-            self.dprintf(1, "running addbitflagcol\n")
-            if os.spawnvp(os.P_WAIT, _addbitflagcol, ['addbitflagcol', self.msname]):
-                raise RuntimeError("addbitflagcol failed")
-            # report to purr
-            if purr and self.purrpipe:
-                self.purrpipe.title("Flagging").comment("Adding bitflag columns.")
-            # reopen and close to pick up new BITFLAG column
             self._reopen()
+
+    def add_bitflags(self, wait=True, purr=True, bits=32, stman=None):
+        if not self.has_bitflags:
+            self._reopen(True)
+            if bits == 32:
+                dtype = 'int'
+                self.has_bitflags = np.int32
+            elif bits == 16:
+                dtype = 'short'
+                self.has_bitflags = np.int16
+            elif bits == 8:
+                dtype = 'uchar'
+                self.has_bitflags = np.uint16
+            else:
+                raise ValueError("invalid bits setting. 8, 16 or 32 expected.")
+            self._add_column("BITFLAG", "DATA", dtype, stman=stman)
+            self._add_column("BITFLAG_ROW", "FLAG_ROW", dtype, stman=stman)
             self.close()
+            self._reopen()
+            self._initializing_bitflags = True
 
     def remove_flagset(self, *fsnames, **kw):
         self._reopen(True)
@@ -180,68 +416,6 @@ class Flagger(Timba.dmi.verbosity):
             self.purrpipe.title("Flagging").comment("Removing flagset(s) %s." % (','.join(fsnames)))
         self.unflag(mask, purr=False)
 
-    def flag(self, flag=1, **kw):
-        kw = kw.copy()
-        if kw.setdefault('purr', True) and self.purrpipe:
-            if isinstance(flag, int):
-                fset = "bitflag %x" % flag
-            else:
-                fset = "flagset %s" % flag
-            self.purrpipe.title("Flagging").comment("Flagging %s" % fset, endline=False)
-        kw['flag'] = flag
-        kw['unflag'] = 0
-        return self._flag(**kw)
-
-    def unflag(self, unflag=-1, **kw):
-        kw = kw.copy()
-        if kw.setdefault('purr', True) and self.purrpipe:
-            if isinstance(unflag, int):
-                fset = "bitflag %x" % unflag
-            else:
-                fset = "flagset %s" % unflag
-            self.purrpipe.title("Flagging").comment("Unflagging %s" % fset, endline=False)
-        kw['flag'] = 0
-        kw['unflag'] = unflag
-        return self._flag(**kw)
-
-    def transfer(self, flag=1, replace=False, *args, **kw):
-        unflag = (replace and flag) or 0
-        kw.setdefault('purr', True)
-        if kw['purr'] and self.purrpipe:
-            if isinstance(flag, int):
-                fset = "bitflag %x" % flag
-            else:
-                fset = "flagset %s" % flag
-            self.purrpipe.title("Flagging").comment("Transferring FLAG/FLAG_ROW to %s" % fset, endline=False)
-        return self._flag(flag=flag, unflag=unflag, transfer=True, *args, **kw)
-
-    def get_stats(self, flag=0, legacy=False, **kw):
-        kw.setdefault('purr', True)
-        if kw['purr'] and self.purrpipe:
-            if isinstance(flag, int) and flag:
-                fset = "bitflag %x" % flag
-            else:
-                fset = "flagset %s" % flag
-            if legacy:
-                fset += ", plus FLAG/FLAG_ROW"
-            self.purrpipe.title("Flagging").comment("Getting flag stats for %s" % fset, endline=False)
-        stats = self._flag(flag=flag, get_stats=True, include_legacy_stats=legacy, **kw)
-        msg = "%.2f%% of rows and %.2f%% of correlations are flagged." % (stats[0] * 100, stats[1] * 100)
-        if kw['purr']:
-            self.purrpipe.comment(msg)
-        self.dprint(1, "stats: ", msg)
-        return stats
-
-    def _get_bitflag_col(self, ms, row0, nrows, shape=None):
-        """helper method. Gets the bitflag column at the specified location. On error (presumably,
-        column is missing), returns zero array of specified shape. If shape is not specified,
-        queries the DATA column to obtain it."""
-        try:
-            return ms.getcol('BITFLAG', row0, nrows)
-        except:
-            if not shape:
-                shape = ms.getcol('DATA', row0, nrows).shape
-            return np.zeros(shape, dtype=np.int32)
 
     def _get_submss(self, ms, ddids=None):
         """Helper method. Splits MS into subsets by DATA_DESC_ID.
@@ -261,324 +435,6 @@ class Flagger(Timba.dmi.verbosity):
             nrows += subms.nrows()
         return sub_mss
 
-    def _flag(self,
-              flag=1,  # set this flagmask (or flagset name) or
-              unflag=0,  # clear this flagmask (or flagset name)
-              create=False,  # if True and 'flag' is a string, creates new flagset as needed
-              fill_legacy=None,  # if not None, legacy flags will be filled using the specified flagmask
-              transfer=False,  # if True: sets transfer mode. In transfer mode, legacy flags (within
-              #     the specified subset) are transferred to the given bitflag
-              get_stats=False,  # if True: sets "get stats" mode. Instead of flagging, counts and
-              #     returns a count of raised flags (matching the flagmask) in the subset
-              include_legacy_stats=False,  # if True and get_stats=True, includes legacy flags in the stats
-              # the following options restrict the subset to be flagged. Effect is cumulative.
-              ddid=None, fieldid=None,  # DATA_DESC_ID or FIELD_ID, single int or list
-              channels=None,  # channel subset (index, list of indices, or slice object)
-              multichan=None,  # list of channel subsets (as an alternative to specifying just one)
-              corrs=None,  # correlation subset (index, list of indices, or slice object)
-              antennas=None,  # list of antennas
-              baselines=None,  # list of baselines (as ip,iq pairs)
-              time=None,  # time range as (min,max) pair (can use None for either min or max)
-              reltime=None,  # relative time (rel. to start of MS) range as (min,max) pair
-              taql=None,  # additional TaQL string
-              clip_above=None,  # restrict flagged subset to abs(data)>clip_above
-              clip_below=None,  # and abs(data)<clip_below
-              clip_fm_above=None,  # same as clip_above/_below, but flags based on the mean
-              clip_fm_below=None,  # amplitude across all frequencies
-              clip_column='CORRECTED_DATA',  # data column for clip_above and clip_below
-              progress_callback=None,  # callback, called with (n,nmax) to report progress
-              purr=False  # if True, writes comments to purrpipe
-              ):
-        """Internal _flag method does the actual work."""
-        if not self.purrpipe:
-            purr = False
-        ms = self._reopen(True)
-        if not self.has_bitflags:
-            if transfer:
-                raise TypeError("MS does not contain a BITFLAG column, cannot use flagsets""")
-            if get_stats and flag:
-                raise TypeError("MS does not contain a BITFLAG column, cannot get statistics""")
-        if get_stats and not flag and not include_legacy_stats:
-            flag = -1
-        # lookup flagset name, if so specified
-        if isinstance(flag, str):
-            flagname = flag
-            flag = self.flagsets.flagmask(flag, create=create)
-            self.dprintf(2, "flagset %s corresponds to bitmask 0x%x\n", flagname, flag)
-        # lookup same for unflag, except we don't create
-        if isinstance(unflag, str):
-            flagname = unflag
-            unflag = self.flagsets.flagmask(unflag)
-            self.dprintf(2, "flagset %s corresponds to bitmask 0x%x\n", flagname, unflag)
-        if self.flagsets.names() is not None:
-            if flag:
-                self.dprintf(2, "flagging with bitmask 0x%x\n", flag)
-            if unflag:
-                self.dprintf(2, "unflagging with bitmask 0x%x\n", unflag)
-        else:
-            self.dprintf(2, "no bitflags in MS, using legacy FLAG/FLAG_ROW columns\n", unflag)
-
-        # get DDIDs
-        if ddid is None:
-            ddids = list(range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows()))
-        elif isinstance(ddid, int):
-            ddids = [ddid]
-        elif isinstance(ddid, (tuple, list)):
-            ddids = ddid
-        else:
-            raise TypeError("invalid ddid argument of type %s" % type(ddid))
-
-        # form up list of TaQL expressions for subset selectors
-        queries = []
-        if taql:
-            queries.append(taql)
-        if fieldid is not None:
-            if isinstance(fieldid, int):
-                fieldid = [fieldid]
-            elif not isinstance(fieldid, (tuple, list)):
-                raise TypeError("invalid fieldid argument of type %s" % type(fieldid))
-            queries.append(" || ".join(["FIELD_ID==%d" % f for f in fieldid]))
-        if antennas is not None:
-            antlist = str(list(antennas))
-            queries.append("ANTENNA1 in %s || ANTENNA2 in %s" % (antlist, antlist))
-        if time is not None:
-            t0, t1 = time
-            if t0 is not None:
-                queries.append("TIME>=%g" % t0)
-            if t1 is not None:
-                queries.append("TIME<=%g" % t1)
-        if reltime is not None:
-            t0, t1 = reltime
-            time0 = self.ms.getcol('TIME', 0, 1)[0]
-            if t0 is not None:
-                queries.append("TIME>=%f" % (time0 + t0))
-            if t1 is not None:
-                queries.append("TIME<=%f" % (time0 + t1))
-
-        # form up TaQL string, and extract subset of table
-        if queries:
-            query = "( " + " ) && ( ".join(queries) + " )"
-            purr and self.purrpipe.comment("; effective MS selection is \"%s\"" % query, endline=False)
-            self.dprintf(2, "selection string is %s\n", query)
-            ms = ms.query(query)
-            self.dprintf(2, "query reduces MS to %d rows\n", ms.nrows())
-        else:
-            self.dprintf(2, "no selection applied\n")
-        # check list of baselines
-        if baselines:
-            baselines = [(int(p), int(q)) for p, q in baselines]
-            purr and self.purrpipe.comment("; baseline subset is %s" %
-                                           " ".join(["%d-%d" % (p, q) for p, q in baselines]),
-                                           endline=False)
-
-        # This will be true if only whole rows are being selected for. If channel/correlation/clipping
-        # criteria are supplied, this will be set to False below
-        clip = not (clip_above is None and clip_below is None and
-                    clip_fm_above is None and clip_fm_below is None)
-        flagrows = not clip
-        # form up channel and correlation slicers
-        # multichan may specify multiple channel subsets. If not specified,
-        # then channels specifies a single subset. In any case, in the end multichan
-        # will contain a list of the current channel selection
-        if multichan is None:
-            if channels is None:
-                multichan = [np.s_[:]]
-            else:
-                flagrows = False
-                multichan = [channels]
-                purr and self.purrpipe.comment("; channels are %s" % channels, endline=False)
-        else:
-            purr and self.purrpipe.comment("; channels are %s" % (', '.join(map(str, multichan))), endline=False)
-            flagrows = False
-        self.dprintf(2, "channel selection is %s\n", multichan)
-        if corrs is None:
-            corrs = np.s_[:]
-        else:
-            purr and self.purrpipe.comment("; correlations %s" % corrs, endline=False)
-            flagrows = False
-        # putt comment into purrpipe
-        purr and self.purrpipe.comment(".")
-        self.dprintf(2, "correlation selection is %s\n", corrs)
-        stat_rows_nfl = stat_rows = stat_pixels = stat_pixels_nfl = 0
-        # make list of sub-MSs by DDID
-        sub_mss = self._get_submss(ms, ddids)
-        nrow_tot = ms.nrows()
-        # go through rows of the MS in chunks
-        for ddid, irow_prev, ms in sub_mss:
-            self.dprintf(2, "processing MS subset for ddid %d\n", ddid)
-            if progress_callback:
-                progress_callback(irow_prev, nrow_tot)
-            for row0 in range(0, ms.nrows(), self.chunksize):
-                if progress_callback:
-                    progress_callback(irow_prev + row0, nrow_tot)
-                nrows = min(self.chunksize, ms.nrows() - row0)
-                self.dprintf(2, "flagging rows %d:%d\n", row0, row0 + nrows - 1)
-                # get mask of matching baselines
-                if baselines:
-                    # init mask of all-false
-                    rowmask = np.zeros(nrows, dtype=np.bool)
-                    a1 = ms.getcol('ANTENNA1', row0, nrows)
-                    a2 = ms.getcol('ANTENNA2', row0, nrows)
-                    # update mask
-                    for p, q in baselines:
-                        rowmask |= (a1 == p) & (a2 == q)
-                    self.dprintf(2, "baseline selection leaves %d rows\n", len(rowmask.nonzero()[0]))
-                # else select all rows
-                else:
-                    rowmask = np.s_[:]
-                    self.dprintf(2, "no baseline selection applied, flagging %d rows\n", nrows)
-                # form up subsets for channel/correlation selector
-                subsets = [(rowmask, ch, corrs) for ch in multichan]
-                # first, handle statistics mode
-                if get_stats:
-                    # collect row stats
-                    if include_legacy_stats:
-                        lfr = ms.getcol('FLAG_ROW', row0, nrows)[rowmask]
-                        lf = ms.getcol('FLAG', row0, nrows)
-                    else:
-                        lfr = lf = 0
-                    if flag:
-                        bfr = ms.getcol('BITFLAG_ROW', row0, nrows)[rowmask]
-                        lfr = lfr + ((bfr & flag) != 0)
-                        bf = self._get_bitflag_col(ms, row0, nrows)
-                    # size seems to be a method or an attribute depending on np version :(
-                    stat_rows += (callable(lfr.size) and lfr.size()) or lfr.size
-                    stat_rows_nfl += lfr.sum()
-                    for subset in subsets:
-                        if include_legacy_stats:
-                            lfm = lf[subset]
-                        else:
-                            lfm = 0
-                        if flag:
-                            lfm = lfm + (bf[subset] & flag) != 0
-                        # size seems to be a method or an attribute depending on np version :(
-                        stat_pixels += (callable(lfm.size) and lfm.size()) or lfm.size
-                        stat_pixels_nfl += lfm.sum()
-                # second, handle transfer-flags mode
-                elif transfer:
-                    bf = ms.getcol('BITFLAG_ROW', row0, nrows)
-                    bfm = bf[rowmask]
-                    if unflag:
-                        bfm &= ~unflag
-                    lf = ms.getcol('FLAG_ROW', row0, nrows)[rowmask]
-                    bf[rowmask] = np.where(lf, bfm | flag, bfm)
-                    # size seems to be a method or an attribute depending on np version :(
-                    stat_rows += (callable(lf.size) and lf.size()) or lf.size
-                    stat_rows_nfl += lf.sum()
-                    ms.putcol('BITFLAG_ROW', bf, row0, nrows)
-                    lf = ms.getcol('FLAG', row0, nrows)
-                    bf = self._get_bitflag_col(ms, row0, nrows, lf.shape)
-                    for subset in subsets:
-                        bfm = bf[subset]
-                        if unflag:
-                            bfm &= ~unflag
-                        lfm = lf[subset]
-                        bf[subset] = np.where(lfm, bfm | flag, bfm)
-                        # size seems to be a method or an attribute depending on np version :(
-                        stat_pixels += (callable(lfm.size) and lfm.size()) or lfm.size
-                        stat_pixels_nfl += lfm.sum()
-                    ms.putcol('BITFLAG', bf, row0, nrows)
-                # else, are we flagging whole rows?
-                elif flagrows:
-                    if self.has_bitflags:
-                        bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
-                        bf = self._get_bitflag_col(ms, row0, nrows)
-                        if unflag:
-                            bfr[rowmask] &= ~unflag
-                            bf[rowmask, :, :] &= ~unflag
-                        if flag:
-                            bfr[rowmask] |= flag
-                            bf[rowmask, :, :] |= flag
-                        ms.putcol('BITFLAG_ROW', bfr, row0, nrows)
-                        ms.putcol('BITFLAG', bf, row0, nrows)
-                        if fill_legacy is not None:
-                            lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                            lf = ms.getcol('FLAG', row0, nrows)
-                            lfr[rowmask] = ((bfr[rowmask] & fill_legacy) != 0)
-                            lf[rowmask, :, :] = ((bf[rowmask] & fill_legacy) != 0)
-                            ms.putcol('FLAG_ROW', lfr, row0, nrows)
-                            ms.putcol('FLAG', lf, row0, nrows)
-                    else:
-                        lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                        lf = ms.getcol('FLAG', row0, nrows)
-                        lfr[rowmask] = (flag != 0)
-                        lf[rowmask, :, :] = (flag != 0)
-                        ms.putcol('FLAG_ROW', lfr, row0, nrows)
-                        ms.putcol('FLAG', lf, row0, nrows)
-                # else flagging individual correlations or channels
-                else:
-                    # get flags (for clipping purposes)
-                    lf = ms.getcol('FLAG', row0, nrows)
-                    # 'mask' is what needs to be flagged/unflagged. Start with empty mask.
-                    mask = np.zeros(lf.shape, bool)
-                    # then fill in subsets
-                    for subset in subsets:
-                        mask[subset] = True
-                    # get clipping mask, if amplitude clipping is in effect
-                    if clip:
-                        datacol = ms.getcol(clip_column, row0, nrows)
-                        clip_mask = np.ones(datacol.shape, bool)
-                        if clip_above is not None:
-                            clip_mask &= abs(datacol) > clip_above
-                        if clip_below is not None:
-                            clip_mask &= abs(datacol) < clip_below
-                        if len(datacol.shape) > 1:
-                            # mask data column with subset, and with legacy flags
-                            datacol = np.ma.masked_array(abs(datacol), (~mask) | lf, fill_value=0).mean(1)
-                            if clip_fm_above is not None:
-                                clip_mask &= (datacol > clip_fm_above)[:, np.newaxis, ...]
-                            if clip_fm_below is not None:
-                                clip_mask &= (datacol < clip_fm_below)[:, np.newaxis, ...]
-                        # broadcast shape, if datacol has fewer axes than flags
-                        if len(clip_mask.shape) == 1:
-                            clip_mask = clip_mask[:, np.newaxis, np.newaxis]
-                        elif len(clip_mask.shape) == 2:
-                            clip_mask = clip_mask[:, :, np.newaxis]
-                        # and multiply mask by the clipping mask
-                        mask &= clip_mask
-                    # mask of affected rows
-                    rmask = mask.any(2).any(1)
-                    # apply flags
-                    if self.has_bitflags:
-                        bf = self._get_bitflag_col(ms, row0, nrows)
-                        bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
-                        if unflag:
-                            bf[mask] &= ~unflag
-                        if flag:
-                            bf[mask] |= flag
-                        # update row flag: mask out all affected bits
-                        bf1 = bf[rmask, :, :] & (flag | unflag)
-                        # clear all affected bits in rowflag
-                        bfr[rmask] &= ~(flag | unflag)
-                        # set bits in rowflag that are set in all flags
-                        for nbit in range(self.NBITS):
-                            bfr[rmask] |= (1 << nbit) * np.logical_and.reduce(
-                                np.logical_and.reduce(bf1 & (1 << nbit), 2), 1)
-                        ms.putcol('BITFLAG', bf, row0, nrows)
-                        ms.putcol('BITFLAG_ROW', bfr, row0, nrows)
-                        # fill legacy flags
-                        if fill_legacy is not None:
-                            lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                            lf[mask] = ((bf[mask] & fill_legacy) != 0)
-                            lfr[rmask] = ((bfr[rmask] & fill_legacy) != 0)
-                            ms.putcol('FLAG', lf, row0, nrows)
-                            ms.putcol('FLAG_ROW', lfr, row0, nrows)
-                    else:
-                        lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                        lf[mask] = (flag != 0)
-                        lfr[rmask] = lf[mask].all(2).all(1)
-                        ms.putcol('FLAG', lf, row0, nrows)
-                        ms.putcol('FLAG_ROW', lfr, row0, nrows)
-        if progress_callback:
-            progress_callback(99, 100)
-        stat0 = (stat_rows and stat_rows_nfl / float(stat_rows)) or 0
-        stat1 = (stat_pixels and stat_pixels_nfl / float(stat_pixels)) or 0
-        return stat0, stat1
-
-    BITMASK_ALL = 0x7FFFFFFF;  # 32 bitflags
-    LEGACY = 0x8000000;  # legacy flag: bit 33
-    NBITS = 32
-    BF_DTYPE = np.int32
 
     def lookup_flagmask(self, flagset, create=False):
         """helper function: converts a flagset name into an integer flagmask"""
@@ -617,13 +473,12 @@ class Flagger(Timba.dmi.verbosity):
                 raise TypeError("invalid flagset of type %s in list of flagsets" % type(fset))
         return flagmask
 
-    @staticmethod
-    def flagmaskstr(flagmask):
+    def flagmaskstr(self, flagmask):
         """helper function: converts an integer flagmask into a printable str"""
         if not flagmask:
             return "0"
-        legacy = flagmask & Flagger.LEGACY
-        bits = flagmask & Flagger.BITMASK_ALL
+        legacy = flagmask & self.LEGACY
+        bits = flagmask & self.BITMASK_ALL
         return "0x%04X%s" % (bits, "+L" if legacy else "")
 
     def xflag(self,
@@ -633,8 +488,7 @@ class Flagger(Timba.dmi.verbosity):
               unflag=None,  # clear the flagmask (or flagset name, optionally "+L")
               copy=None,    # copy to flagmask (or flagset name, optionally "+L")
               create=False,  # if True and 'flag' is a string, creates new flagset as needed
-              fill_legacy=None,  # if not None, legacy flags will be filled (within all of subset A)
-              # using this mask
+              fill_legacy=None,  # if not None, legacy flags will be filled (within all of subset A) using this mask
 
               # The following options restrict the subset to be flagged. Effect is cumulative.
               # Row subset. Data selection by whole rows
@@ -680,7 +534,7 @@ class Flagger(Timba.dmi.verbosity):
         flag = flag or 0
         unflag = unflag or 0
         copy = copy or 0
-        if not self.has_bitflags and (flag | unflag |copy) & self.BITMASK_ALL:
+        if not self.has_bitflags and (flag | unflag | copy) & self.BITMASK_ALL:
             raise RuntimeError("no BITFLAG column in this MS, can't change bitflags")
         # stats accumulator
         if get_stats_only:
@@ -693,7 +547,7 @@ class Flagger(Timba.dmi.verbosity):
         nvis_A = nvis_B = nvis_C = 0
         # get DDIDs and FIELD_IDs
         if ddid is None:
-            ddids = list(range(TABLE(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows()))
+            ddids = list(range(Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'), ack=False, readonly=True).nrows()))
         elif isinstance(ddid, int):
             ddids = [ddid]
         elif isinstance(ddid, (tuple, list)):
@@ -800,31 +654,24 @@ class Flagger(Timba.dmi.verbosity):
                     rowmask = np.ones(nrows, bool)
                 # read legacy flags to get a datashape
                 legacy_flag_column = ms.getcol('FLAG', row0, nrows)
+                legacy_flag_column |= ms.getcol('FLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
                 datashape = legacy_flag_column.shape
                 nv_per_row = datashape[1] * datashape[2]
                 # rowflags and visflags will be constructed on-demand below. Make helper functions for this
-                self._rowflags = self._visflags = None
-
-                def rowflags():
-                    """returns tuple of FLAG_ROW, BITFLAG_ROW"""
-                    if self._rowflags is None:
-                        # read legacy flags and convert them to bitmask, then add bitflags
-                        lfr = ms.getcol('FLAG_ROW', row0, nrows)
-                        if self.has_bitflags:
-                            bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
-                        else:
-                            bfr = None
-                    return lfr, bfr
+                self._visflags = None
 
                 def bitflags():
                     """Reads BITFLAG column on demand. If no such column, forms up zero array"""
                     if self._visflags is None:
-                        if self.has_bitflags:
+                        if not self.has_bitflags or self._initializing_bitflags:
+                            self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
+                            self.dprint(2, "formed empty BITFLAGs (type {})".format(self.flagsets.dtype))
+                        else:
                             self._visflags = ms.getcol('BITFLAG', row0, nrows)
                             self.dprint(2, "read BITFLAG column")
-                        else:
-                            self._visflags = np.zeros_like(legacy_flag_column, self.BF_DTYPE)
-                            self.dprint(2, "formed empty BITFLAGs")
+                            self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
+                            self.bf_type = self._visflags.dtype.type
+                        self._bf_type = self._visflags.dtype.type
                     return self._visflags
 
                 # apply stats
@@ -938,37 +785,36 @@ class Flagger(Timba.dmi.verbosity):
                 # now, do the actual flagging
                 if flag or unflag or copy or fill_legacy is not None:
                     changing_legacy_flags = fill_legacy is not None or (flag|unflag|copy)&self.LEGACY
-                    rf, rfl = rowflags()
                     # flag/unflag visibilities
                     if flag:
                         self.dprint(4, "doing flag")
                         if flag&self.LEGACY:
                             legacy_flag_column[vismask] = True
                         if flag&~self.LEGACY:
-                            bitflags()[vismask] |= flag&~self.LEGACY
+                            bitflags()[vismask] |= self._bf_type(flag&~self.LEGACY)
                     if copy:
                         self.dprint(4, "doing flag-copy")
                         if copy&self.LEGACY:
                             legacy_flag_column = vismask
                         if copy&~self.LEGACY:
                             bf = bitflags()
-                            bf &= ~(copy&~self.LEGACY)
-                            bf[vismask] |= copy&~self.LEGACY
+                            bf[vismask] |= self._bf_type(copy&~self.LEGACY)
                     if unflag:
                         self.dprint(4, "doing unflag")
                         if unflag&self.LEGACY:
                             legacy_flag_column[unflag] = False
                         if unflag&~self.LEGACY:
-                            bitflags()[vismask] &= ~(unflag&~self.LEGACY)
+                            bitflags()[vismask] &= ~self._bf_type(unflag&~self.LEGACY)
                     # fill legacy flags
                     if fill_legacy is not None:
                         self.dprint(4, "filling legacy flags")
-                        legacy_flag_column[rowmask,...] = (bitflags()[rowmask,...] & fill_legacy) != 0
+                        bf = bitflags()
+                        legacy_flag_column[rowmask,...] = (bf[rowmask,...] & self._bf_type(fill_legacy)) != 0
                     # adjust the rowflags
                     self.dprint(4, "adjusting rowflags")
 
                     # were any bitflag manipulations done -- write bitflags
-                    if self.has_bitflags and (flag|unflag|copy) & ~self.LEGACY:
+                    if self.has_bitflags and (flag | unflag | copy) & ~self.LEGACY:
                         bf_row = np.bitwise_and.reduce(bitflags(), axis=(1,2))
                         ms.putcol('BITFLAG', bitflags(), row0, nrows)
                         ms.putcol('BITFLAG_ROW', bf_row, row0, nrows)
@@ -997,236 +843,3 @@ class Flagger(Timba.dmi.verbosity):
 
         return totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C
 
-    def set_legacy_flags(self, flags, progress_callback=None, purr=True):
-        """Fills the legacy FLAG/FLAG_ROW column by applying the specified flagmask
-        to bitflags.
-        * if flags is an int, it is used as a bitflag mask
-        * if flags is a str, it is treated as the name of a flagset
-        * if flags is a list or tuple, it is treated as a list of flagsets
-        """
-        if not self.purrpipe:
-            purr = False
-        ms = self._reopen()
-        if not self.has_bitflags:
-            raise TypeError("MS does not contain a BITFLAG column, cannot use bitflags""")
-        if isinstance(flags, str):
-            flagmask = self.flagsets.flagmask(flags)
-            self.dprintf(1, "filling legacy FLAG/FLAG_ROW using flagset %s\n", flags)
-            purr and self.purrpipe.title("Flagging").comment("Filling FLAG/FLAG_ROW from flagset %s." % flags)
-        elif isinstance(flags, (list, tuple)):
-            flagmask = 0
-            for fl in flags:
-                flagmask |= self.flagsets.flagmask(fl)
-            self.dprintf(1, "filling legacy FLAG/FLAG_ROW using flagsets %s\n", flags)
-            purr and self.purrpipe.title("Flagging").comment(
-                "Filling FLAG/FLAG_ROW from flagsets %s." % ','.join(flags))
-        elif isinstance(flags, int):
-            flagmask = flags
-            #      self.dprintf(1,"filling legacy FLAG/FLAG_ROW using flagsets %s\n",flags)
-            purr and self.purrpipe.title("Flagging").comment("Filling FLAG/FLAG_ROW from bitflags %x." % flags)
-        else:
-            raise TypeError("flagmask argument must be int, str or sequence")
-        self.dprintf(1, "filling legacy FLAG/FLAG_ROW using bitmask 0x%x\n", flagmask)
-        # now go through MS and fill the column
-        # get list of per-DDID subsets
-        sub_mss = self._get_submss(ms)
-        nrow_tot = ms.nrows()
-        # go through rows of the MS in chunks
-        for ddid, irow_prev, ms in sub_mss:
-            self.dprintf(2, "processing MS subset for ddid %d\n", ddid)
-            if progress_callback:
-                progress_callback(irow_prev, nrow_tot)
-            for row0 in range(0, ms.nrows(), self.chunksize):
-                if progress_callback:
-                    progress_callback(irow_prev + row0, nrow_tot)
-                nrows = min(self.chunksize, ms.nrows() - row0)
-                self.dprintf(2, "filling rows %d:%d\n", row0, row0 + nrows - 1)
-                bf = self._get_bitflag_col(ms, row0, nrows, ms.getcol('FLAG').shape)
-                bfr = ms.getcol('BITFLAG_ROW', row0, nrows)
-                ms.putcol('FLAG', (bf & flagmask).astype(Timba.array.dtype('bool')), row0, nrows)
-                ms.putcol('FLAG_ROW', (bfr & flagmask).astype(Timba.array.dtype('bool')), row0, nrows)
-        if progress_callback:
-            progress_callback(99, 100)
-
-    def clear_legacy_flags(self, progress_callback=None, purr=True):
-        """Clears the legacy FLAG/FLAG_ROW columns.
-        """
-        if not self.purrpipe:
-            purr = False
-        ms = self._reopen()
-        self.dprintf(1, "clearing legacy FLAG/FLAG_ROW column\n")
-        purr and self.purrpipe.title("Flagging").comment("Clearing FLAG/FLAG_ROW columns")
-        # now go through MS and fill the column
-        # go through rows of the MS in chunks
-        shape = list(ms.getcol('FLAG', 0, 1).shape)
-        shape[0] = self.chunksize
-        fzero = Timba.array.zeros(shape, dtype='bool')
-        frzero = Timba.array.zeros((self.chunksize,), dtype='bool')
-        # now go through MS and fill the column
-        # get list of per-DDID subsets
-        sub_mss = self._get_submss(ms)
-        nrow_tot = ms.nrows()
-        # go through each sub-MS, and through rows of the sub-MS in chunks
-        for ddid, irow_prev, ms in sub_mss:
-            self.dprintf(2, "processing MS subset for ddid %d\n", ddid)
-            if progress_callback:
-                progress_callback(irow_prev, nrow_tot)
-            for row0 in range(0, ms.nrows(), self.chunksize):
-                if progress_callback:
-                    progress_callback(row0 + irow_prev, ms.nrows())
-                nrows = min(self.chunksize, ms.nrows() - row0)
-                self.dprintf(2, "filling rows %d:%d\n", row0, row0 + nrows - 1)
-                fl = ms.getcol('FLAG', row0, nrows)
-                fl[:, :, :] = False
-                ms.putcol('FLAG', fl, row0, nrows)
-                ms.putcol('FLAG_ROW', Timba.array.zeros((nrows,), dtype='bool'), row0, nrows)
-        if progress_callback:
-            progress_callback(99, 100)
-
-    def autoflagger(self, *args, **kw):
-        return Flagger.AutoFlagger(self, *args, **kw)
-
-    class AutoFlagger(object):
-        def __init__(self, flagger, load=False):
-            self.flagger = flagger
-            self._cmds = []
-            if load:
-                if isinstance(load, bool):
-                    load = 'default.af'
-                self.load(load)
-
-        def _cmd(self, cmd):
-            self._cmds.append(cmd)
-
-        def reset(self):
-            self._cmds = []
-
-        def setdata(self, chanstart=None, chanend=None, chanstep=None, spwid=None, fieldid=None, msselect=None):
-            args = []
-            if chanstart is not None:
-                chanstep = chanstep or 1
-                chanend = chanend or chanstart
-                totchan = chanend - chanstart + 1
-                nchan = totchan / chanstep
-                if totchan % chanstep:
-                    nchan += 1
-                args += ["mode='channel'", "nchan=%d" % nchan, "start=%d" % (start + 1), "step=%d" % step]
-            if spwid is not None:
-                args.append("spwid=%d" % (spwid + 1))
-            if fieldid is not None:
-                args.append("fieldid=%d" % (fieldid + 1))
-            if msselect is not None:
-                args.append("msselect='%s'" % msselect)
-            self._cmd("af.setdata(%s);" % (','.join(args)))
-
-        _settimemed_dict = dict(thr="%g", hw="%d", rowthr="%g", rowhw="%d", norow=_format_bool,
-                                column="'%s'", expr="'%s'", fignore=_format_bool)
-        _setnewtimemed_dict = dict(thr="%g",
-                                   column="'%s'", expr="'%s'", fignore=_format_bool)
-        _setfreqmed_dict = dict(thr="%g", hw="%d", rowthr="%g", rowhw="%d", norow=_format_bool,
-                                column="'%s'", expr="'%s'", fignore=_format_bool)
-        _setuvbin_dict = dict(thr="%g", minpop="%d", nbins=_format_nbins,
-                              plotchan=_format_plotchan, econoplot=_format_bool,
-                              column="'%s'", expr="'%s'", fignore=_format_bool)
-        _setsprej_dict = dict(ndeg="%d", rowthr="%g", rowhw="%d", norow=_format_bool,
-                              spwid=_format_ilist, fq=_format_2N, chan=_format_ilist,
-                              column="'%s'", expr="'%s'", fignore=_format_bool)
-        _setselect_dict = dict(spwid=_format_ilist, field=_format_ilist,
-                               fq=_format_2N, chan=_format_2N, corr=_format_list,
-                               ant=_format_ilist, baseline=_format_ilist, timerng=_format_list,
-                               autocorr=_format_bool, timeslot=_format_list, dtime="%g",
-                               quack=_format_bool, unflag=_format_bool, clip=_format_clip)
-        _setdata_dict = dict(spwid=_format_ilist, field=_format_ilist,
-                             nchan=_format_ilist, start=_format_ilist,
-                             mode="'%s'", msselect="'%s'")
-        _run_dict = dict(plotscr=_format_list, plotdev=_format_list, devfile="'%s'",
-                         reset=_format_bool, trial=_format_bool)
-
-        def _setmethod(self, methodname, kwargs):
-            argdict = getattr(self, '_%s_dict' % methodname)
-            args = []
-            for kw, value in kwargs.items():
-                if value is not None:
-                    format = argdict.get(kw, None)
-                    if format is None:
-                        raise TypeError("Autoflagger: invalid keyword '%s' passed to method %s()" % (kw, methodname))
-                    elif callable(format):
-                        args.append("%s=%s" % (kw, format(value, kw)))
-                    else:
-                        args.append("%s=%s" % (kw, format % value))
-            return "af.%s(%s);" % (methodname, ','.join(args))
-
-        def settimemed(self, **kw):
-            self._cmd(self._setmethod('settimemed', kw))
-
-        def setfreqmed(self, **kw):
-            self._cmd(self._setmethod('setfreqmed', kw))
-
-        def setnewtimemed(self, **kw):
-            self._cmd(self._setmethod('setnewtimemed', kw))
-
-        def setsprej(self, **kw):
-            self._cmd(self._setmethod('setsprej', kw))
-
-        def setuvbin(self, **kw):
-            self._cmd(self._setmethod('setuvbin', kw))
-
-        def setselect(self, **kw):
-            self._cmd(self._setmethod('setselect', kw))
-
-        def setdata(self, **kw):
-            if kw.get("nchan", None) is not None:
-                kw["mode"] = "channel"
-            # else if any other arguments are specified, set mode to "spwids", as this effectively
-            # causes the flagger to select on everything except channels
-            elif [x for x in kw.values() if x is not None]:
-                kw["mode"] = "spwids"
-            self._cmd(self._setmethod('setdata', kw))
-
-        def run(self, wait=True, cmdfile=None, purr=True, **kw):
-            if not self.purrpipe:
-                purr = False
-            runcmd = self._setmethod('run', kw)
-            # init list of command strings
-            cmds = ["include 'autoflag.g'", "af:=autoflag('%s');" % self.flagger.msname]
-            # add default setdata() if not specified
-            if not [x for x in self._cmds if x.startswith('af.setdata')]:
-                cmds.append("af.setdata();")
-            # add specified command set
-            cmds += self._cmds
-            # add the run command
-            cmds += [runcmd]
-            self.flagger.dprint(2, "running autoflag with the following command set:")
-            for cmd in cmds:
-                self.flagger.dprint(2, cmd)
-            if _GLISH is None:
-                raise RuntimeError("glish not found, so cannot run autoflagger")
-            # write commands to temporary file and run glish
-            if cmdfile:
-                fobj = file(cmdfile, "wt")
-            else:
-                fh, cmdfile = tempfile.mkstemp(prefix="autoflag", suffix=".g")
-                fobj = os.fdopen(fh, "wt")
-            #      cmds.append("shell('rm -f %s')"%cmdfile)
-            cmds.append("exit")
-            fobj.writelines([line + "\n" for line in cmds])
-            fobj.close()
-            # write to pipe
-            purr and self.flagger.purrpipe.title("Flagging").comment("Running autoflagger.").pounce(cmdfile)
-            # tell flagger to detach from MS
-            self.flagger.close()
-            # spawn glish
-            self.flagger.dprintf(3, "temp glish command file is %s\n" % cmdfile)
-            waitcode = os.P_WAIT if wait else os.P_NOWAIT
-            return os.spawnvp(waitcode, _GLISH, ['glish', '-l', cmdfile])
-
-        def save(self, filename='default.af'):
-            file(filename, "w").writelines([line + "\n" for line in self._cmds])
-            self.flagger.dprintf(2, "saved autoflag command sequence to file %s\n", filename)
-
-        def load(self, filename='default.af'):
-            self._cmds = file(filename).readlines()
-            self.flagger.dprintf(2, "loaded autoflag command sequence from file %s\n", filename)
-            self.flagger.dprint(2, "sequence is:")
-            for cmd in self._cmds:
-                self.flagger.dprint(3, cmd)

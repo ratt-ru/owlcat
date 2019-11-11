@@ -44,7 +44,7 @@ def get_ms(readonly=True):
     global ms
     global msname
     if not ms:
-        ms = Owlcat.table(msname, readonly=readonly)
+        ms = Owlcat.table(msname, readonly=readonly, ack=False)
     return ms
 
 
@@ -229,6 +229,12 @@ if __name__ == "__main__":
     parser.add_option_group(group)
 
     group = OptionGroup(parser, "Other options")
+    group.add_option("--init-bitflags", type="choice", choices=["0", "8", "16", "32"], default=0,
+                     help="initializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
+    group.add_option("--reinit-bitflags", type="choice", choices=["0", "8", "16", "32"], default=0,
+                     help="removes (if any) and reinitializes a BITFLAG column with the specified number of bits (8, 16 or 32) if it doesn't exist.")
+    group.add_option("--incr-stman", action="store_true",
+                     help="force the use of the incremental storage manager for new BITFLAG columns. Default is to use same manager as DATA column.")
     group.add_option("-l", "--list", action="store_true",
                      help="lists various info about the MS, including its flagsets.")
     group.add_option("-s", "--stats", action="store_true",
@@ -287,25 +293,50 @@ if __name__ == "__main__":
     import Owlcat.Flagger
     from Owlcat.Flagger import Flagger
 
+    flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
+
+    # init/reinit bitflags
+    init_bitflags = int(options.init_bitflags)
+    reinit_bitflags = int(options.reinit_bitflags)
+    init_nbits = reinit_bitflags or init_bitflags
+
+    if init_nbits:
+        if reinit_bitflags:
+            print("{}: removing existing bitflag columns, if any".format(msname))
+            flagger.remove_bitflags()
+        else:
+            if flagger.has_bitflags:
+                if flagger.flagsets.NBITS != init_nbits:
+                    error("this MS already has a bitflag column of an incompatible bitsize {}".format(flagger.flagsets.NBITS))
+                else:
+                    print("{}: bitflag columns seem to be in place".format(msname))
+        if not flagger.has_bitflags:
+            print("{}: inserting bitflag columns (size {} bits)".format(msname, init_nbits))
+            stman = None
+            if options.incr_stman:
+                stman = "IncrementalStMan"
+                print("  will use the {} storage manager".format(stman))
+            else:
+                print("  will use same storage manager as existing DATA column")
+            print("{}: inserting bitflag columns (size {} bits)".format(msname, init_nbits))
+            flagger.add_bitflags(bits=init_nbits, stman=stman)
+
     # now, skip most of the actions below if we're in statonly mode and exporting
     if not (statonly and options.export):
-        # create flagger object
-        flagger = Flagger(msname, verbose=options.verbose, timestamps=options.timestamps, chunksize=options.chunk_size)
-
         #
         # -l/--list: list MS info
         #
         if options.list:
             ms = get_ms()
-            ants = Owlcat.table(ms.getkeyword('ANTENNA')).getcol('NAME')
-            ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'))
+            ants = Owlcat.table(ms.getkeyword('ANTENNA'), ack=False).getcol('NAME')
+            ddid_tab = Owlcat.table(ms.getkeyword('DATA_DESCRIPTION'), ack=False)
             spwids = ddid_tab.getcol('SPECTRAL_WINDOW_ID')
             polids = ddid_tab.getcol('POLARIZATION_ID')
-            corrs = Owlcat.table(ms.getkeyword('POLARIZATION')).getcol('CORR_TYPE')
-            spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'))
+            corrs = Owlcat.table(ms.getkeyword('POLARIZATION'), ack=False).getcol('CORR_TYPE')
+            spw_tab = Owlcat.table(ms.getkeyword('SPECTRAL_WINDOW'), ack=False)
             ref_freq = spw_tab.getcol('REF_FREQUENCY')
             nchan = spw_tab.getcol('NUM_CHAN')
-            fields = Owlcat.table(ms.getkeyword('FIELD')).getcol('NAME')
+            fields = Owlcat.table(ms.getkeyword('FIELD'), ack=False).getcol('NAME')
 
             print("===> MS is %s" % msname)
             print("  %d antennas: %s" % (len(ants), " ".join(ants)))
@@ -353,18 +384,22 @@ if __name__ == "__main__":
         # convert all the various FLAGS to flagmasks (or Nones)
         for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none', 'flag', 'copy', 'unflag', 'fill_legacy':
             value = getattr(options, opt)
+            can_create = opt in ('flag', 'copy')
+            # reopen for writing, if creating MS
+            if can_create:
+                flagger._reopen(True)
             try:
-                flagmask = flagger.lookup_flagmask(value, create=(opt == 'flag' and options.create))
+                flagmask = flagger.lookup_flagmask(value, create=can_create and options.create)
             except Exception as exc:
                 msg = str(exc)
-                if opt == 'flag' and not options.create:
+                if not options.create:
                     msg += "\nPerhaps you forgot the -c/--create option?"
                 error(msg)
             setattr(options, opt, flagmask)
 
-        # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
-        if options.fill_legacy is not None:
-            options.fill_legacy &= ~Flagger.LEGACY
+        ## # clear the legacy flag itself from fill_legacy, otherwise it can have no effect
+        ## if options.fill_legacy is not None:
+        ##    options.fill_legacy &= ~Flagger.LEGACY
 
         #
         # -r/--remove: remove flagsets
@@ -390,9 +425,9 @@ if __name__ == "__main__":
             for name in retain:
                 flagmask |= flagger.flagsets.flagmask(name)
             print("===> removing flagset(s) %s" % ",".join(all_flagsets - retain))
-            print("===> and clearing flagmask %s" % Flagger.flagmaskstr(~flagmask))
+            print("===> and clearing flagmask %s" % flagger.flagmaskstr(~flagmask))
             if options.fill_legacy is not None:
-                print("===> and filling FLAG/FLAG_ROW using flagmask %s" % Flagger.flagmaskstr(options.fill_legacy))
+                print("===> and filling FLAG/FLAG_ROW using flagmask %s" % flagger.flagmaskstr(options.fill_legacy))
             flagger.xflag(unflag=~flagmask, fill_legacy=options.fill_legacy)
             flagger.flagsets.remove_flagset(*list(all_flagsets - retain))
             sys.exit(0)
@@ -443,7 +478,7 @@ if __name__ == "__main__":
 
             totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = flagger.xflag(get_stats_only=stats, **subset)
             percent = 100.0 / sel_nvis if sel_nvis else 0
-            for flagset in list(flagger.flagsets.names()) + ["+L"]:
+            for flagset in list(flagger.flagsets.names() or []) + ["+L"]:
                 nv = stats[flagset]
                 # print them
                 if flagset is "+L":
@@ -464,7 +499,6 @@ if __name__ == "__main__":
             sys.exit(0)
 
         # else not stats mode, do the actual flagging job
-        print(options)
         totrows, sel_nrow, sel_nvis, nvis_A, nvis_B, nvis_C = \
             flagger.xflag(flag=options.flag, unflag=options.unflag, copy=options.copy, fill_legacy=options.fill_legacy,
                           flag_allcorr=options.extend_all_corr,
