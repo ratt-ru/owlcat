@@ -262,22 +262,18 @@ BITFLAG/FLAG columns are shared among all data columns.
     # get flagmask, use a Flagger for this
     import Owlcat.Flagger
     from Owlcat.Flagger import Flagger
+    flagger = Flagger(msname)
 
     if options.flagmask == "0":
         flagmask = 0
         print("===> Flagmask 0, ignoring all flags")
     elif options.flagmask is not None:
-        flagger = Flagger(msname)
         flagmask = flagger.lookup_flagmask(options.flagmask)
-        flagger.close()
-        flagger = None
-        print("===> Flagmask is %s (you specified '%s')" % (Flagger.flagmaskstr(flagmask), options.flagmask))
-        if not flagmask & Flagger.LEGACY:
+        print("===> Flagmask is %s (you specified '%s')" % (flagger.flagmaskstr(flagmask), options.flagmask))
+        if not flagmask & flagger.LEGACY:
             print("===> NB: legacy FLAG/FLAG_ROW columns will be ignored with this flagmask")
     else:
-        flagger = Flagger(msname)
         flagmask = flagger.BITMASK_ALL | flagger.LEGACY
-        flagger.close()
         print("===> Using all flags")
 
     # parse slice specs
@@ -495,7 +491,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
         if not subms.nrows():
             continue
         # get boolean flags
-        if flagmask & Flagger.LEGACY:
+        if flagmask & flagger.LEGACY:
             flagcol = subms.getcol('FLAG')
             # merge in FLAG_ROW column
             flagrowcol = subms.getcol('FLAG_ROW')
@@ -503,7 +499,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
         else:
             flagcol = numpy.zeros(datashape, bool)
         # get bitflags
-        bitflags = flagmask & Flagger.BITMASK_ALL
+        bitflags = flagmask & flagger.BITMASK_ALL
         if bitflags:
             if 'BITFLAG' in ms.colnames():
                 bf = subms.getcol('BITFLAG')
