@@ -34,6 +34,8 @@ import warnings
 
 import numpy
 import numpy.ma
+from past.builtins import cmp
+
 import Owlcat
 
 from Owlcat import Parsing

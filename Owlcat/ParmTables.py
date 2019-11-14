@@ -8,6 +8,7 @@ import pickle
 import copy
 import numpy
 import numpy.ma
+from past.builtins import cmp
 
 from Timba import dmi
 from Timba import mequtils
