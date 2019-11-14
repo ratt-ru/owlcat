@@ -3,6 +3,7 @@ import numpy as np
 import re
 import tempfile
 import os
+from past.builtins import cmp
 from functools import cmp_to_key
 
 import Owlcat
