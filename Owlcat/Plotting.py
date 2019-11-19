@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
+
 import numpy
 import numpy.ma
 import math
@@ -76,7 +76,7 @@ class PlotCollection(object):
         if not offset:
             stddevs = sorted(self.stddev.values())
             if stddevs:
-                offset = self.offset = offset_std * stddevs[len(stddevs) / 2]
+                offset = self.offset = offset_std * stddevs[len(stddevs) // 2]
         # if still not set, force to 1
         if not offset:
             offset = self.offset = 1
@@ -84,7 +84,7 @@ class PlotCollection(object):
         if dual:
             # split ifrs into two sets (if number is odd, make sure first subset has the extra 1)
             n = len(keylist)
-            n2 = len(keylist) / 2
+            n2 = len(keylist) // 2
             if n % 2:
                 n2 += 1
             keysets = [keylist[0:n2], keylist[n2:]]
@@ -151,7 +151,7 @@ class PlotCollection(object):
                         continue
                     if self.label[key]:
                         # figure out where to place text label
-                        ytext = dd[:nx / 10].mean()
+                        ytext = dd[:nx // 10].mean()
                         if numpy.isnan(ytext):
                             ytext = dd.mean()
                         # do not put too close to previous label
@@ -351,7 +351,7 @@ class ComplexCirclePlot(PlotCollection):
         if keylist:
             datalist = [(key, self.data.get(key)) for key in keylist]
         else:
-            datalist = iter(data.items())
+            datalist = iter(list(data.items()))
         # margin sizes. We want to keep them fixed in absolute terms,
         # regardless of plot size. The relative numbers here are good for a 210x210 plot, so
         # we rescale them accordingly.
@@ -364,7 +364,7 @@ class ComplexCirclePlot(PlotCollection):
         height = (1 - mtop - mbottom)
         plt = fig.add_axes([mleft, mbottom, width, height])
         # find length of common prefix of labels
-        labels = [lab for lab in self.label.values() if lab]
+        labels = [lab for lab in list(self.label.values()) if lab]
         if labels:
             prefix = 1
             while len(labels[0]) > prefix and all([lab.startswith(labels[0][:prefix]) for lab in labels]):
@@ -388,7 +388,7 @@ class ComplexCirclePlot(PlotCollection):
         # plot arrow to means
         for icorr in range(ncorr):
             color = self.colors[icorr]
-            datameans = [d[..., icorr].mean() for d in self.data.values() if d.shape[-1] > icorr]
+            datameans = [d[..., icorr].mean() for d in list(self.data.values()) if d.shape[-1] > icorr]
             meanval = sum(datameans) / len(datameans) if datameans else 0
             plt.arrow(0, 0, meanval.real, meanval.imag, color=color)
             # plot circle
@@ -457,13 +457,13 @@ class ScatterPlot(object):
         if self.label:
             lab0 = list(self.label.values())[0]
             prefix = 1
-            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in self.label.values()]):
+            while len(lab0) >= prefix and all([lab.startswith(lab0[:prefix]) for lab in list(self.label.values())]):
                 prefix += 1
-            labels = dict([(key, label[prefix - 1:]) for key, label in self.label.items()])
+            labels = dict([(key, label[prefix - 1:]) for key, label in list(self.label.items())])
         else:
             labels = None
         # plot data over text labels
-        for key, (x, y) in self.data.items():
+        for key, (x, y) in list(self.data.items()):
             # plot data
             try:
                 plt.plot(x, y, "-x", zorder=0)

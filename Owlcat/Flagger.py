@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import Timba.dmi
 import re
 import tempfile
 import os
 from past.builtins import cmp
 from functools import cmp_to_key
 
+from Cattery import Meow
 import Owlcat
+from Cattery.Meow import MSUtils
 from Kittens.utils import verbosity
-
 try:
     import Purr.Pipe
+
     has_purr = True
 except:
     has_purr = False

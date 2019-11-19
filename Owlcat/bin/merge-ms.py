@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #
@@ -71,16 +71,16 @@ if __name__ == "__main__":
     msins = msnames[1:]
 
     if tableexists(msout) and not options.append and not options.force:
-        print("Output MS", msout, "already exists. Use the -f switch to overwrite.")
+        print(("Output MS", msout, "already exists. Use the -f switch to overwrite."))
         sys.exit(1)
 
     if not options.force:
         if options.append:
-            print("Will extend merged MS %s with %d input MSs:" % (msout, len(msins)))
+            print(("Will extend merged MS %s with %d input MSs:" % (msout, len(msins))))
         else:
-            print("Will create merged MS %s from %d input MSs:" % (msout, len(msins)))
+            print(("Will create merged MS %s from %d input MSs:" % (msout, len(msins))))
         for ms in msins:
-            print("  ", ms)
+            print(("  ", ms))
         if options.renumber_spws:
             print("Each input MS will be put into a separate spectral window, spws will be renumbered.")
         else:
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                 try:
                     data = tab.getcol(col)
                 except:
-                    print("WARNING: MS %s does not appear to contain a valid %s column" % (msname, col))
+                    print(("WARNING: MS %s does not appear to contain a valid %s column" % (msname, col)))
                     print("   This is not necessarily fatal, proceeding with the merge anyway.")
                     continue
                 if options.renumber_obs and col == "OBSERVATION_ID":

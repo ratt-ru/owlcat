@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #
@@ -98,8 +98,8 @@ def parse_subset_options(options):
             parser.error("Invalid -S/--stations option")
     # IFR set
     if options.ifrs is not None:
-        import Meow.IfrSet
-        ifrset = Meow.IfrSet.from_ms(get_ms())
+        from Cattery.Meow import IfrSet
+        ifrset = IfrSet.from_ms(get_ms())
         # print help and exit
         if options.ifrs == "help":
             # print help string, but trim away RTF tags

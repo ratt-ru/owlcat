@@ -38,13 +38,15 @@ def _int_or_str(x):
 
 def cmp_qualified_names(a, b):
     """compares two qualified names: splits them at ':', and comparing the subfields in a numeric sense"""
+    from past.builtins import cmp
     return cmp(list(map(_int_or_str, a.split(':'))), list(map(_int_or_str, b.split(':'))))
 
 
 def sort_qualified_names(inlist):
     """Sorts qualified names as follows: splits into fields at ':', and sorts according to fields.
     If field is a numbers, sorts in the numeric sense."""
-    return sorted(inlist, cmp_qualified_names)
+    from functools import cmp_to_key
+    return sorted(inlist, key=cmp_to_key(cmp_qualified_names))
 
 
 class _AxisStats(object):
@@ -65,8 +67,8 @@ class _AxisStats(object):
     def update(self):
         if self.cells:
             # axis range
-            self.minmax = min([x0 - dx / 2 for x0, dx in self.cells.items()]), max(
-                [x0 + dx / 2 for x0, dx in self.cells.items()])
+            self.minmax = min([x0 - dx / 2 for x0, dx in list(self.cells.items())]), max(
+                [x0 + dx / 2 for x0, dx in list(self.cells.items())])
             # grid is simply a sorted list of cell values
             self.grid = list(self.cells.keys())
             self.grid.sort()
@@ -200,7 +202,7 @@ class FunkSet(object):
         else:
             index = list(index)
         # set additional indices from keywords
-        for axis, num in axes.items():
+        for axis, num in list(axes.items()):
             index[mequtils.get_axis_number(axis)] = num
         # build up list of full indices corresponding to specified slice
         slice_iaxis = []
@@ -209,7 +211,7 @@ class FunkSet(object):
             stats = self.pt.axis_stats(iaxis)
             # for empty axes, or axes specifed in our call, append number to all indices as is
             if axis_idx is not None or stats.empty():
-                list(map(lambda idx: idx.append(axis_idx), indices))
+                list([idx.append(axis_idx) for idx in indices])
             # non-empty axes NOT specified in our call will be part of the slice
             else:
                 slice_iaxis.append(iaxis)
@@ -241,7 +243,7 @@ class FunkSet(object):
         arr = None
         if os.path.exists(cachefile) and os.path.getmtime(cachefile) >= self.pt.mtime:
             try:
-                arr = pickle.load(file(cachefile))
+                arr = pickle.load(open(cachefile, 'rb'))
                 dprintf(2, "read cache %s\n" % cachefile)
             except:
                 dprintf(0, "error reading cached array %s, will regenerate\n" % cachefile)
@@ -254,9 +256,9 @@ class FunkSet(object):
             arr = fullslice.array(coeff, fill_value=0, masked=True, collapse=False)
             # write to cache
             try:
-                pickle.dump(arr, file(cachefile, "w"))
+                pickle.dump(arr, open(cachefile, "wb"))
             except:
-                if verbosity.get_verbose() > 0:
+                if verbosity.get_verbose() is not None and verbosity.get_verbose() > 0:
                     traceback.print_exc()
                 dprintf(0, "error writing cache array %s, but proceeding anyway\n" % cachefile)
         # now apply the masked and fill_value properties
@@ -495,7 +497,7 @@ class ParmTab(object):
                 dprintf(2, "loading index cache\n")
                 self._funklet_names, self._domain_list, self._axis_stats, self._name_components, \
                 self._domain_fullset, self._domain_cell_index, self._domain_reverse_index \
-                    = pickle.load(file(cachepath))
+                    = pickle.load(open(cachepath, 'rb'))
                 dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)
                 t0 = time.time()
                 return
@@ -515,7 +517,7 @@ class ParmTab(object):
             dprintf(2, "collecting axis stats\n")
             self._axes = {}
             for domain in self._domain_list:
-                for axis, rng in domain.items():
+                for axis, rng in list(domain.items()):
                     if str(axis) != 'axis_map':
                         self._axis_stats[mequtils.get_axis_number(axis)].add_cell(*rng)
             dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)
@@ -535,7 +537,7 @@ class ParmTab(object):
             self._domain_reverse_index = {}
             for idom, domain in enumerate(self._domain_list):
                 index = [None] * mequtils.max_axis
-                for axis, rng in domain.items():
+                for axis, rng in list(domain.items()):
                     if str(axis) != 'axis_map':
                         iaxis = mequtils.get_axis_number(axis)
                         index[iaxis] = self._axis_stats[iaxis].lookup_cell(*rng)
@@ -566,10 +568,10 @@ class ParmTab(object):
                 pickle.dump((
                     self._funklet_names, self._domain_list, self._axis_stats, self._name_components, \
                     self._domain_fullset, self._domain_cell_index, self._domain_reverse_index \
-                    ), file(cachepath, 'w')
+                    ), open(cachepath, 'wb')
                 )
             except:
-                if verbosity.get_verbose() > 0:
+                if verbosity.get_verbose() is not None and verbosity.get_verbose() > 0:
                     traceback.print_exc()
                 dprintf(0, "%s: error writing stats to cache, will probably regenerate next time\n", self.filename)
             dprintf(2, "elapsed time: %f seconds\n", time.time() - t0)

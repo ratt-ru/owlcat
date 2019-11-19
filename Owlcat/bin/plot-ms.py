@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #
@@ -609,8 +609,10 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
     # make list of active IFRS (as p,q pairs), sorted by baseline length
     print("===> Found data for %d interferometers" % len(active_ifrs))
     if not average_ifrs:
+        from past.builtins import cmp
+        from functools import cmp_to_key
         keyranges[2] = sorted(active_ifrs,
-                              lambda a, b: cmp((round(ifrset.baseline(*a)), a), (round(ifrset.baseline(*b)), b)))
+                              key=cmp_to_key(lambda a, b: cmp((round(ifrset.baseline(*a)), a), (round(ifrset.baseline(*b)), b))))
 
     if not active_ifrs:
         print("===> Nothing to be plotted. Check your data selection.")

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #
@@ -56,11 +56,11 @@ def call_system(command, args):
         stat = rc >> 8
         sig = rc & 0xFF
         if sig:
-            print("%s process killed by signal %d" % (command, sig))
+            print(("%s process killed by signal %d" % (command, sig)))
         else:
-            print("%s call failed with exit status", (command, stat))
+            print(("%s call failed with exit status", (command, stat)))
             if stat == 127:
-                print("Please check your MeqTrees installation for the %s utility!" % command)
+                print(("Please check your MeqTrees installation for the %s utility!" % command))
     return rc
 
 
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     progress("DATA column shape is %s" % (datacol.shape,))
     flagcol = savedcols.get('FLAG')
     if flagcol is not None and datacol.shape != flagcol.shape:
-        print("Error: FLAG shape (%s) does not match DATA shape" % (flagcol.shape,))
+        print(("Error: FLAG shape (%s) does not match DATA shape" % (flagcol.shape,)))
 
     # kill columns
     cols = [col for col in KILLCOLS if col in ms.colnames()]

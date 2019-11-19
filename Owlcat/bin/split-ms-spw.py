@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #
@@ -54,13 +54,13 @@ if __name__ == "__main__":
 
     # open input MS
     msname = msname[0]
-    print("Reading input MS %s" % msname)
+    print(("Reading input MS %s" % msname))
     if not tableexists(msname):
         parser.error("MS %s not found." % msname)
     ms = table(msname)
     # check DDID option
     num_ddids = table(ms.getkeyword("DATA_DESCRIPTION")).nrows()
-    print("MS contains %d DATA_DESC_IDs" % num_ddids)
+    print(("MS contains %d DATA_DESC_IDs" % num_ddids))
     if options.ddid < 0:
         ddids = list(range(num_ddids))
     elif options.ddid >= num_ddids:
@@ -73,12 +73,12 @@ if __name__ == "__main__":
 
     for ddid in ddids:
         msout = options.output % dict(ms=msname, msext=msext, ddid=ddid)
-        print("Extracting DATA_DESC_ID %d into MS %s" % (ddid, msout))
+        print(("Extracting DATA_DESC_ID %d into MS %s" % (ddid, msout)))
         # delete if exists
         if tableexists(msout):
             if not options.force:
                 parser.error("Output MS %s already exists. Use the -f switch to overwrite." % msout)
-            print("Deleting existing copy of %s" % msout)
+            print(("Deleting existing copy of %s" % msout))
             tabledelete(msout)
         # extract
         ms1 = ms.query("DATA_DESC_ID==%d" % ddid)
