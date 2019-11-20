@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import print_function
 import numpy
 import numpy.ma
 import math
@@ -964,14 +964,14 @@ class SkyPlot(AbstractBasePlot):
 class LSTElevationPlot(AbstractBasePlot):
     """Plots tracks of sky objects in an LST vs elevation plot"""
 
-    def __init__(self, options, figsize=(290, 210)):
+    def __init__(self, options, figsize=(200, 100)):
         AbstractBasePlot.__init__(self, options, figsize)
-        self._borders = [.05, .9, .05, .9]
+        self._borders = [.1, .7, .1, .9]
 
     @classmethod
     def init_options(self, plotgroup, outputgroup):
         AbstractBasePlot.init_options(plotgroup, outputgroup)
-        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=12,
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=10,
                              help="Set plot title font size in circle plots, 0 for no title. Default is %default.")
         # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
         #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
@@ -1005,7 +1005,7 @@ class LSTElevationPlot(AbstractBasePlot):
                     suptitle=None,  # title of plot
                     save=None,  # filename to save to
                     format=None,  # format: use self.options.output_type by default
-                    figsize=(210, 210),  # figure width,height in mm
+                    figsize=(200, 100),  # figure width,height in mm
                     ):
         if save and (format or self.options.output_type.upper()) != 'X11':
             save = "%s.%s" % (save, format or self.options.output_type)
@@ -1033,7 +1033,7 @@ class LSTElevationPlot(AbstractBasePlot):
 
         # create a direction measure per each field
         dir_field = { field: dm.direction('j2000', dq.quantity(ra, 'rad'), dq.quantity(dec, 'rad'))
-                      for field,(ra,dec) in field_radec }
+                      for field,(ra,dec) in field_radec.items() }
 
         # create a position measure for the antenna and set it as the frame
         pos_ant0 = dm.position('itrf', *[dq.quantity(x, 'm') for x in obs_xyz])
@@ -1050,24 +1050,25 @@ class LSTElevationPlot(AbstractBasePlot):
             num_ts = len(field_time[field])
             field_azel = field_lst_azel[field] = np.zeros((num_ts, 3), float)
             for its, t in enumerate(field_time[field]):
+                dm.doframe(pos_ant0)
                 dm.doframe(tm_epoch[t])
                 azel_meas = dm.measure(dir_field[field], 'AZELGEO')
                 azel_quant = dm.get_value(azel_meas)
-                field_azel[its, 0] = lst_h0[t]
+                field_azel[its, 0] = tm_lst[t]
                 field_azel[its, 1] = azel_quant[0].get_value('deg')
                 field_azel[its, 2] = azel_quant[1].get_value('deg')
 
 
-        figsize = numpy.array(figsize or self._default_figsize) / 25.4
-        fig = pyplot.figure(figsize=figsize, dpi=600)
+        figsize = numpy.array(figsize or self._default_figsize)/25.4
+        fig = pyplot.figure(figsize=figsize, dpi=self.options.dpi)
         plt = fig.add_axes([self._borders[0], self._borders[2], self._borders[1] - self._borders[0],
                             self._borders[3] - self._borders[2]])
 
         for field in fields:
             plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', label=field)
-        plt.xlabel('LST, h')
-        plt.ylabel('Elevation, deg')
-        _ = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        pyplot.xlabel('LST, h')
+        pyplot.ylabel('Elevation, deg')
+        _ = pyplot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
         for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()):
             lab.set_fontsize(self.options.axis_fontsize)
@@ -1094,11 +1095,13 @@ class LSTElevationPlot(AbstractBasePlot):
     @staticmethod
     def load_ms_fields(msname, verbose=1):
         from casacore.tables import table
+        import numpy as np
+
         ms = table(msname, ack=False)
         timestamps = ms.getcol("TIME")
         field_id = ms.getcol("FIELD_ID")
 
-        verbose and print("Listing fields in {}:".format(msname))
+        verbose and print("Fields in {}:".format(msname))
 
         tm_uniq = np.array(sorted(set(timestamps)))          # unique timestamps
         timeslot_index =  { t:i for i, t in enumerate(tm_uniq)}   # timestamp -> timeslot number
@@ -1117,9 +1120,9 @@ class LSTElevationPlot(AbstractBasePlot):
         field_radec = {}
 
         for fid, field in enumerate(field_names):
-            field_radec[field] = fdir = field_dirs[fid]
+            field_radec[field] = fdir = field_dirs[fid,0]
             field_time[field] = ftime = time_ts[fid_ts == fid]
-            verbose and print("  [{:2}] {:16s} {8:.2f}deg {8:+.2f}deg {} integrations".format(
+            verbose and print("    [{:2}] {:16s} {:8.2f}d {:+8.2f}d     {} timeslots".format(
                                 fid, field, fdir[0]*180/np.pi, fdir[1]*180/np.pi, len(ftime)
                               ))
 
