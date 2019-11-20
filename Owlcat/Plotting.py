@@ -991,6 +991,8 @@ class LSTElevationPlot(AbstractBasePlot):
                              help="Set axis label font size, 0 for no axis labels. Default is %default.")
         self.add_plot_option("--legend-fontsize", metavar="POINTS", type="int", default=5,
                              help="Set legend label font size, 0 for no legend labels. Default is %default.")
+        self.add_plot_option("--marker-size", metavar="POINTS", type="int", default=2,
+                             help="Set plot marker size. Default is %default.")
         self.add_plot_option("-S", "--subtitle", type="str", default="",
                              help="Subtitle for plot, added (in parentheses) after plot title")
         self.add_output_option("--papertype", dest="papertype", type="string", default="a4",
@@ -1061,7 +1063,7 @@ class LSTElevationPlot(AbstractBasePlot):
                             self._borders[3] - self._borders[2]])
 
         for field in fields:
-            plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', label=field)
+            plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', ms=self.options.marker_size, label=field)
         if self.options.axis_fontsize:
             pyplot.xlabel('LST, h', fontdict=dict(fontsize=self.options.axis_fontsize))
             pyplot.ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
