@@ -976,17 +976,21 @@ class LSTElevationPlot(AbstractBasePlot):
 
     def __init__(self, options=None, figsize=(200, 100), output_type='x11'):
         AbstractBasePlot.__init__(self, options, figsize, output_type)
-        self._borders = [.1, .7, .1, .9]
+        self._borders = [.1, .95, .1, .9]
 
     @classmethod
     def init_options(self, plotgroup, outputgroup):
         AbstractBasePlot.init_options(plotgroup, outputgroup)
-        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=10,
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=6,
                              help="Set plot title font size, 0 for no title. Default is %default.")
         # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
         #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
+        self.add_plot_option("--tick-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set axis tick label font size, 0 for no tick labels. Default is %default.")
         self.add_plot_option("--axis-fontsize", metavar="POINTS", type="int", default=5,
-                             help="Set axis label font size , 0 for no axis labels. Default is %default.")
+                             help="Set axis label font size, 0 for no axis labels. Default is %default.")
+        self.add_plot_option("--legend-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set legend label font size, 0 for no legend labels. Default is %default.")
         self.add_plot_option("-S", "--subtitle", type="str", default="",
                              help="Subtitle for plot, added (in parentheses) after plot title")
         self.add_output_option("--papertype", dest="papertype", type="string", default="a4",
@@ -1058,17 +1062,20 @@ class LSTElevationPlot(AbstractBasePlot):
 
         for field in fields:
             plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', label=field)
-        pyplot.xlabel('LST, h')
-        pyplot.ylabel('Elevation, deg')
-        _ = pyplot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        if self.options.axis_fontsize:
+            pyplot.xlabel('LST, h', fontdict=dict(fontsize=self.options.axis_fontsize))
+            pyplot.ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
+        if self.options.legend_fontsize:
+            pyplot.legend(loc='best', #bbox_to_anchor=(1, 0.5),
+                              fontsize=self.options.legend_fontsize)
 
         for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()):
-            lab.set_fontsize(self.options.axis_fontsize)
+            lab.set_fontsize(self.options.tick_fontsize)
 
         if suptitle and self.options.title_fontsize:
             if self.options.subtitle:
                 suptitle = "%s (%s)" % (suptitle, self.options.subtitle)
-            fig.suptitle(suptitle, fontsize=self.options.title_fontsize)
+            pyplot.title(suptitle, fontsize=self.options.title_fontsize)
         if save:
             if self.options.portrait:
                 orientation = 'portrait'
@@ -1087,6 +1094,7 @@ class LSTElevationPlot(AbstractBasePlot):
     @staticmethod
     def load_ms_fields(msname, verbose=1):
         from casacore.tables import table
+        from collections import OrderedDict
         import numpy as np
 
         ms = table(msname, ack=False)
@@ -1108,12 +1116,13 @@ class LSTElevationPlot(AbstractBasePlot):
         field_names = ftab.getcol("NAME")
         field_dirs = ftab.getcol("PHASE_DIR")
 
-        field_time = {}
-        field_radec = {}
+        field_time = OrderedDict()
+        field_radec = OrderedDict()
 
         for fid, field in enumerate(field_names):
-            field_radec[field] = fdir = field_dirs[fid,0]
-            field_time[field] = ftime = time_ts[fid_ts == fid]
+            field_name = "{}: {}".format(fid, field)
+            field_radec[field_name] = fdir = field_dirs[fid,0]
+            field_time[field_name] = ftime = time_ts[fid_ts == fid]
             verbose and print("    [{:2}] {:16s} {:8.2f}d {:+8.2f}d     {} timeslots".format(
                                 fid, field, fdir[0]*180/np.pi, fdir[1]*180/np.pi, len(ftime)
                               ))

@@ -40,7 +40,7 @@ if __name__ == "__main__":
     outputgroup = OptionGroup(parser, "Output options")
     LSTElevationPlot.init_options(plotgroup, outputgroup)
 
-    outputgroup.add_option("-o", "--output-name", type=str, help="Output filename")
+    outputgroup.add_option("-o", "--output-name", type=str, help="Output filename", default="lst-elev.png")
     outputgroup.add_option("-d", "--display", action="store_true", help="Display plot on screen")
 
     parser.add_option_group(plotgroup)
@@ -50,6 +50,9 @@ if __name__ == "__main__":
 
     if not args:
         parser.error("No MS specified")
+
+    if options.display:
+        options.output_name = None
 
     skyplot = LSTElevationPlot(options, output_type='x11' if options.display else 'png')
 
