@@ -7,6 +7,7 @@ import sys
 import traceback
 import os.path
 import matplotlib
+import casacore.measures
 
 DEG = math.pi / 180
 ARCMIN = math.pi / (180 * 60)
@@ -959,3 +960,171 @@ class SkyPlot(AbstractBasePlot):
             fig = None
             pyplot.close("all")
         return save
+
+class LSTElevationPlot(AbstractBasePlot):
+    """Plots tracks of sky objects in an LST vs elevation plot"""
+
+    def __init__(self, options, figsize=(290, 210)):
+        AbstractBasePlot.__init__(self, options, figsize)
+        self._borders = [.05, .9, .05, .9]
+
+    @classmethod
+    def init_options(self, plotgroup, outputgroup):
+        AbstractBasePlot.init_options(plotgroup, outputgroup)
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=12,
+                             help="Set plot title font size in circle plots, 0 for no title. Default is %default.")
+        # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
+        #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
+        self.add_plot_option("--axis-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set axis label font size in circle_plots, 0 for no axis labels. Default is %default.")
+        self.add_plot_option("-S", "--subtitle", type="str", default="",
+                             help="Subtitle for plot, added (in parentheses) after plot title")
+
+        self.add_output_option("-o", "--output-type", metavar="TYPE", type="string", default="png",
+                               help="File format, see matplotlib documentation "
+                                    "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
+                                    "plots interactively. Default is '%default.'")
+        self.add_output_option("--output-prefix", metavar="PREFIX", type="string", default="",
+                               help="Prefix output filenames with PREFIX_")
+        self.add_output_option("--papertype", dest="papertype", type="string", default="a4",
+                               help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.")
+        self.add_output_option("-W", "--width", type="int",
+                               help="set explicit plot width, in mm. (Useful for .eps output)")
+        self.add_output_option("-H", "--height", type="int",
+                               help="set explicit plot height, in mm. (Useful for .eps output)")
+        self.add_output_option("--dpi", type="int", default=300,
+                               help="figure resolution. Default is %default.")
+        self.add_output_option("--portrait", action="store_true",
+                               help="Force portrait orientation. Default is to select orientation based on plot size")
+        self.add_output_option("--landscape", action="store_true",
+                               help="Force landscape orientation.")
+
+    """Plotting function"""
+
+    def make_figure(self, field_time, field_radec, obs_xyz,
+                    suptitle=None,  # title of plot
+                    save=None,  # filename to save to
+                    format=None,  # format: use self.options.output_type by default
+                    figsize=(210, 210),  # figure width,height in mm
+                    ):
+        if save and (format or self.options.output_type.upper()) != 'X11':
+            save = "%s.%s" % (save, format or self.options.output_type)
+            if self.options.output_prefix:
+                save = "%s_%s" % (self.options.output_prefix, save)
+            # exit if figure already exists, and we're not refreshing
+            if os.path.exists(save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
+                print(save, "exists, not redoing")
+                return save
+        else:
+            save = None
+
+        fields = list(field_radec.keys())
+
+        timestamps = set()
+        for field in fields:
+            timestamps.update(field_time[field])
+        tm_uniq = sorted(timestamps)  # unique timestamps
+
+        import numpy as np
+        from casacore.measures import dq
+        dm = casacore.measures.measures()
+        # create an epoch measure per each unique timestamp
+        tm_epoch = { t: dm.epoch('utc', dq.quantity(t, 's')) for t in tm_uniq }
+
+        # create a direction measure per each field
+        dir_field = { field: dm.direction('j2000', dq.quantity(ra, 'rad'), dq.quantity(dec, 'rad'))
+                      for field,(ra,dec) in field_radec }
+
+        # create a position measure for the antenna and set it as the frame
+        pos_ant0 = dm.position('itrf', *[dq.quantity(x, 'm') for x in obs_xyz])
+        dm.doframe(pos_ant0)
+        # get LST for each timeslot
+        tm_lst = { t: dm.getvalue(dm.measure(ep, 'LAST'))[0].get_value('h') for t,ep in tm_epoch.items() }
+        lst_h0 = int(min(tm_lst.values()))  # round to nearest starting hour
+        tm_lst = { t: lst - lst_h0 for t, lst in tm_lst.items() }
+
+        # get AZ/EL per each field and its timeslots
+        field_lst_azel = {}
+
+        for field in fields:
+            num_ts = len(field_time[field])
+            field_azel = field_lst_azel[field] = np.zeros((num_ts, 3), float)
+            for its, t in enumerate(field_time[field]):
+                dm.doframe(tm_epoch[t])
+                azel_meas = dm.measure(dir_field[field], 'AZELGEO')
+                azel_quant = dm.get_value(azel_meas)
+                field_azel[its, 0] = lst_h0[t]
+                field_azel[its, 1] = azel_quant[0].get_value('deg')
+                field_azel[its, 2] = azel_quant[1].get_value('deg')
+
+
+        figsize = numpy.array(figsize or self._default_figsize) / 25.4
+        fig = pyplot.figure(figsize=figsize, dpi=600)
+        plt = fig.add_axes([self._borders[0], self._borders[2], self._borders[1] - self._borders[0],
+                            self._borders[3] - self._borders[2]])
+
+        for field in fields:
+            plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', label=field)
+        plt.xlabel('LST, h')
+        plt.ylabel('Elevation, deg')
+        _ = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+        for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()):
+            lab.set_fontsize(self.options.axis_fontsize)
+
+        if suptitle and self.options.title_fontsize:
+            if self.options.subtitle:
+                suptitle = "%s (%s)" % (suptitle, self.options.subtitle)
+            fig.suptitle(suptitle, fontsize=self.options.title_fontsize)
+        if save:
+            if self.options.portrait:
+                orientation = 'portrait'
+            elif self.options.landscape:
+                orientation = 'landscape'
+            else:
+                orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
+            fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
+                        orientation=orientation)
+            print("Wrote", save, "in", orientation, "orientation")
+            fig = None
+            pyplot.close("all")
+
+        return fig
+
+    @staticmethod
+    def load_ms_fields(msname, verbose=1):
+        from casacore.tables import table
+        ms = table(msname, ack=False)
+        timestamps = ms.getcol("TIME")
+        field_id = ms.getcol("FIELD_ID")
+
+        verbose and print("Listing fields in {}:".format(msname))
+
+        tm_uniq = np.array(sorted(set(timestamps)))          # unique timestamps
+        timeslot_index =  { t:i for i, t in enumerate(tm_uniq)}   # timestamp -> timeslot number
+        ts = [timeslot_index[t] for t in timestamps]   # timeslot[row]
+        num_ts = len(tm_uniq)
+        import bisect
+        first_row_per_ts = [bisect.bisect_left(ts, its) for its in range(num_ts)]  # first row of any given timestamp
+        time_ts = np.array([timestamps[row0] for row0 in first_row_per_ts])  # field_id per timestamp
+        fid_ts = np.array([field_id[row0] for row0 in first_row_per_ts])  # field_id per timestamp
+
+        ftab = table(msname+"::FIELD", ack=False)
+        field_names = ftab.getcol("NAME")
+        field_dirs = ftab.getcol("PHASE_DIR")
+
+        field_time = {}
+        field_radec = {}
+
+        for fid, field in enumerate(field_names):
+            field_radec[field] = fdir = field_dirs[fid]
+            field_time[field] = ftime = time_ts[fid_ts == fid]
+            verbose and print("  [{:2}] {:16s} {8:.2f}deg {8:+.2f}deg {} integrations".format(
+                                fid, field, fdir[0]*180/np.pi, fdir[1]*180/np.pi, len(ftime)
+                              ))
+
+        anttab = table(msname+"::ANTENNA", ack=False)
+        ant_xyz = anttab.getcol("POSITION", 0 , 1)[0]
+        verbose and print("  Antenna 0 ITRF position is {} {} {}".format(*ant_xyz))
+
+        return field_time, field_radec, ant_xyz
