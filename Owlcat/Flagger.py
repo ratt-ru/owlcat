@@ -670,11 +670,14 @@ class Flagger(verbosity):
                         if not self.has_bitflags or self._initializing_bitflags:
                             self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
                             self.dprint(2, "formed empty BITFLAGs (type {})".format(self.flagsets.dtype))
-                        else:
+                        elif all([ms.iscelldefined('BITFLAG', r) for r in range(row0, row0+nrows)]):
                             self._visflags = ms.getcol('BITFLAG', row0, nrows)
                             self.dprint(2, "read BITFLAG column")
                             self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
                             self.bf_type = self._visflags.dtype.type
+                        else:
+                            self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
+                            self.dprint(2, "formed empty BITFLAGs (type {}) because part (or all) of the column is undefined".format(self.flagsets.dtype))
                         self._bf_type = self._visflags.dtype.type
                     return self._visflags
 
