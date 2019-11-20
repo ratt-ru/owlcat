@@ -51,7 +51,7 @@ if __name__ == "__main__":
     if not args:
         parser.error("No MS specified")
 
-    skyplot = LSTElevationPlot(options)
+    skyplot = LSTElevationPlot(options, output_type='x11' if options.display else 'png')
 
     for msname in args:
         field_time, field_radec, obs_xyz = LSTElevationPlot.load_ms_fields(msname, verbose=1)
