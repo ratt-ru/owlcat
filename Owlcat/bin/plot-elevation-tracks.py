@@ -40,6 +40,9 @@ if __name__ == "__main__":
     outputgroup = OptionGroup(parser, "Output options")
     LSTElevationPlot.init_options(plotgroup, outputgroup)
 
+    outputgroup.add_option("-o", "--output-name", type=str, help="Output filename")
+    outputgroup.add_option("-d", "--display", action="store_true", help="Display plot on screen")
+
     parser.add_option_group(plotgroup)
     parser.add_option_group(outputgroup)
 
@@ -56,8 +59,8 @@ if __name__ == "__main__":
             continue
 
         skyplot.make_figure(field_time, field_radec, obs_xyz,
-                        suptitle=msname, save="elevation")
+                            suptitle=msname, save=options.output_name, display=options.display)
 
-    if options.output_type.upper() == "X11" and not options.list:
+    if options.display and not options.list:
         from pylab import plt
         plt.show()

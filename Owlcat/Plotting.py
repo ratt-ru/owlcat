@@ -508,8 +508,18 @@ PLOT_BARPLOT = 'barplot'
 class AbstractBasePlot(object):
     """Abstract base class for the various plotting objects"""
 
-    def __init__(self, options, figsize=(290, 210)):
-        init_pyplot(options.output_type)
+    def __init__(self, options=None, figsize=(290, 210), output_type=None):
+        if options is None:
+            from optparse import OptionParser, OptionGroup
+            parser = OptionParser()
+            plotgroup = OptionGroup(parser, "Plotting options")
+            outputgroup = OptionGroup(parser, "Output options")
+            self.init_options(plotgroup, outputgroup)
+            parser.add_option_group(plotgroup)
+            parser.add_option_group(outputgroup)
+            (options, args) = parser.parse_args([])
+
+        init_pyplot(output_type or getattr(options, 'output_type', 'x11'))
         self.options = options
         if options.width and options.height:
             self._default_figsize = self._user_figsize = (options.width, options.height)
@@ -964,28 +974,21 @@ class SkyPlot(AbstractBasePlot):
 class LSTElevationPlot(AbstractBasePlot):
     """Plots tracks of sky objects in an LST vs elevation plot"""
 
-    def __init__(self, options, figsize=(200, 100)):
-        AbstractBasePlot.__init__(self, options, figsize)
+    def __init__(self, options=None, figsize=(200, 100), output_type='x11'):
+        AbstractBasePlot.__init__(self, options, figsize, output_type)
         self._borders = [.1, .7, .1, .9]
 
     @classmethod
     def init_options(self, plotgroup, outputgroup):
         AbstractBasePlot.init_options(plotgroup, outputgroup)
         self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=10,
-                             help="Set plot title font size in circle plots, 0 for no title. Default is %default.")
+                             help="Set plot title font size, 0 for no title. Default is %default.")
         # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
         #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
         self.add_plot_option("--axis-fontsize", metavar="POINTS", type="int", default=5,
-                             help="Set axis label font size in circle_plots, 0 for no axis labels. Default is %default.")
+                             help="Set axis label font size , 0 for no axis labels. Default is %default.")
         self.add_plot_option("-S", "--subtitle", type="str", default="",
                              help="Subtitle for plot, added (in parentheses) after plot title")
-
-        self.add_output_option("-o", "--output-type", metavar="TYPE", type="string", default="png",
-                               help="File format, see matplotlib documentation "
-                                    "for supported formats. At least 'png', 'pdf', 'ps', 'eps' and 'svg' are supported, or use 'x11' to display "
-                                    "plots interactively. Default is '%default.'")
-        self.add_output_option("--output-prefix", metavar="PREFIX", type="string", default="",
-                               help="Prefix output filenames with PREFIX_")
         self.add_output_option("--papertype", dest="papertype", type="string", default="a4",
                                help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.")
         self.add_output_option("-W", "--width", type="int",
@@ -1004,20 +1007,9 @@ class LSTElevationPlot(AbstractBasePlot):
     def make_figure(self, field_time, field_radec, obs_xyz,
                     suptitle=None,  # title of plot
                     save=None,  # filename to save to
-                    format=None,  # format: use self.options.output_type by default
+                    display=None, # True if display is on
                     figsize=(200, 100),  # figure width,height in mm
                     ):
-        if save and (format or self.options.output_type.upper()) != 'X11':
-            save = "%s.%s" % (save, format or self.options.output_type)
-            if self.options.output_prefix:
-                save = "%s_%s" % (self.options.output_prefix, save)
-            # exit if figure already exists, and we're not refreshing
-            if os.path.exists(save) and not self.options.refresh:  # and os.path.getmtime(save) >= os.path.getmtime(__file__):
-                print(save, "exists, not redoing")
-                return save
-        else:
-            save = None
-
         fields = list(field_radec.keys())
 
         timestamps = set()
