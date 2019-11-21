@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import Timba.dmi
 import re
 import tempfile
 import os
 from past.builtins import cmp
 from functools import cmp_to_key
 
-from Cattery import Meow
 import Owlcat
-from Cattery.Meow import MSUtils
 from Kittens.utils import verbosity
 try:
     import Purr.Pipe
@@ -19,15 +16,6 @@ except:
     has_purr = False
 
 _gli = None # Meow.MSUtils.find_exec('glish')
-
-# if _gli:
-#     _GLISH = 'glish'
-#     Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
-# else:
-#     _GLISH = None
-#     Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
-
-# _addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
 
 
 # Various argument-formatting methods to use with the Flagger.AutoFlagger class
