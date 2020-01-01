@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import print_function
 import numpy
 import numpy.ma
 import math
@@ -7,6 +7,7 @@ import sys
 import traceback
 import os.path
 import matplotlib
+import casacore.measures
 
 DEG = math.pi / 180
 ARCMIN = math.pi / (180 * 60)
@@ -507,8 +508,18 @@ PLOT_BARPLOT = 'barplot'
 class AbstractBasePlot(object):
     """Abstract base class for the various plotting objects"""
 
-    def __init__(self, options, figsize=(290, 210)):
-        init_pyplot(options.output_type)
+    def __init__(self, options=None, figsize=(290, 210), output_type=None):
+        if options is None:
+            from optparse import OptionParser, OptionGroup
+            parser = OptionParser()
+            plotgroup = OptionGroup(parser, "Plotting options")
+            outputgroup = OptionGroup(parser, "Output options")
+            self.init_options(plotgroup, outputgroup)
+            parser.add_option_group(plotgroup)
+            parser.add_option_group(outputgroup)
+            (options, args) = parser.parse_args([])
+
+        init_pyplot(output_type or getattr(options, 'output_type', 'x11'))
         self.options = options
         if options.width and options.height:
             self._default_figsize = self._user_figsize = (options.width, options.height)
@@ -959,3 +970,167 @@ class SkyPlot(AbstractBasePlot):
             fig = None
             pyplot.close("all")
         return save
+
+class LSTElevationPlot(AbstractBasePlot):
+    """Plots tracks of sky objects in an LST vs elevation plot"""
+
+    def __init__(self, options=None, figsize=(200, 100), output_type='x11'):
+        AbstractBasePlot.__init__(self, options, figsize, output_type)
+        self._borders = [.1, .95, .1, .9]
+
+    @classmethod
+    def init_options(self, plotgroup, outputgroup):
+        AbstractBasePlot.init_options(plotgroup, outputgroup)
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=6,
+                             help="Set plot title font size, 0 for no title. Default is %default.")
+        # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
+        #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
+        self.add_plot_option("--tick-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set axis tick label font size, 0 for no tick labels. Default is %default.")
+        self.add_plot_option("--axis-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set axis label font size, 0 for no axis labels. Default is %default.")
+        self.add_plot_option("--legend-fontsize", metavar="POINTS", type="int", default=5,
+                             help="Set legend label font size, 0 for no legend labels. Default is %default.")
+        self.add_plot_option("--marker-size", metavar="POINTS", type="int", default=2,
+                             help="Set plot marker size. Default is %default.")
+        self.add_plot_option("-S", "--subtitle", type="str", default="",
+                             help="Subtitle for plot, added (in parentheses) after plot title")
+        self.add_output_option("--papertype", dest="papertype", type="string", default="a4",
+                               help="set paper type (for .ps output only.) Default is '%default', but can also use e.g. 'letter', 'a3', etc.")
+        self.add_output_option("-W", "--width", type="int",
+                               help="set explicit plot width, in mm. (Useful for .eps output)")
+        self.add_output_option("-H", "--height", type="int",
+                               help="set explicit plot height, in mm. (Useful for .eps output)")
+        self.add_output_option("--dpi", type="int", default=300,
+                               help="figure resolution. Default is %default.")
+        self.add_output_option("--portrait", action="store_true",
+                               help="Force portrait orientation. Default is to select orientation based on plot size")
+        self.add_output_option("--landscape", action="store_true",
+                               help="Force landscape orientation.")
+
+    """Plotting function"""
+
+    def make_figure(self, field_time, field_radec, obs_xyz,
+                    suptitle=None,  # title of plot
+                    save=None,  # filename to save to
+                    display=None, # True if display is on
+                    figsize=(200, 100),  # figure width,height in mm
+                    ):
+        fields = list(field_radec.keys())
+
+        timestamps = set()
+        for field in fields:
+            timestamps.update(field_time[field])
+        tm_uniq = sorted(timestamps)  # unique timestamps
+
+        import numpy as np
+        from casacore.measures import dq
+        dm = casacore.measures.measures()
+        # create an epoch measure per each unique timestamp
+        tm_epoch = { t: dm.epoch('utc', dq.quantity(t, 's')) for t in tm_uniq }
+
+        # create a direction measure per each field
+        dir_field = { field: dm.direction('j2000', dq.quantity(ra, 'rad'), dq.quantity(dec, 'rad'))
+                      for field,(ra,dec) in field_radec.items() }
+
+        # create a position measure for the antenna and set it as the frame
+        pos_ant0 = dm.position('itrf', *[dq.quantity(x, 'm') for x in obs_xyz])
+        dm.doframe(pos_ant0)
+        # get LST for each timeslot
+        tm_lst = { t: dm.getvalue(dm.measure(ep, 'LAST'))[0].get_value('h') for t,ep in tm_epoch.items() }
+        lst_h0 = int(min(tm_lst.values()))  # round to nearest starting hour
+        tm_lst = { t: lst - lst_h0 for t, lst in tm_lst.items() }
+
+        # get AZ/EL per each field and its timeslots
+        field_lst_azel = {}
+
+        for field in fields:
+            num_ts = len(field_time[field])
+            field_azel = field_lst_azel[field] = np.zeros((num_ts, 3), float)
+            for its, t in enumerate(field_time[field]):
+                dm.doframe(pos_ant0)
+                dm.doframe(tm_epoch[t])
+                azel_meas = dm.measure(dir_field[field], 'AZELGEO')
+                azel_quant = dm.get_value(azel_meas)
+                field_azel[its, 0] = tm_lst[t]
+                field_azel[its, 1] = azel_quant[0].get_value('deg')
+                field_azel[its, 2] = azel_quant[1].get_value('deg')
+
+
+        figsize = numpy.array(figsize or self._default_figsize)/25.4
+        fig = pyplot.figure(figsize=figsize, dpi=self.options.dpi)
+        plt = fig.add_axes([self._borders[0], self._borders[2], self._borders[1] - self._borders[0],
+                            self._borders[3] - self._borders[2]])
+
+        for field in fields:
+            plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', ms=self.options.marker_size, label=field)
+        if self.options.axis_fontsize:
+            pyplot.xlabel('LST, h', fontdict=dict(fontsize=self.options.axis_fontsize))
+            pyplot.ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
+        if self.options.legend_fontsize:
+            pyplot.legend(loc='best', #bbox_to_anchor=(1, 0.5),
+                              fontsize=self.options.legend_fontsize)
+
+        for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()):
+            lab.set_fontsize(self.options.tick_fontsize)
+
+        if suptitle and self.options.title_fontsize:
+            if self.options.subtitle:
+                suptitle = "%s (%s)" % (suptitle, self.options.subtitle)
+            pyplot.title(suptitle, fontsize=self.options.title_fontsize)
+        if save:
+            if self.options.portrait:
+                orientation = 'portrait'
+            elif self.options.landscape:
+                orientation = 'landscape'
+            else:
+                orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
+            fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
+                        orientation=orientation)
+            print("Wrote", save, "in", orientation, "orientation")
+            fig = None
+            pyplot.close("all")
+
+        return fig
+
+    @staticmethod
+    def load_ms_fields(msname, verbose=1):
+        from casacore.tables import table
+        from collections import OrderedDict
+        import numpy as np
+
+        ms = table(msname, ack=False)
+        timestamps = ms.getcol("TIME")
+        field_id = ms.getcol("FIELD_ID")
+
+        verbose and print("Fields in {}:".format(msname))
+
+        tm_uniq = np.array(sorted(set(timestamps)))          # unique timestamps
+        timeslot_index =  { t:i for i, t in enumerate(tm_uniq)}   # timestamp -> timeslot number
+        ts = [timeslot_index[t] for t in timestamps]   # timeslot[row]
+        num_ts = len(tm_uniq)
+        import bisect
+        first_row_per_ts = [bisect.bisect_left(ts, its) for its in range(num_ts)]  # first row of any given timestamp
+        time_ts = np.array([timestamps[row0] for row0 in first_row_per_ts])  # field_id per timestamp
+        fid_ts = np.array([field_id[row0] for row0 in first_row_per_ts])  # field_id per timestamp
+
+        ftab = table(msname+"::FIELD", ack=False)
+        field_names = ftab.getcol("NAME")
+        field_dirs = ftab.getcol("PHASE_DIR")
+
+        field_time = OrderedDict()
+        field_radec = OrderedDict()
+
+        for fid, field in enumerate(field_names):
+            field_name = "{}: {}".format(fid, field)
+            field_radec[field_name] = fdir = field_dirs[fid,0]
+            field_time[field_name] = ftime = time_ts[fid_ts == fid]
+            verbose and print("    [{:2}] {:16s} {:8.2f}d {:+8.2f}d     {} timeslots".format(
+                                fid, field, fdir[0]*180/np.pi, fdir[1]*180/np.pi, len(ftime)
+                              ))
+
+        anttab = table(msname+"::ANTENNA", ack=False)
+        ant_xyz = anttab.getcol("POSITION", 0 , 1)[0]
+        verbose and print("  Antenna 0 ITRF position is {} {} {}".format(*ant_xyz))
+
+        return field_time, field_radec, ant_xyz

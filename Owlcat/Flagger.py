@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import Timba.dmi
 import re
 import tempfile
 import os
 from past.builtins import cmp
 from functools import cmp_to_key
 
-from Cattery import Meow
 import Owlcat
-from Cattery.Meow import MSUtils
 from Kittens.utils import verbosity
 try:
     import Purr.Pipe
@@ -19,15 +16,6 @@ except:
     has_purr = False
 
 _gli = None # Meow.MSUtils.find_exec('glish')
-
-# if _gli:
-#     _GLISH = 'glish'
-#     Meow.dprint("Calico flagger: found %s, autoflag should be available" % _gli)
-# else:
-#     _GLISH = None
-#     Meow.dprint("Calico flagger: glish not found, autoflag will not be available")
-
-# _addbitflagcol = Meow.MSUtils.find_exec('addbitflagcol')
 
 
 # Various argument-formatting methods to use with the Flagger.AutoFlagger class
@@ -670,11 +658,14 @@ class Flagger(verbosity):
                         if not self.has_bitflags or self._initializing_bitflags:
                             self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
                             self.dprint(2, "formed empty BITFLAGs (type {})".format(self.flagsets.dtype))
-                        else:
+                        elif all([ms.iscelldefined('BITFLAG', r) for r in range(row0, row0+nrows)]):
                             self._visflags = ms.getcol('BITFLAG', row0, nrows)
                             self.dprint(2, "read BITFLAG column")
                             self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
                             self.bf_type = self._visflags.dtype.type
+                        else:
+                            self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
+                            self.dprint(2, "formed empty BITFLAGs (type {}) because part (or all) of the column is undefined".format(self.flagsets.dtype))
                         self._bf_type = self._visflags.dtype.type
                     return self._visflags
 
