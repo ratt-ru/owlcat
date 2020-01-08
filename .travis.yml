@@ -1,16 +1,14 @@
 language: python
 matrix:
   include:
-  - env: TARGET=pep8
-  - env: TARGET=mypy
-  allow_failures:
-  - env: TARGET=pep8
-  - env: TARGET=mypy
+  - env: TARGET=pypi
 sudo: required
 services:
  - docker
 install:
  - true
+script:
+ - docker build . -f .travis/${TARGET}.docker
 deploy:
   provider: pypi
   user: gijzelaerr
