@@ -24,7 +24,7 @@
 # or write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-
+from __future__ import print_function
 import sys
 import re
 import os.path
@@ -499,17 +499,33 @@ def main():
         data = images[0][0].data
         nx = data.shape[-1]
         ny = data.shape[-2]
-        zx0, zy0 = (nx - z)//2, (ny - z)//2
-        zcen = z//2
-        zdata = data[..., zy0:zy0+z, zx0:zx0+z]
+        # make output array of shape z x z
+        zdata_shape = list(data.shape)
+        zdata_shape[-1] = zdata_shape[-2] = z
+        zdata = numpy.zeros(zdata_shape, dtype=data.dtype)
+        # make input/output slices
+        def make_in_out_slice(N, Z):
+            """given an input axis of size N, and an output axis of size Z, returns
+            """
+            i0 = (N - Z)//2
+            if i0 >= 0:
+                return slice(None), slice(i0, i0+Z), i0 + z//2
+            else:
+                return slice(-i0, -i0+N), slice(None), N//2
+
+        xout, xin, xcen = make_in_out_slice(nx, z)
+        yout, yin, ycen = make_in_out_slice(ny, z)
+
+        zdata[..., yout, xout] = data[..., yin, xin]
+
         # update header
         hdr = images[0][0].header
         wcs = WCS(hdr, mode="pyfits")
-        cr1, cr2 = wcs.pix2wcs(zx0 + zcen, zy0 + zcen)  # get WCS of center pixel
+        cr1, cr2 = wcs.pix2wcs(xcen, ycen)  # get WCS of center pixel
         hdr["CRVAL1"] = cr1
         hdr["CRVAL2"] = cr2
-        hdr["CRPIX1"] = zcen + 1
-        hdr["CRPIX2"] = zcen + 1
+        hdr["CRPIX1"] = z//2 + 1
+        hdr["CRPIX2"] = z//2 + 1
 
         print("Making zoomed image of shape", "x".join(map(str, zdata.shape)))
 
