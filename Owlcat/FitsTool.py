@@ -246,6 +246,12 @@ def main():
                       help="transfer data from image 2 into image 1, preserving the FITS header of image 1")
     parser.add_option("-z", "--zoom", dest="zoom", type="int", metavar="NPIX",
                       help="zoom into central region of NPIX x NPIX size")
+    parser.add_option("-p", "--paste", action="store_true",
+                      help="paste image(s) into first image, using the nearest WCS pixel positions. See also --null")
+    parser.add_option("--empty-canvas", action="store_true",
+                      help="null first image, then paste image(s) into it")
+    parser.add_option("-M", "--set-max", metavar="MAX", type="float",
+                      help="set values over MAX to MAX")
     parser.add_option("-R", "--rescale", dest="rescale", type="float",
                       help="rescale image values")
     parser.add_option("-E", "--edit-header", metavar="KEY=VALUE", type="string", action="append",
@@ -436,6 +442,26 @@ def main():
             print("Image %s: replaced %d points" % (name, wh.sum()))
         updated = True
 
+    def compute_in_out_slice(N, N0, R, R0):
+        """
+        given an input axis of size N, and an output axis of size N0, and reference pixels of I and I0
+        respectively, computes two slice objects such that
+                A0[slice_out] = A1[slice_in]
+        would do the correct assignment (with I mapping to I0, and the overlapping regions transferred)
+        """
+        i, j = 0, N     # input slice
+        i0 = R0 - R
+        j0 = i0 + N     # output slice
+        if i0 < 0:
+            i = -i0
+            i0 = 0
+        if j0 > N0:
+            j = N - (j0 - N0)
+            j0 = N0
+        if i >= j or i0 >= j0:
+            return None, None
+        return slice(i0, j0), slice(i, j)
+
     if options.transfer:
         if len(images) != 2:
             parser.error("The --transfer option requires exactly two input images.")
@@ -488,6 +514,38 @@ def main():
         data /= len(images)
         images = [images[0]]
         updated = True
+    elif options.paste:
+        if autoname:
+            outname = "paste%d_" % len(images) + outname
+        print("Pasting images into canvas given by {}".format(imagenames[0]))
+        # get original image size and WCS
+        data0 = images[0][0].data
+        ny0, nx0 = data0.shape[-2:]
+        hdr0 = images[0][0].header
+        wcs0 = WCS(hdr0, mode="pyfits")
+        if options.empty_canvas:
+            print("  canvas image will be cleared initially")
+            data0[:] = 0
+
+        for image, imagename in zip(images[1:], imagenames[1:]):
+            hdr = image[0].header
+            data = image[0].data
+            ny, nx = data.shape[-2:]
+            rx, ry = int(hdr["CRPIX1"]-1), int(hdr["CRPIX2"]-1)
+            # find coordinate of this image's reference pixel in the canvas WCS
+            rx0, ry0 = wcs0.wcs2pix(hdr["CRVAL1"], hdr["CRVAL2"])  # get WCS of center pixel
+            print("image {} rpix {},{} is at {},{} in canvas image".format(imagename, rx, ry, rx0, ry0))
+            rx0 = int(round(rx0))
+            ry0 = int(round(ry0))
+            xout, xin = compute_in_out_slice(nx, nx0, rx, rx0)
+            yout, yin = compute_in_out_slice(ny, ny0, ry, ry0)
+            if xout is not None and yout is not None:
+                print("  canvas X {} will be assigned from {}".format(xout, xin))
+                print("  canvas Y {} will be assigned from {}".format(yout, yin))
+                data0[..., yout, xout] += data[..., yin, xin]
+                updated = True
+            else:
+                print("  image {} footprint is outside of canvas".format(imagename))
 
     if options.zoom:
         z = options.zoom
@@ -504,32 +562,30 @@ def main():
         zdata_shape[-1] = zdata_shape[-2] = z
         zdata = numpy.zeros(zdata_shape, dtype=data.dtype)
         # make input/output slices
-        def make_in_out_slice(N, Z):
-            """given an input axis of size N, and an output axis of size Z, returns
-            """
-            i0 = (N - Z)//2
-            if i0 >= 0:
-                return slice(None), slice(i0, i0+Z), i0 + z//2
-            else:
-                return slice(-i0, -i0+N), slice(None), N//2
-
-        xout, xin, xcen = make_in_out_slice(nx, z)
-        yout, yin, ycen = make_in_out_slice(ny, z)
+        rx, ry = nx//2, ny//2
+        rx0 = ry0 = z//2
+        xout, xin = compute_in_out_slice(nx, z, rx, rx0)
+        yout, yin = compute_in_out_slice(ny, z, ry, ry0)
 
         zdata[..., yout, xout] = data[..., yin, xin]
 
         # update header
         hdr = images[0][0].header
         wcs = WCS(hdr, mode="pyfits")
-        cr1, cr2 = wcs.pix2wcs(xcen, ycen)  # get WCS of center pixel
+        cr1, cr2 = wcs.pix2wcs(rx, ry)  # get WCS of center pixel
         hdr["CRVAL1"] = cr1
         hdr["CRVAL2"] = cr2
-        hdr["CRPIX1"] = z//2 + 1
-        hdr["CRPIX2"] = z//2 + 1
+        hdr["CRPIX1"] = rx0 + 1
+        hdr["CRPIX2"] = ry0 + 1
 
         print("Making zoomed image of shape", "x".join(map(str, zdata.shape)))
 
         images = [pyfits.PrimaryHDU(zdata, hdr)]
+        updated = True
+
+    if options.set_max is not None:
+        print("Enforcing maximum value of {}".format(options.set_max))
+        images[0][0].data[images[0][0].data > options.set_max] = options.set_max
         updated = True
 
     if options.rescale != 1:
