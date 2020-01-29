@@ -247,9 +247,10 @@ def main():
     parser.add_option("-z", "--zoom", dest="zoom", type="int", metavar="NPIX",
                       help="zoom into central region of NPIX x NPIX size")
     parser.add_option("-p", "--paste", action="store_true",
-                      help="paste image(s) into first image, using the nearest WCS pixel positions. See also --null")
+                      help="paste image(s) into first image, using the nearest WCS pixel positions. See also --empty-canvas")
     parser.add_option("--empty-canvas", action="store_true",
                       help="null first image, then paste image(s) into it")
+    parser.add_option("--null-region", type="str", metavar="NXxNY", help="null central region of specified size")
     parser.add_option("-M", "--set-max", metavar="MAX", type="float",
                       help="set values over MAX to MAX")
     parser.add_option("-R", "--rescale", dest="rescale", type="float",
@@ -547,6 +548,21 @@ def main():
             else:
                 print("  image {} footprint is outside of canvas".format(imagename))
 
+    if options.null_region:
+        if len(images) > 1:
+            print("Too many input images specified for this operation, at most 1 expected")
+            sys.exit(2)
+        data = images[0][0].data
+        nx = data.shape[-1]
+        ny = data.shape[-2]
+        xc, yc = nx//2, ny//2
+        rx, ry = map(int,options.null_region.split("x", 1))
+        rx, ry = min(rx, nx), min(ry, ny)
+        x0, y0 = xc - rx//2, yc - ry//2
+        data[..., y0:y0+ry, x0:x0+rx] = 0
+        print("Setting {}:{} {}:{} to zero", x0, x0+rx, y0, y0+ry)
+        updated = True
+
     if options.zoom:
         z = options.zoom
         if autoname:
@@ -604,11 +620,11 @@ def main():
     if options.stats:
         for ff, filename in zip(images, imagenames):
             data = ff[0].data
-            min, max, dum1, dum2 = scipy.ndimage.measurements.extrema(data)
+            min1, max1, dum1, dum2 = scipy.ndimage.measurements.extrema(data)
             sum = data.sum()
             mean = sum / data.size
             std = math.sqrt(((data - mean) ** 2).mean())
-            print("%s: min %g, max %g, sum %g, np %d, mean %g, std %g" % (filename, min, max, sum, data.size, mean, std))
+            print("%s: min %g, max %g, sum %g, np %d, mean %g, std %g" % (filename, min1, max1, sum, data.size, mean, std))
         sys.exit(0)
 
     if updated:
