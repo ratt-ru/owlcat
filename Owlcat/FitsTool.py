@@ -236,8 +236,12 @@ def main():
                       help="take mean of input images")
     parser.add_option("-d", "--diff", dest="diff", action="store_true",
                       help="take difference of 2 input images")
-    parser.add_option("--ratio", dest="ratio", action="store_true",
-                      help="take ratio of 2 input images")
+    parser.add_option("--div", dest="div", action="store_true",
+                      help="take ratio of 2 input images (e.g. as in primary beam correction)")
+    parser.add_option("--div-min", type="float",
+                      help="min value to use for second image, when taking a ratio")
+    parser.add_option("--div-min-mask", type="float", metavar="MIN", default=0,
+                      help="mask value to apply to output where second image < MIN")
     parser.add_option("--sum", dest="sum", action="store_true",
                       help="sum of input images")
     parser.add_option("--prod", dest="prod", action="store_true",
@@ -488,14 +492,18 @@ def main():
         for d in images[1:]:
             data += d[0].data
         updated = True
-    elif options.ratio:
+    elif options.div:
         if len(images) != 2:
-            parser.error("The --ratio option requires exactly two input images.")
+            parser.error("The --div option requires exactly two input images.")
         if autoname:
-            outname = "ratio_" + outname
+            outname = "div_" + outname
         print("Computing ratio")
-        data = images[0][0].data
-        data /= images[1][0].data
+        a, b = images[0][0].data, images[1][0].data
+        if options.div_min is not None:
+            b[b<=options.div_min] = options.div_min
+        a /= b
+        if options.div_min_mask is not None:
+            a[b<=options.div_min] = options.div_min_mask
         updated = True
     elif options.prod:
         if autoname:
@@ -560,7 +568,7 @@ def main():
         rx, ry = min(rx, nx), min(ry, ny)
         x0, y0 = xc - rx//2, yc - ry//2
         data[..., y0:y0+ry, x0:x0+rx] = 0
-        print("Setting {}:{} {}:{} to zero", x0, x0+rx, y0, y0+ry)
+        print("Setting {}:{} {}:{} to zero".format(x0, x0+rx, y0, y0+ry))
         updated = True
 
     if options.zoom:
