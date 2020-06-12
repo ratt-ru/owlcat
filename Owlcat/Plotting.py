@@ -989,6 +989,8 @@ class LSTElevationPlot(AbstractBasePlot):
                              help="Set axis tick label font size, 0 for no tick labels. Default is %default.")
         self.add_plot_option("--axis-fontsize", metavar="POINTS", type="int", default=5,
                              help="Set axis label font size, 0 for no axis labels. Default is %default.")
+        self.add_plot_option("--scan-fontsize", metavar="POINTS", type="int", default=8,
+                             help="Set scan label font size, 0 for no scan labels. Default is %default.")
         self.add_plot_option("--legend-fontsize", metavar="POINTS", type="int", default=5,
                              help="Set legend label font size, 0 for no legend labels. Default is %default.")
         self.add_plot_option("--marker-size", metavar="POINTS", type="int", default=2,
@@ -1010,7 +1012,7 @@ class LSTElevationPlot(AbstractBasePlot):
 
     """Plotting function"""
 
-    def make_figure(self, field_time, field_radec, obs_xyz,
+    def make_figure(self, field_time, field_radec, obs_xyz, scan_starts,
                     suptitle=None,  # title of plot
                     save=None,  # filename to save to
                     display=None, # True if display is on
@@ -1043,6 +1045,7 @@ class LSTElevationPlot(AbstractBasePlot):
 
         # get AZ/EL per each field and its timeslots
         field_lst_azel = {}
+        scan_labels = {}
 
         for field in fields:
             num_ts = len(field_time[field])
@@ -1052,9 +1055,12 @@ class LSTElevationPlot(AbstractBasePlot):
                 dm.doframe(tm_epoch[t])
                 azel_meas = dm.measure(dir_field[field], 'AZELGEO')
                 azel_quant = dm.get_value(azel_meas)
-                field_azel[its, 0] = tm_lst[t]
+                field_azel[its, 0] = x = tm_lst[t]
                 field_azel[its, 1] = azel_quant[0].get_value('deg')
-                field_azel[its, 2] = azel_quant[1].get_value('deg')
+                field_azel[its, 2] = y = azel_quant[1].get_value('deg')
+                scan = scan_starts.get(t, None)
+                if scan is not None:
+                    scan_labels[x, y] = str(scan)
 
 
         figsize = numpy.array(figsize or self._default_figsize)/25.4
@@ -1064,6 +1070,10 @@ class LSTElevationPlot(AbstractBasePlot):
 
         for field in fields:
             plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', ms=self.options.marker_size, label=field)
+        if self.options.scan_fontsize:
+            for (x, y), label in scan_labels.items():
+                plt.text(x, y, label, horizontalalignment='left', verticalalignment='bottom',
+                         fontdict=dict(fontsize=self.options.scan_fontsize))
         if self.options.axis_fontsize:
             pyplot.xlabel('LST, h', fontdict=dict(fontsize=self.options.axis_fontsize))
             pyplot.ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
@@ -1102,6 +1112,7 @@ class LSTElevationPlot(AbstractBasePlot):
         ms = table(msname, ack=False)
         timestamps = ms.getcol("TIME")
         field_id = ms.getcol("FIELD_ID")
+        scan = ms.getcol("SCAN_NUMBER")
 
         verbose and print("Fields in {}:".format(msname))
 
@@ -1111,8 +1122,15 @@ class LSTElevationPlot(AbstractBasePlot):
         num_ts = len(tm_uniq)
         import bisect
         first_row_per_ts = [bisect.bisect_left(ts, its) for its in range(num_ts)]  # first row of any given timestamp
-        time_ts = np.array([timestamps[row0] for row0 in first_row_per_ts])  # field_id per timestamp
-        fid_ts = np.array([field_id[row0] for row0 in first_row_per_ts])  # field_id per timestamp
+        time_ts = np.array([timestamps[row0] for row0 in first_row_per_ts])        # time per timestamp
+        fid_ts = np.array([field_id[row0] for row0 in first_row_per_ts])           # field_id per timestamp
+        scan_ts = np.array([scan[row0] for row0 in first_row_per_ts])              # scan per timestamp
+
+        # figure out starting timeslots of scans
+        scan_start = np.zeros_like(scan_ts, bool)
+        scan_start[0] = True
+        scan_start[1:] = (scan_ts[1:] != scan_ts[:-1])
+        scan_start_ts = {time_ts[ts]: scan for ts, scan in enumerate(scan_ts) if scan_start[ts]}
 
         ftab = table(msname+"::FIELD", ack=False)
         field_names = ftab.getcol("NAME")
@@ -1133,4 +1151,4 @@ class LSTElevationPlot(AbstractBasePlot):
         ant_xyz = anttab.getcol("POSITION", 0 , 1)[0]
         verbose and print("  Antenna 0 ITRF position is {} {} {}".format(*ant_xyz))
 
-        return field_time, field_radec, ant_xyz
+        return field_time, field_radec, ant_xyz, scan_start_ts
