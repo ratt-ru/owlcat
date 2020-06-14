@@ -32,7 +32,8 @@ import numpy
 from astropy.io import fits as pyfits
 import scipy.ndimage.measurements
 import math
-from astLib.astWCS import WCS
+#from astLib.astWCS import WCS
+from astropy.wcs import WCS
 import glob
 
 SANITIZE_DEFAULT = 12345e-7689
@@ -510,10 +511,11 @@ def main():
         for nax in "3", "4":
             for key in "NAXIS", "CTYPE", "CRVAL", "CRPIX", "CDELT", "CROTA":
                 hdr1.remove(key + nax, ignore_missing=True)
-        wcs = WCS(hdr1, mode="pyfits")
-        cr1, cr2 = wcs.pix2wcs(zx0 + zcen, zy0 + zcen)  # get WCS of center pixel
-        hdr["CRVAL1"] = cr1
-        hdr["CRVAL2"] = cr2
+        wcs = WCS(hdr1) #, mode="pyfits")
+        pixcoord = [[zx0 + zcen, zy0 + zcen]]
+        world = wcs.wcs_pix2world(pixcoord, 0)  # get WCS of center pixel
+        hdr["CRVAL1"] = world[0,0]
+        hdr["CRVAL2"] = world[0,1]
         hdr["CRPIX1"] = zcen + 1
         hdr["CRPIX2"] = zcen + 1
 
