@@ -505,14 +505,16 @@ def main():
         zdata = data[..., zy0:zy0+z, zx0:zx0+z]
         # update header
         hdr = images[0][0].header
-        hdr1 = hdr.copy()
-        hdr1["NAXIS"] = 2
-        # newer astropy don't like our radio axes 3 and 4 :((
-        for nax in "3", "4":
-            for key in "NAXIS", "CTYPE", "CRVAL", "CRPIX", "CDELT", "CROTA":
-                hdr1.remove(key + nax, ignore_missing=True)
-        wcs = WCS(hdr1) #, mode="pyfits")
-        pixcoord = [[zx0 + zcen, zy0 + zcen]]
+        # hdr1 = hdr.copy()
+        # hdr1["NAXIS"] = 2
+        # # newer astropy don't like our radio axes 3 and 4 :((
+        # for nax in "3", "4":
+        #     for key in "NAXIS", "CTYPE", "CRVAL", "CRPIX", "CDELT", "CROTA":
+        #         hdr1.remove(key + nax, ignore_missing=True)
+        wcs = WCS(hdr) #, mode="pyfits")
+        pixcoord = numpy.zeros((1, hdr["NAXIS"]), float)
+        pixcoord[0, 0] = zx0 + zcen
+        pixcoord[0, 1] = zy0 + zcen
         world = wcs.wcs_pix2world(pixcoord, 0)  # get WCS of center pixel
         hdr["CRVAL1"] = world[0,0]
         hdr["CRVAL2"] = world[0,1]
