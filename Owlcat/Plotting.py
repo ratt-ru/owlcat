@@ -983,7 +983,7 @@ class LSTElevationPlot(AbstractBasePlot):
     @classmethod
     def init_options(self, plotgroup, outputgroup):
         AbstractBasePlot.init_options(plotgroup, outputgroup)
-        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=6,
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=8,
                              help="Set plot title font size, 0 for no title. Default is %default.")
         # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
         #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
@@ -1045,6 +1045,9 @@ class LSTElevationPlot(AbstractBasePlot):
         dir_field['Sun'] = dm.direction("SUN")
         field_time['Sun'] = tm_uniq
 
+        # get starting date
+        import datetime
+        start_day = datetime.datetime.fromtimestamp(dq.quantity(tm_uniq[0], 's').to_unix_time()).strftime("%d %b %Y")
 
         # create a position measure for the antenna and set it as the frame
         pos_ant0 = dm.position('itrf', *[dq.quantity(x, 'm') for x in obs_xyz])
@@ -1112,7 +1115,7 @@ class LSTElevationPlot(AbstractBasePlot):
         secax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%H:%M"))
         secax.xaxis.set_tick_params(labelsize=self.options.tick_fontsize)
         if self.options.axis_fontsize:
-            pyplot.xlabel('UTC', fontdict=dict(fontsize=self.options.axis_fontsize))
+            pyplot.xlabel('UTC ({})'.format(start_day), fontdict=dict(fontsize=self.options.axis_fontsize))
             plt.set_ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
             if plt_az:
                 plt_az.set_ylabel('Azimuth, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
