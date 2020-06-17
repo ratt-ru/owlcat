@@ -1089,8 +1089,7 @@ class LSTElevationPlot(AbstractBasePlot):
         fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         for field in fields:
-            plt_az.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,1], '.',
-                        ms=self.options.marker_size/2, alpha=0.1)
+            plt_az.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,1], '.', ms=self.options.marker_size)
         plt_az.yaxis.set_tick_params(labelsize=self.options.tick_fontsize)
 
         for field in fields:
