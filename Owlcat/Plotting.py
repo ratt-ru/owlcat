@@ -7,6 +7,7 @@ import sys
 import traceback
 import os.path
 import matplotlib
+import matplotlib.dates
 import casacore.measures
 
 DEG = math.pi / 180
@@ -976,12 +977,13 @@ class LSTElevationPlot(AbstractBasePlot):
 
     def __init__(self, options=None, figsize=(200, 100), output_type='x11'):
         AbstractBasePlot.__init__(self, options, figsize, output_type)
-        self._borders = [.1, .95, .1, .9]
+        self._borders = [.1, .9, .1, .85]
+        self._default_figsize = (200,200)
 
     @classmethod
     def init_options(self, plotgroup, outputgroup):
         AbstractBasePlot.init_options(plotgroup, outputgroup)
-        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=6,
+        self.add_plot_option("--title-fontsize", metavar="POINTS", type="int", default=8,
                              help="Set plot title font size, 0 for no title. Default is %default.")
         # self.add_plot_option("--label-fontsize", metavar="POINTS", type="int", default=8,
         #                      help="Set plot label font size in circle plots, 0 for no labels. Default is %default.")
@@ -1016,7 +1018,7 @@ class LSTElevationPlot(AbstractBasePlot):
                     suptitle=None,  # title of plot
                     save=None,  # filename to save to
                     display=None, # True if display is on
-                    figsize=(200, 100),  # figure width,height in mm
+                    figsize=(200, 200),  # figure width,height in mm
                     ):
         fields = list(field_radec.keys())
 
@@ -1028,66 +1030,106 @@ class LSTElevationPlot(AbstractBasePlot):
         import numpy as np
         from casacore.measures import dq
         dm = casacore.measures.measures()
+
+
         # create an epoch measure per each unique timestamp
         tm_epoch = { t: dm.epoch('utc', dq.quantity(t, 's')) for t in tm_uniq }
+
+        tm_d = { t: dm.getvalue(ep)[0].get_value('d') for t,ep in tm_epoch.items() }
 
         # create a direction measure per each field
         dir_field = { field: dm.direction('j2000', dq.quantity(ra, 'rad'), dq.quantity(dec, 'rad'))
                       for field,(ra,dec) in field_radec.items() }
 
+        fields += ["Sun"]
+        dir_field['Sun'] = dm.direction("SUN")
+        field_time['Sun'] = tm_uniq
+
+        # get starting date
+        import datetime
+        start_day = datetime.datetime.fromtimestamp(dq.quantity(tm_uniq[0], 's').to_unix_time()).strftime("%d %b %Y")
+
         # create a position measure for the antenna and set it as the frame
         pos_ant0 = dm.position('itrf', *[dq.quantity(x, 'm') for x in obs_xyz])
         dm.doframe(pos_ant0)
-        # get LST for each timeslot
-        tm_lst = { t: dm.getvalue(dm.measure(ep, 'LAST'))[0].get_value('h') for t,ep in tm_epoch.items() }
-        lst_h0 = int(min(tm_lst.values()))  # round to nearest starting hour
-        tm_lst = { t: lst - lst_h0 for t, lst in tm_lst.items() }
+
+        # convert to LST
+        tm_lst0 = dm.getvalue(dm.measure(tm_epoch[tm_uniq[0]], 'LAST'))[0].get_value('d')
+        offset = tm_lst0 - tm_d[tm_uniq[0]]  # offset from LST to UCT
+        def lst2utc(lst):
+            return lst - offset
+        def utc2lst(utc):
+            return utc + offset
 
         # get AZ/EL per each field and its timeslots
         field_lst_azel = {}
-        scan_labels = {}
+        scan_labels_el = {}
+        scan_labels_az = {}
 
         for field in fields:
             num_ts = len(field_time[field])
-            field_azel = field_lst_azel[field] = np.zeros((num_ts, 3), float)
+            field_azel = np.zeros((num_ts, 3), float)
             for its, t in enumerate(field_time[field]):
                 dm.doframe(pos_ant0)
                 dm.doframe(tm_epoch[t])
                 azel_meas = dm.measure(dir_field[field], 'AZELGEO')
                 azel_quant = dm.get_value(azel_meas)
-                field_azel[its, 0] = x = tm_lst[t]
-                field_azel[its, 1] = azel_quant[0].get_value('deg')
-                field_azel[its, 2] = y = azel_quant[1].get_value('deg')
+                field_azel[its, 0] = x = tm_d[t]
+                field_azel[its, 1] = az = azel_quant[0].get_value('deg')
+                field_azel[its, 2] = el = azel_quant[1].get_value('deg')
                 scan = scan_starts.get(t, None)
-                if scan is not None:
-                    scan_labels[x, y] = str(scan)
-
-
+                if scan is not None and field != "Sun":
+                    scan_labels_el[x, el] = str(scan)
+                    scan_labels_az[x, az] = str(scan)
+            mask = np.zeros_like(field_azel, bool)
+            mask[:] = (field_azel[:, 2]<0)[:, np.newaxis]
+            field_lst_azel[field] = numpy.ma.masked_array(field_azel, mask[np.newaxis, np.newaxis, :])
         figsize = numpy.array(figsize or self._default_figsize)/25.4
-        fig = pyplot.figure(figsize=figsize, dpi=self.options.dpi)
-        plt = fig.add_axes([self._borders[0], self._borders[2], self._borders[1] - self._borders[0],
-                            self._borders[3] - self._borders[2]])
+        # fig, (plt, plt_az) = pyplot.figure(figsize=figsize, dpi=self.options.dpi)
+        # plt = fig.add_axes([self._borders[0], self._borders[2], self._borders[1] - self._borders[0],
+        #                     self._borders[3] - self._borders[2]])
+        fig, (plt, plt_az) = pyplot.subplots(2, sharex=True, figsize=figsize, dpi=self.options.dpi)
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        for field in fields:
+            plt_az.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,1], '.', ms=self.options.marker_size)
+        plt_az.yaxis.set_tick_params(labelsize=self.options.tick_fontsize)
 
         for field in fields:
             plt.plot(field_lst_azel[field][:,0], field_lst_azel[field][:,2], '.', ms=self.options.marker_size, label=field)
+
         if self.options.scan_fontsize:
-            for (x, y), label in scan_labels.items():
+            for (x, y), label in scan_labels_el.items():
                 plt.text(x, y, label, horizontalalignment='left', verticalalignment='bottom',
                          fontdict=dict(fontsize=self.options.scan_fontsize))
+            for (x, y), label in scan_labels_az.items():
+                plt_az.text(x, y, label, horizontalalignment='left', verticalalignment='bottom',
+                         fontdict=dict(fontsize=self.options.scan_fontsize))
+        plt_az.xaxis.set_major_locator(matplotlib.dates.HourLocator())
+        plt_az.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%H:%M"))
+        plt_az.xaxis.set_tick_params(labelsize=self.options.tick_fontsize)
+        plt.yaxis.set_tick_params(labelsize=self.options.tick_fontsize)
+        secax = plt.secondary_xaxis('top', functions=(utc2lst, lst2utc))
+        secax.set_xlabel("LST", fontdict=dict(fontsize=self.options.axis_fontsize))
+        secax.xaxis.set_major_locator(matplotlib.dates.HourLocator())
+        secax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%H:%M"))
+        secax.xaxis.set_tick_params(labelsize=self.options.tick_fontsize)
         if self.options.axis_fontsize:
-            pyplot.xlabel('LST, h', fontdict=dict(fontsize=self.options.axis_fontsize))
-            pyplot.ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
+            pyplot.xlabel('UTC ({})'.format(start_day), fontdict=dict(fontsize=self.options.axis_fontsize))
+            plt.set_ylabel('Elevation, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
+            if plt_az:
+                plt_az.set_ylabel('Azimuth, deg', fontdict=dict(fontsize=self.options.axis_fontsize))
         if self.options.legend_fontsize:
-            pyplot.legend(loc='best', #bbox_to_anchor=(1, 0.5),
+            plt.legend(loc='best', #bbox_to_anchor=(1, 0.5),
                               fontsize=self.options.legend_fontsize)
 
-        for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()):
-            lab.set_fontsize(self.options.tick_fontsize)
-
+        # for lab in list(plt.get_xticklabels()) + list(plt.get_yticklabels()) + list(secax.get_xticklabels()):
+        #     lab.set_fontsize(self.options.tick_fontsize)
+        #
         if suptitle and self.options.title_fontsize:
             if self.options.subtitle:
                 suptitle = "%s (%s)" % (suptitle, self.options.subtitle)
-            pyplot.title(suptitle, fontsize=self.options.title_fontsize)
+            fig.suptitle(suptitle, fontsize=self.options.title_fontsize)
         if save:
             if self.options.portrait:
                 orientation = 'portrait'
