@@ -4,7 +4,6 @@
 import logging
 import os
 
-
 import casacore.measures
 import casacore.quanta as qa
 import casacore.measures
@@ -95,12 +94,15 @@ def ecef_to_enu(x, y, z, r_lon, r_lat, r_alt):
         Y in metres
     z: :obj:`float`
         Z in metres
-
     rx: :obj:`float`
         Reference latitude in degrees
     ry: :obj:`float`
         Reference longitude in degrees
 
+    Returns
+    -------
+    ee, en, eu: :obj:`float`
+        East, North Up positions in metres
     """
 
     logging.debug("Converting ECEF to ENU")
@@ -136,9 +138,7 @@ def wgs84_to_enu(lon, lat, alt, r_lon, r_lat, r_alt):
 
 
 def get_antenna_data(ms_name):
-    """
-    Return antenna ITRF positions and other data
-    """
+    """Return antenna ITRF positions and other data"""
 
     logging.debug("Getting antenna data")
 
@@ -171,6 +171,17 @@ def get_antenna_data(ms_name):
 
 
 def get_antenna_coords(positions, offsets, obs):
+    """Return antenna COFA coordinates, and antenna coordinates
+
+    Parameters
+    ----------
+    positions: :obj:`np.array`
+        Antenna ITRF positions
+    offset: :obj:`np.array`
+        Antenna offset positions
+    obs: :obj:`str`
+        Telescope name or observatory name
+    """
 
     logging.debug("Getting antenna coordinates")
 
