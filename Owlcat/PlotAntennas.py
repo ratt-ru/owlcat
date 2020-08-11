@@ -14,7 +14,7 @@ from collections import namedtuple
 
 from bokeh.plotting import figure
 from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, PreText
+from bokeh.models import ColumnDataSource, PreText, Legend
 from bokeh.io import output_file, save
 from bokeh.palettes import all_palettes, linear_palette
 
@@ -266,6 +266,10 @@ def plot_antennas(source, ms_name, nants):
         ("ITRF (x, y, z) [m]", "(@x{0.000}, @y{0.000}, @z{0.000})"),
     ]
 
+    # legend items
+    items = []
+    legs = []
+
     logging.debug("Initialising figure")
 
     fig = figure(plot_width=720, plot_height=1080, sizing_mode="stretch_both",
@@ -285,9 +289,26 @@ def plot_antennas(source, ms_name, nants):
                      axis_label_text_font_size="10pt",
                      axis_label_text_font_style="normal")
 
-    fig.scatter("e", "n", marker="circle",
-                fill_color="colors", line_color=None, size=30, fill_alpha=0.8,
-                source=source)
+    for _i in range(nants):
+        src = {}
+        for k, v in source.items():
+            src[k] = [v[_i]]
+        src = ColumnDataSource(data=src)
+        p = fig.circle("e", "n", fill_color="colors", line_color=None,
+                       size=30, fill_alpha=0.8, source=src)
+        items.append((src.data["name"][0], [p]))
+
+    # subgroup size
+    b_size = 16
+    for _i in range(0, len(items), b_size):
+        legs.append(Legend(items=items[_i: _i + b_size], click_policy="hide",
+                           orientation="horizontal", margin=3, padding=2,
+                           location="top_left", glyph_height=20,
+                           glyph_width=20, label_standoff=1, spacing=1))
+
+    legs.reverse()
+    for leg in legs:
+        fig.add_layout(leg, "above")
 
     infos = f"MS      : {ms_name}\n"
     infos += f"Antennas: {nants}"
@@ -339,13 +360,11 @@ def main(args):
     e, n, u = wgs84_to_enu(ant_lon, ant_lat, ant_alt, cofa_lon, cofa_lat,
                            cofa_alt)
 
-    source = ColumnDataSource(
-        data=dict(e=e, n=n, u=u,
+    source = dict(e=e, n=n, u=u,
                   lon=str_lon, lat=str_lat, el=str_el,
                   x=x, y=y, z=z,
                   name=ant.names, station=ant.stations,
                   colors=colors)
-    )
 
     plot = plot_antennas(source, ms_name, len(ant.names))
 
