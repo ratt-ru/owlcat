@@ -16,7 +16,6 @@ from bokeh.plotting import figure
 from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, PreText
 from bokeh.io import output_file, save
-from bokeh.palettes import all_palettes, linear_palette
 
 
 logging.basicConfig(
@@ -292,8 +291,10 @@ def plot_antennas(source, ms_name, nants):
                      axis_label_text_font_size="10pt",
                      axis_label_text_font_style="normal")
 
+    color = source.pop("color")
+
     source = ColumnDataSource(data=source)
-    p = fig.scatter("e", "n", line_width=2, line_color="#FC8103",
+    p = fig.scatter("e", "n", line_width=2, line_color=color,
                     marker="circle", fill_color=None, size=30, fill_alpha=0.8,
                     source=source)
     fig.text(x="e", y="n", text="name", text_align="center",
@@ -326,13 +327,13 @@ def main(args):
     if args.cmap:
         cmap = args.cmap
     else:
-        cmap = "Viridis"
+        cmap = "#FC8103"
 
     # get information from antenna data table
     ant = get_antenna_data(ms_name)
 
-    colors = all_palettes[cmap][max(all_palettes[cmap].keys())]
-    colors = linear_palette(colors, len(ant.names))
+    # colors = all_palettes[cmap][max(all_palettes[cmap].keys())]
+    # colors = linear_palette(colors, len(ant.names))
 
     # transform antenna coordinates
     coords = get_antenna_coords(ant.positions, ant.offsets, ant.telescope)
@@ -355,7 +356,7 @@ def main(args):
                   lon=str_lon, lat=str_lat, el=str_el,
                   x=x, y=y, z=z,
                   name=ant.names, station=ant.stations, indices=ant.indices,
-                  colors=colors)
+                  color=cmap)
 
     plot = plot_antennas(source, ms_name, len(ant.names))
 

@@ -11,13 +11,12 @@ def get_arguments():
     parser.add_argument("-ms", dest="ms_name", required=True, metavar='',
                         help="MS for antennas. This is required",
                         default=None)
-    parser.add_argument("-cmap", dest="cmap",  metavar='',
-                        help="""Use some colormap for the antennas. The
-                        default colour map is Virids. Allowable colours can
-                        be found at:
-            https://docs.bokeh.org/en/latest/docs/reference/palettes.html
-                        Note the case sensitivity.""", default=None)
-    parser.add_argument("-o", dest="o_file",  metavar='',
+    parser.add_argument("-c", "--colour", dest="cmap",  metavar='', type=str,
+                        help="""Use some color for antenna outline. Can be 
+                        specified as colour name or hex / rgb / rgba. If
+                        specified as hex value or rgb, use quotes. 
+                        e.g'#1ECBE1' or 'rgb(255, 0, 0)'. """, default=None)
+    parser.add_argument("-o", dest="o_file",  metavar='', type=str,
                         help="""Name to give output html file including the
                         file extension. e.g. 'test.html'. Default is
                         msName.html""", default=None)
