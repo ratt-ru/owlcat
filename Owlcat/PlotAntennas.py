@@ -293,11 +293,11 @@ def plot_antennas(source, ms_name, nants):
                      axis_label_text_font_style="normal")
 
     source = ColumnDataSource(data=source)
-    p = fig.scatter("e", "n", line_color="colors", line_width=2,
+    p = fig.scatter("e", "n", line_width=2, line_color="#FC8103",
                     marker="circle", fill_color=None, size=30, fill_alpha=0.8,
                     source=source)
     fig.text(x="e", y="n", text="name", text_align="center",
-             text_baseline="middle", text_font_size="9pt", source=source)
+             text_baseline="middle", text_font_size="7pt", source=source)
 
     fig.hover.renderers = [p]
 
