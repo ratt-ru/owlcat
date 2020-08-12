@@ -14,7 +14,7 @@ from collections import namedtuple
 
 from bokeh.plotting import figure
 from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, PreText, Legend
+from bokeh.models import ColumnDataSource, PreText
 from bokeh.io import output_file, save
 from bokeh.palettes import all_palettes, linear_palette
 
@@ -150,6 +150,7 @@ def get_antenna_data(ms_name):
     stations = ant_sub.getcol("STATION")
     offsets = ant_sub.getcol("OFFSET")
     positions = ant_sub.getcol("POSITION")
+    indices = ant_sub.rownumbers()
     ant_sub.close()
 
     # get the name of the observatory / telescope
@@ -163,9 +164,9 @@ def get_antenna_data(ms_name):
     logging.debug(f"Found: {len(names)} antennas")
 
     meta = namedtuple("antenna",
-                      "names, stations, positions, offsets, telescope")
+                      "names, stations, positions, offsets, telescope, indices")
     antenna = meta(names=names, stations=stations, positions=positions,
-                   offsets=offsets, telescope=obs)
+                   offsets=offsets, telescope=obs, indices=indices)
 
     return antenna
 
@@ -261,21 +262,23 @@ def plot_antennas(source, ms_name, nants):
     tooltips = [
         ("Antenna", "@name"),
         ("Station", "@station"),
+        ("Antenna index", "@indices"),
         ("Lon, Lat [dms]", "@lon, @lat"),
         ("E,N,U [m]", "(@e{0.000}, @n{0.000}, @u{0.000})"),
         ("ITRF (x, y, z) [m]", "(@x{0.000}, @y{0.000}, @z{0.000})"),
     ]
 
-    # legend items
-    items = []
-    legs = []
-
     logging.debug("Initialising figure")
 
-    fig = figure(plot_width=720, plot_height=1080, sizing_mode="stretch_both",
+    r_max = 1.1 * max(max(source["e"]), max(source["n"]))
+    r_min = 1.1 * min(min(source["e"]), min(source["n"]))
+    # ranges = (r_min, r_max)
+    ranges = None
+
+    fig = figure(plot_width=720, plot_height=720, sizing_mode="scale_height",
                  x_axis_label="East [m]", y_axis_label="North [m]",
                  title="Offset From Array Centre", toolbar_location="above",
-                 tooltips=tooltips)
+                 tooltips=tooltips, x_range=ranges, y_range=ranges)
 
     fig.update(outline_line_width=2, outline_line_color="#017afe",
                outline_line_alpha=0.4)
@@ -289,26 +292,14 @@ def plot_antennas(source, ms_name, nants):
                      axis_label_text_font_size="10pt",
                      axis_label_text_font_style="normal")
 
-    for _i in range(nants):
-        src = {}
-        for k, v in source.items():
-            src[k] = [v[_i]]
-        src = ColumnDataSource(data=src)
-        p = fig.circle("e", "n", fill_color="colors", line_color=None,
-                       size=30, fill_alpha=0.8, source=src)
-        items.append((src.data["name"][0], [p]))
+    source = ColumnDataSource(data=source)
+    p = fig.scatter("e", "n", line_color="colors", line_width=2,
+                    marker="circle", fill_color=None, size=30, fill_alpha=0.8,
+                    source=source)
+    fig.text(x="e", y="n", text="name", text_align="center",
+             text_baseline="middle", text_font_size="9pt", source=source)
 
-    # subgroup size
-    b_size = 16
-    for _i in range(0, len(items), b_size):
-        legs.append(Legend(items=items[_i: _i + b_size], click_policy="hide",
-                           orientation="horizontal", margin=3, padding=2,
-                           location="top_left", glyph_height=20,
-                           glyph_width=20, label_standoff=1, spacing=1))
-
-    legs.reverse()
-    for leg in legs:
-        fig.add_layout(leg, "above")
+    fig.hover.renderers = [p]
 
     infos = f"MS      : {ms_name}\n"
     infos += f"Antennas: {nants}"
@@ -363,7 +354,7 @@ def main(args):
     source = dict(e=e, n=n, u=u,
                   lon=str_lon, lat=str_lat, el=str_el,
                   x=x, y=y, z=z,
-                  name=ant.names, station=ant.stations,
+                  name=ant.names, station=ant.stations, indices=ant.indices,
                   colors=colors)
 
     plot = plot_antennas(source, ms_name, len(ant.names))
