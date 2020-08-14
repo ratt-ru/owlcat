@@ -1,6 +1,8 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import json
+import sys
 import logging
 import os
 
@@ -17,7 +19,6 @@ from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, PreText
 from bokeh.io import output_file, save
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)-15s %(filename)s %(levelname)s %(message)s")
@@ -26,7 +27,7 @@ logging.disable(logging.CRITICAL)
 
 
 def wgs84_to_ecef(lon, lat, alt):
-    """ 
+    """
     Convert wgs84(latitude (deg), longitude(deg), elevation(deg)) to
     Earth Centred Earth fixed coordinates (X(m), Y(m), Z(m)).
 
@@ -80,9 +81,9 @@ def wgs84_to_ecef(lon, lat, alt):
 
 def ecef_to_enu(x, y, z, r_lon, r_lat, r_alt):
     """
-    Convert ECEF coordinates to East, North, Up (m). Because the ENU is a 
+    Convert ECEF coordinates to East, North, Up (m). Because the ENU is a
     local coordinate system (to the observer/ antenna in this case)
-    an reference position / origin is required from which calculate the 
+    an reference position / origin is required from which calculate the
     relative positions.
 
     Parameters
@@ -170,7 +171,7 @@ def get_antenna_data(ms_name):
     return antenna
 
 
-def get_antenna_coords(positions, offsets, obs):
+def get_antenna_coords(positions, obs, offsets=None, cofa=None):
     """Return antenna COFA coordinates, and antenna coordinates
 
     Parameters
@@ -187,39 +188,51 @@ def get_antenna_coords(positions, offsets, obs):
 
     me = casacore.measures.measures()
 
-    x, y, z = positions.T.tolist()
-    x_off, y_off, z_off = offsets.T.tolist()
+    quantify = lambda coord, unit: qa.quantity(coord, unit)
 
     # make ITRF positions casacore quantities so that we can process using
     # casacore measurements
-    xq = qa.quantity(x, 'm')
-    yq = qa.quantity(y, 'm')
-    zq = qa.quantity(z, 'm')
 
-    xq_off = qa.quantity(x_off, 'm')
-    yq_off = qa.quantity(y_off, 'm')
-    zq_off = qa.quantity(z_off, 'm')
+    if casacore.measures.is_measure(positions):
+        baseline_me = positions
 
-    # make antenna positions into casacore measurements
-    baseline_me = me.position('itrf', v0=xq, v1=yq, v2=zq,
-                              off=[xq_off, yq_off, zq_off])
-
-    # get the list of observatories
-    obs_list = me.get_observatories()
-
-    if obs in obs_list:
-        # Get a (position) measure Centre of Array (cofa) for the given
-        # osbervatory. This is in WSG84 reference frame.
-
-        obs_cofa = me.observatory(obs)
-
-        # get the cofa's reference frame
-        obs_cofa = me.measure(obs_cofa, "WGS84")
-
-        # make this position the reference frame of the entire measurement
-        me.doframe(obs_cofa)
     else:
-        logging.error(f"COFA of Observatory: {obs} not found")
+        xq, yq, zq = list(map(quantify, positions.T, ["m", "m", "m"]))
+
+        if offsets is not None:
+            offsets = list(map(quantify, offsets.T, ["m", "m", "m"]))
+
+        # make antenna positions into casacore measurements
+        baseline_me = me.position('itrf', v0=xq, v1=yq, v2=zq,
+                                  off=offsets)
+
+    if cofa:
+        if casacore.measures.is_measure(cofa):
+            obs_cofa = cofa
+        else:
+            cofa = list(map(quantify, [float(_) for _ in cofa.split(",")],
+                            ["deg", "deg", "m"]))
+            obs_cofa = me.position("WGS84", *cofa)
+    else:
+        # get the list of observatories
+        obs_list = me.get_observatories()
+
+        if obs in obs_list:
+            # Get a (position) measure Centre of Array (cofa) for the given
+            # osbervatory. This is in WSG84 reference frame.
+            obs_cofa = me.observatory(obs)
+        else:
+            logging.error(f"COFA of Observatory: {obs} not found")
+
+    # get the cofa's reference frame
+    obs_cofa = me.measure(obs_cofa, "WGS84")
+
+    logging.debug("COFA: " +
+                  ", ".join([_.formatted("dd.mm.ss.t..")
+                             for _ in me.get_value(obs_cofa)]))
+
+    # make this position the reference frame of the entire measurement
+    me.doframe(obs_cofa)
 
     # latitude, longitude and elevation in degree, minute second string form
     # get this before changing reference frame
@@ -245,7 +258,64 @@ def get_antenna_coords(positions, offsets, obs):
     return coords
 
 
-def plot_antennas(source, ms_name, nants):
+def read_underlay_file(in_file):
+    # allowed units
+    allowed_us = {"deg", "m", "rad"}
+
+    # allowed rfs
+    allowed_rfs = {"WGS84", "ITRF"}
+
+    with open(in_file, "r") as rf:
+        data = json.load(rf)
+
+    for spec in ["cofa", "antenna"]:
+        rf = [data[spec]["rf"]]
+        unit = data[spec]["units"]
+
+        if not set(rf) <= allowed_rfs:
+            print(f"Invalid rf {data[spec]['rf']} for {spec}")
+            sys.exit(-1)
+
+        if not set(unit) <= allowed_us:
+            print(f"Invalid unit {data[spec]['units']} for {spec}")
+            sys.exit(-1)
+
+    return data
+
+
+def get_underlay_data(in_file):
+    data = read_underlay_file(in_file)
+
+    obs = data["obs"]
+
+    cofa_units = data["cofa"]["units"]
+    cofa_rf = data["cofa"]["rf"]
+    cofa_coords = data["cofa"]["coords"]
+
+    ant_units = data["antenna"]["units"]
+    ant_rf = data["antenna"]["rf"]
+    ant_pos = data["antenna"]["coords"]
+    names = list(ant_pos.keys())
+    ant_coords = np.array(list(ant_pos.values()))
+
+    quantify = lambda coord, unit: qa.quantity(coord, unit)
+    me = casacore.measures.measures()
+
+    c_lon, c_lat, c_el = list(map(quantify, cofa_coords, cofa_units))
+    cofa_me = me.position(rf=cofa_rf, v0=c_lon, v1=c_lat, v2=c_el)
+
+    a_lon, a_lat, a_el = list(map(quantify, ant_coords.T, ant_units))
+    ant_me = me.position(rf=ant_rf, v0=a_lon, v1=a_lat, v2=a_el)
+
+    underlay = namedtuple("underlay",
+                          "cofa, names, positions, offsets, telescope")
+    u_data = underlay(names=names, positions=ant_me, cofa=cofa_me,
+                      offsets=None, telescope=obs)
+
+    return u_data
+
+
+def plot_antennas(source, ms_name):
     """Make bokeh plot of the antennas
 
     Parameters
@@ -261,7 +331,8 @@ def plot_antennas(source, ms_name, nants):
     tooltips = [
         ("Antenna", "@name"),
         ("Station", "@station"),
-        ("Antenna index", "@indices"),
+        ("MS index", "@indices"),
+        ("Actual index", "@rindices"),
         ("Lon, Lat [dms]", "@lon, @lat"),
         ("E,N,U [m]", "(@e{0.000}, @n{0.000}, @u{0.000})"),
         ("ITRF (x, y, z) [m]", "(@x{0.000}, @y{0.000}, @z{0.000})"),
@@ -269,9 +340,8 @@ def plot_antennas(source, ms_name, nants):
 
     logging.debug("Initialising figure")
 
-    r_max = 1.1 * max(max(source["e"]), max(source["n"]))
-    r_min = 1.1 * min(min(source["e"]), min(source["n"]))
-    # ranges = (r_min, r_max)
+    nants = len(source["name"])
+    obs = source.pop("obs")
     ranges = None
 
     fig = figure(plot_width=720, plot_height=720, sizing_mode="scale_height",
@@ -293,17 +363,26 @@ def plot_antennas(source, ms_name, nants):
 
     color = source.pop("color")
 
+    r_source = {}
+    for refs in ["re", "rn", "ru", "rname"]:
+        r_source[refs] = source.pop(refs)
+
+    r_source = ColumnDataSource(data=r_source)
+
     source = ColumnDataSource(data=source)
-    p = fig.scatter("e", "n", line_width=2, line_color=color,
-                    marker="circle", fill_color=None, size=30, fill_alpha=0.8,
-                    source=source)
-    fig.text(x="e", y="n", text="name", text_align="center",
-             text_baseline="middle", text_font_size="7pt", source=source)
+
+    fig.circle(x="re", y="rn", source=r_source, color="grey", fill_color=None,
+               size=30)
+    p = fig.scatter("e", "n", line_width=2, line_color=color, marker="circle",
+                    fill_color=None, size=30, source=source)
+    fig.text(x="re", y="rn", text="rname", text_align="center",
+             text_baseline="middle", text_font_size="7pt", source=r_source)
 
     fig.hover.renderers = [p]
 
-    infos = f"MS      : {ms_name}\n"
-    infos += f"Antennas: {nants}"
+    infos = f"MS       : {ms_name}\n"
+    infos += f"Telescope: {obs}\n"
+    infos += f"Antennas : {nants}"
     pre = PreText(text=infos, sizing_mode="stretch_width")
 
     out_layout = column(children=[pre, fig], sizing_mode="stretch_both")
@@ -332,16 +411,9 @@ def main(args):
     # get information from antenna data table
     ant = get_antenna_data(ms_name)
 
-    # colors = all_palettes[cmap][max(all_palettes[cmap].keys())]
-    # colors = linear_palette(colors, len(ant.names))
-
     # transform antenna coordinates
-    coords = get_antenna_coords(ant.positions, ant.offsets, ant.telescope)
-
-    cofa_lon, cofa_lat, cofa_alt = coords.cofa
-
-    # antenna coords in lon / lat in radians
-    ant_lon, ant_lat, ant_alt = coords.ant_rad
+    coords = get_antenna_coords(ant.positions, ant.telescope,
+                                offsets=ant.offsets, cofa=args.cofa)
 
     # antenna coords in lon/ lat in string format
     str_lon, str_lat, str_el = coords.ant_str
@@ -349,16 +421,38 @@ def main(args):
     # ITRF positions
     x, y, z = ant.positions.T.tolist()
 
-    e, n, u = wgs84_to_enu(ant_lon, ant_lat, ant_alt, cofa_lon, cofa_lat,
-                           cofa_alt)
+    e, n, u = wgs84_to_enu(*coords.ant_rad, *coords.cofa)
 
-    source = dict(e=e, n=n, u=u,
-                  lon=str_lon, lat=str_lat, el=str_el,
-                  x=x, y=y, z=z,
-                  name=ant.names, station=ant.stations, indices=ant.indices,
-                  color=cmap)
+    if args.u_file:
+        u_file = args.u_file
+    else:
+        if ant.telescope == "MeerKAT":
+            u_file = os.path.join(os.path.dirname(__file__),
+                                  "data",
+                                  "MeerKAT_WGS84_underlay.json")
+        else:
+            u_file = None
 
-    plot = plot_antennas(source, ms_name, len(ant.names))
+    # get underlay data
+    if u_file:
+        u_data = get_underlay_data(u_file)
+        u_coords = get_antenna_coords(
+            u_data.positions, u_data.telescope, offsets=u_data.offsets,
+            cofa=u_data.cofa)
+
+        re, rn, ru = wgs84_to_enu(*u_coords.ant_rad, *u_coords.cofa)
+        r_names = u_data.names
+    else:
+        re, rn, ru = e, n, u
+        r_names = ant.names
+
+    source = dict(e=e, n=n, u=u, lon=str_lon, lat=str_lat, el=str_el,
+                  x=x, y=y, z=z, indices=ant.indices, color=cmap,
+                  name=ant.names, station=ant.stations, obs=ant.telescope,
+                  re=re, rn=rn, ru=ru, rname=r_names,
+                  rindices=np.where(np.isin(r_names, ant.names))[0])
+
+    plot = plot_antennas(source, ms_name)
 
     save(plot)
 
