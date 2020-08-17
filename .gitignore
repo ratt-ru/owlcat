@@ -4,3 +4,6 @@ debian/
 *.egg-info/
 dist/
 build/
+
+#cached python code
+**/__pycache__

@@ -8,7 +8,6 @@ import os
 
 import casacore.measures
 import casacore.quanta as qa
-import casacore.measures
 import numpy as np
 
 from casacore.tables import table
@@ -39,9 +38,9 @@ def wgs84_to_ecef(lon, lat, alt):
     Parameters
     ----------:
     lat: :obj:`float`
-        Latitude in degrees
+        Latitude in radians
     lon: :obj:`float`
-        Longitude in degrees
+        Longitude in radians
     alt: :obj:`float`
         Altitude in metres
 
@@ -94,10 +93,12 @@ def ecef_to_enu(x, y, z, r_lon, r_lat, r_alt):
         Y in metres
     z: :obj:`float`
         Z in metres
-    rx: :obj:`float`
-        Reference latitude in degrees
-    ry: :obj:`float`
-        Reference longitude in degrees
+    r_lon: :obj:`float`
+        Reference longitude in radians
+    r_lat: :obj:`float`
+        Reference latitude in radians
+    r_alt: :obj:`float`
+        Reference altitude in metres
 
     Returns
     -------
@@ -222,7 +223,7 @@ def get_antenna_coords(positions, obs, offsets=None, cofa=None):
             # osbervatory. This is in WSG84 reference frame.
             obs_cofa = me.observatory(obs)
         else:
-            logging.error(f"COFA of Observatory: {obs} not found")
+            logging.error(f"Centre of Array of Observatory: {obs} not found")
 
     # get the cofa's reference frame
     obs_cofa = me.measure(obs_cofa, "WGS84")
@@ -259,6 +260,21 @@ def get_antenna_coords(positions, obs, offsets=None, cofa=None):
 
 
 def read_underlay_file(in_file):
+    """Read file containing complete antenna layout for plotting.
+
+    An underlay file is a JSON file containing the coordinates of all of a
+    telescope's antennas. This includes the antennas that were not used for
+    the observation. By default, this script will only plot the antennas that
+    were used in the observation i.e. in the current MS. If the underlay file
+    is provided, antennas used in the observation will be shown in colour, in
+    -30.54417addition to the rest that were inactive, which will be denoted
+    by the colour grey.
+
+    Parameters
+    ----------
+    in_file: :obj:`str`
+        Input JSON file containing the telescope's antenna coordinates
+    """
     # allowed units
     allowed_us = {"deg", "m", "rad"}
 
@@ -273,17 +289,20 @@ def read_underlay_file(in_file):
         unit = data[spec]["units"]
 
         if not set(rf) <= allowed_rfs:
-            print(f"Invalid rf {data[spec]['rf']} for {spec}")
+            print(f"Invalid rf {rf} for {spec}")
             sys.exit(-1)
 
         if not set(unit) <= allowed_us:
-            print(f"Invalid unit {data[spec]['units']} for {spec}")
+            print(f"Invalid unit {unit} for {spec}")
             sys.exit(-1)
 
     return data
 
 
 def get_underlay_data(in_file):
+    """Parse underlay file data and create position measures for the
+    Centre of Array (COFA) and the antenna coordinates
+    """
     data = read_underlay_file(in_file)
 
     obs = data["obs"]
@@ -322,6 +341,8 @@ def plot_antennas(source, ms_name):
     ----------
     source: :obj:`ColumnDataSource`
         Data source containing the plot's data
+    ms_name: :obj:`str`
+        Name of the current MS
 
     Return
     ------
@@ -363,6 +384,7 @@ def plot_antennas(source, ms_name):
 
     color = source.pop("color")
 
+    # create reference data source object
     r_source = {}
     for refs in ["re", "rn", "ru", "rname"]:
         r_source[refs] = source.pop(refs)
@@ -402,7 +424,7 @@ def main(args):
 
     output_file(o_file)
 
-    # get colors
+    # get colors or set default active colour
     if args.cmap:
         cmap = args.cmap
     else:
@@ -411,7 +433,7 @@ def main(args):
     # get information from antenna data table
     ant = get_antenna_data(ms_name)
 
-    # transform antenna coordinates
+    # gather antenna coordinates
     coords = get_antenna_coords(ant.positions, ant.telescope,
                                 offsets=ant.offsets, cofa=args.cofa)
 
