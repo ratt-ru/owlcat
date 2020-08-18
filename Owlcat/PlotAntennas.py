@@ -143,23 +143,24 @@ def get_antenna_data(ms_name):
 
     logging.debug("Getting antenna data")
 
-    ms = table(ms_name, ack=False)
+    try:
+        # get antenna related information
+        ant_sub = table("::".join((ms_name, "ANTENNA")), ack=False)
 
-    # get antenna related information
-    ant_sub = table(ms.getkeyword("ANTENNA"), ack=False)
+        # get the name of the observatory / telescope
+        observ_sub = table("::".join((ms_name, "OBSERVATION")), ack=False)
+        obs = observ_sub.getcell("TELESCOPE_NAME", 0)
+        observ_sub.close()
+    except RuntimeError:
+        ant_sub = table(ms_name, ack=False)
+        obs = "Unknown"
+
     names = ant_sub.getcol("NAME")
     stations = ant_sub.getcol("STATION")
     offsets = ant_sub.getcol("OFFSET")
     positions = ant_sub.getcol("POSITION")
     indices = ant_sub.rownumbers()
     ant_sub.close()
-
-    # get the name of the observatory / telescope
-    observ_sub = table(ms.getkeyword("OBSERVATION"), ack=False)
-    obs = observ_sub.getcell("TELESCOPE_NAME", 0)
-    observ_sub.close()
-
-    ms.close()
 
     logging.debug(f"Telescope name: {obs}")
     logging.debug(f"Found: {len(names)} antennas")
