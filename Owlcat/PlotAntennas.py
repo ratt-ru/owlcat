@@ -224,7 +224,13 @@ def get_antenna_coords(positions, obs, offsets=None, cofa=None):
             # osbervatory. This is in WSG84 reference frame.
             obs_cofa = me.observatory(obs)
         else:
-            logging.error(f"Centre of Array of Observatory: {obs} not found")
+            # first antenna position
+            i_ant = positions[0]
+            ixq, iyq, izq = list(map(quantify, i_ant, ["m", "m", "m"]))
+            obs_cofa = me.position('itrf', v0=ixq, v1=iyq, v2=izq,
+                                   off=offsets)
+            logging.debug(f"Centre of Array of Observatory: {obs} not found.")
+            logging.debug("Defaulting to first antenna of the array")
 
     # get the cofa's reference frame
     obs_cofa = me.measure(obs_cofa, "WGS84")
@@ -353,8 +359,8 @@ def plot_antennas(source, ms_name):
     tooltips = [
         ("Antenna", "@name"),
         ("Station", "@station"),
-        ("MS index", "@indices"),
-        ("Actual index", "@rindices"),
+        ("Index in MS", "@indices"),
+        ("Index in full array", "@rindices"),
         ("Lon, Lat [dms]", "@lon, @lat"),
         ("E,N,U [m]", "(@e{0.000}, @n{0.000}, @u{0.000})"),
         ("ITRF (x, y, z) [m]", "(@x{0.000}, @y{0.000}, @z{0.000})"),
