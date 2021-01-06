@@ -57,11 +57,11 @@ if __name__ == "__main__":
     skyplot = LSTElevationPlot(options, output_type='x11' if options.display else 'png')
 
     for msname in args:
-        field_time, field_radec, obs_xyz = LSTElevationPlot.load_ms_fields(msname, verbose=1)
+        field_time, field_radec, obs_xyz, scans = LSTElevationPlot.load_ms_fields(msname, verbose=1)
         if options.list:
             continue
 
-        skyplot.make_figure(field_time, field_radec, obs_xyz,
+        skyplot.make_figure(field_time, field_radec, obs_xyz, scans,
                             suptitle=msname, save=options.output_name, display=options.display)
 
     if options.display and not options.list:
