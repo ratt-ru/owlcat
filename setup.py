@@ -14,6 +14,7 @@ install_requires = [
       'future-fstrings',
       'six',
       'future',
+      'bokeh'
 ]
 
 setup(name='owlcat',
@@ -26,4 +27,4 @@ setup(name='owlcat',
       install_requires=install_requires,
       scripts=['Owlcat/bin/' + i for i in os.listdir('Owlcat/bin')],
       data_files=[('Owlcat/bin/', ['Owlcat/bin/commands.list'])],
-)
+      )
