@@ -363,7 +363,7 @@ if __name__ == "__main__":
             fields = Owlcat.table(ms.getkeyword('FIELD'), ack=False).getcol('NAME')
 
             print("===> MS is %s" % msname)
-            print("  %d antennas: %s" % (len(ants), " ".join(ants)))
+            print("  %d antennas: %s" % (len(ants), " ".join(f"{num}:{name}" for num, name in enumerate(ants))))
             print("  %d DATA_DESC_ID(s): " % len(spwids))
             for i, (spw, pol) in enumerate(zip(spwids, polids)):
                 print("    %d: %.3f MHz, %d chans x %d correlations" % (
