@@ -4,20 +4,21 @@ import os
 from setuptools import setup
 
 install_requires = [
-    'astropy',
-    'numpy',
-    'matplotlib',
-    'python-casacore',
-    'meqtrees_cattery',
-    'scipy',
-    'astro-kittens',
-    'six',
-    'future',
-    'bokeh'
+      'astropy',
+      'numpy',
+      'matplotlib',
+      'python-casacore',
+      'meqtrees_cattery',
+      'scipy',
+      'astro-kittens',
+      'future-fstrings',
+      'six',
+      'future',
+      'bokeh'
 ]
 
 setup(name='owlcat',
-      version='1.6.3',
+      version='1.6.4',
       description='miscellaneous utility scripts for manipulating radio interferometry data',
       author='Oleg Smirnov',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',

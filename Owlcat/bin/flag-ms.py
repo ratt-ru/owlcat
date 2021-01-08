@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: future_fstrings -*-
 
 #
 # % $Id$
@@ -30,6 +30,9 @@ import os.path
 import sys
 import re
 import traceback
+import glob
+
+from casacore.tables.tableutil import tableexists
 import Owlcat.Tables
 
 flagger = parser = ms = msname = None
@@ -236,7 +239,7 @@ if __name__ == "__main__":
     group.add_option("--incr-stman", action="store_true",
                      help="force the use of the incremental storage manager for new BITFLAG columns. Default is to use same manager as DATA column.")
     group.add_option("-l", "--list", action="store_true",
-                     help="lists various info about the MS, including its flagsets.")
+                     help="lists various info about the MS, including its flagsets, and CASA flagversions, if available.")
     group.add_option("-s", "--stats", action="store_true",
                      help="prints per-flagset flagging stats.")
     group.add_option("-r", "--remove", metavar="FLAGSET(s)", type="string",
@@ -245,6 +248,8 @@ if __name__ == "__main__":
                      help="exports all flags to flag file. FILENAME may end with .gz to produce a gzip-compressed file. If any flagging actions are specified, these will be done before the export.")
     group.add_option("--import", type="string", dest="_import", metavar="FILENAME",
                      help="imports flags from flag file. If any flagging actions are specified, these will be done after the import.")
+    group.add_option("-R", "--restore", type="string", dest="restore", metavar="VERSION",
+                     help="imports flags from a CASA-style flagversion (use --list to list version names).")
     group.add_option("-v", "--verbose", metavar="LEVEL", type="int",
                      help="verbosity level for messages. Higher is more verbose, default is 0.")
     group.add_option("--timestamps", action="store_true",
@@ -282,9 +287,28 @@ if __name__ == "__main__":
             error("Error importing flags from %s, exiting" % options._import)
         print("Flags imported OK.")
 
+    # same for CASA flagversions
+    if options.restore:
+        flagvers = f"{msname}.flagversions/flags.{options.restore}"
+        if not Owlcat.tableexists(flagvers):
+            error(f"No such flagversion '{options.restore}'. Use --list to list available flag versions.")
+        try:
+            ms = get_ms(readonly=False)
+            ftab = Owlcat.table(flagvers)
+            flag_row = ftab.getcol("FLAG_ROW")
+            flag_col = ftab.getcol("FLAG")
+            ftab.close()
+            ms.putcol("FLAG_ROW", flag_row)
+            ms.putcol("FLAG", flag_col)
+            ms.close()
+        except:
+            traceback.print_exc()
+            error(f"Error restoring flags from {options.restore}, exiting")
+        print(f"Flag version '{options.restore}' restored.")
+
     # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
     if not (options.flag or options.unflag or options.copy or options.fill_legacy):
-        if options._import:
+        if options._import or options.restore:
             sys.exit(0)
         statonly = True
     else:
@@ -339,7 +363,7 @@ if __name__ == "__main__":
             fields = Owlcat.table(ms.getkeyword('FIELD'), ack=False).getcol('NAME')
 
             print("===> MS is %s" % msname)
-            print("  %d antennas: %s" % (len(ants), " ".join(ants)))
+            print("  %d antennas: %s" % (len(ants), " ".join(f"{num}:{name}" for num, name in enumerate(ants))))
             print("  %d DATA_DESC_ID(s): " % len(spwids))
             for i, (spw, pol) in enumerate(zip(spwids, polids)):
                 print("    %d: %.3f MHz, %d chans x %d correlations" % (
@@ -356,9 +380,18 @@ if __name__ == "__main__":
                         print("    '%s': %d (0x%02X)" % (name, mask, mask))
                 else:
                     print("  No flagsets.")
-            print("")
+            # now check for CASA flagversions
+            flagvers = [tab for tab in glob.glob(f"{msname}.flagversions/flags.*") if Owlcat.tableexists(tab)]
+            if flagvers:
+                print(f"  {len(flagvers)} CASA-style flagversions available for --restore")
+                for vers in flagvers:
+                    name = os.path.basename(vers).split('.', 1)[1]
+                    print(f"    '{name}'")
+            else:
+                print("  No CASA-style flagversions available.")
             if options.flag or options.unflag or options.copy or options.fill_legacy or options.remove:
                 print("-l/--list was in effect, so all other options were ignored.")
+            print("")
             sys.exit(0)
 
         if options.copy_legacy:
