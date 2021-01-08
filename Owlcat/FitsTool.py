@@ -528,6 +528,9 @@ def main():
         if autoname:
             outname = "paste%d_" % len(images) + outname
         print("Pasting images into canvas given by {}".format(imagenames[0]))
+        print("WARNING: the reference pixel of the pasted image will be aligned with the WCS of the canvas image,")
+        print("         but no WCS reprojection will be attempted. Results may be grossly incorrect if your WCSs")
+        print("         are sufficiently different. Use at own risk.")
         # get original image size and WCS
         data0 = images[0][0].data
         ny0, nx0 = data0.shape[-2:]

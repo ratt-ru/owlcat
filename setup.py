@@ -11,12 +11,13 @@ install_requires = [
       'meqtrees_cattery',
       'scipy',
       'astro-kittens',
+      'future-fstrings',
       'six',
       'future',
 ]
 
 setup(name='owlcat',
-      version='1.6.3',
+      version='1.6.4',
       description='miscellaneous utility scripts for manipulating radio interferometry data',
       author='Oleg Smirnov',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',
