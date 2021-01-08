@@ -300,11 +300,13 @@ if __name__ == "__main__":
             ftab.close()
             ms.putcol("FLAG_ROW", flag_row)
             ms.putcol("FLAG", flag_col)
+            flag_col[flag_row,...] = True
             ms.close()
+            ratio = flag_col.sum() / float(flag_col.size)
+            print(f"Flag version '{options.restore}' restored: {ratio:.2%} flagged.")
         except:
             traceback.print_exc()
             error(f"Error restoring flags from {options.restore}, exiting")
-        print(f"Flag version '{options.restore}' restored.")
 
     # if no other actions supplied, enable stats (unless flags were imported, in which case just exit)
     if not (options.flag or options.unflag or options.copy or options.fill_legacy):
