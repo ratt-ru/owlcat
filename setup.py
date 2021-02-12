@@ -4,6 +4,7 @@ import os
 from setuptools import setup
 
 install_requires = [
+
       'astropy',
       'numpy',
       'matplotlib',
