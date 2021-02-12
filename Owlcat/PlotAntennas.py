@@ -143,24 +143,24 @@ def get_antenna_data(ms_name):
 
     logging.debug("Getting antenna data")
 
-    try:
-        # get antenna related information
-        ant_sub = table("::".join((ms_name, "ANTENNA")), ack=False)
+    with table(ms_name, ack=False) as ms: 
+        if "OBSERVATION" in ms.keywordnames():
+            with table("::".join((ms_name, "OBSERVATION")), ack=False) as observ_sub:
+                obs = observ_sub.getcell("TELESCOPE_NAME", 0)
+        else:
+            obs = "unknown"
 
-        # get the name of the observatory / telescope
-        observ_sub = table("::".join((ms_name, "OBSERVATION")), ack=False)
-        obs = observ_sub.getcell("TELESCOPE_NAME", 0)
-        observ_sub.close()
-    except RuntimeError:
-        ant_sub = table(ms_name, ack=False)
-        obs = "Unknown"
+        if "ANTENNA" in ms.keywordnames():
+            ant_tab = ms.getkeyword("ANTENNA").split()[-1]
+        else:
+            ant_tab = ms_name
 
-    names = ant_sub.getcol("NAME")
-    stations = ant_sub.getcol("STATION")
-    offsets = ant_sub.getcol("OFFSET")
-    positions = ant_sub.getcol("POSITION")
-    indices = ant_sub.rownumbers()
-    ant_sub.close()
+        with table(ant_tab, ack=False) as ant_sub:
+            names = ant_sub.getcol("NAME")
+            stations = ant_sub.getcol("STATION")
+            offsets = ant_sub.getcol("OFFSET")
+            positions = ant_sub.getcol("POSITION")
+            indices = ant_sub.rownumbers()
 
     logging.debug(f"Telescope name: {obs}")
     logging.debug(f"Found: {len(names)} antennas")
