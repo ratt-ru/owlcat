@@ -18,7 +18,8 @@ install_requires = [
 ]
 
 setup(name='owlcat',
-      version='1.7.1',
+      version='1.7.2',
+      python_requires='>=3.6.0',
       description='miscellaneous utility scripts for manipulating radio interferometry data',
       author='Oleg Smirnov',
       author_email='Oleg Smirnov <osmirnov@gmail.com>',
