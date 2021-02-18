@@ -31,6 +31,7 @@ import sys
 import re
 import traceback
 import glob
+import numpy as np
 
 from casacore.tables.tableutil import tableexists
 import Owlcat.Tables
@@ -140,6 +141,22 @@ def parse_subset_options(options):
     for opt in 'data_flagmask', 'flagmask', 'flagmask_all', 'flagmask_none':
         subset[opt] = getattr(options, opt)
     return subset
+
+def copy_chunked_flags(tab_from, tab_to, chunk_size):
+    """copies FLAG column in a chunked way. Returns two sums"""
+    nrows = tab_from.nrows()
+    fc_sum = fc_size = 0
+    for row0 in range(0, nrows, chunk_size):
+        n = min(nrows - row0, chunk_size)
+        fr = tab_from.getcol("FLAG_ROW", row0, n)
+        fc = tab_from.getcol("FLAG", row0, n)
+        fc[fr,:,:] = True
+        if tab_to is not None:
+            tab_to.putcol("FLAG_ROW", fr, row0, n)
+            tab_to.putcol("FLAG", fc, row0, n)
+        fc_sum += fc.sum(dtype=np.int64)
+        fc_size += fc.size
+    return fc_sum / float(fc_size)
 
 
 if __name__ == "__main__":
@@ -299,14 +316,9 @@ if __name__ == "__main__":
         try:
             ms = get_ms(readonly=False)
             ftab = Owlcat.table(flagvers)
-            flag_row = ftab.getcol("FLAG_ROW")
-            flag_col = ftab.getcol("FLAG")
+            ratio = copy_chunked_flags(ftab, ms, options.chunk_size)
             ftab.close()
-            ms.putcol("FLAG_ROW", flag_row)
-            ms.putcol("FLAG", flag_col)
-            flag_col[flag_row,...] = True
             ms.close()
-            ratio = flag_col.sum() / float(flag_col.size)
             print(f"Flag version '{options.restore}' restored: {ratio:.2%} flagged.")
         except:
             traceback.print_exc()
@@ -543,11 +555,8 @@ if __name__ == "__main__":
                 for vers in flagvers:
                     name = os.path.basename(vers).split('.', 1)[1]
                     ftab = Owlcat.table(vers, ack=False)
-                    flag_row = ftab.getcol("FLAG_ROW")
-                    flag_col = ftab.getcol("FLAG")
+                    ratio = copy_chunked_flags(ftab, None, options.chunk_size)
                     ftab.close()
-                    flag_col[flag_row,...] = True
-                    ratio = flag_col.sum() / float(flag_col.size)
                     print(f"    '{name}': {ratio:.2%} of all data flagged.")
             else:
                 print("  No CASA-style flagversions available.")
@@ -614,34 +623,29 @@ if __name__ == "__main__":
         if Owlcat.tableexists(flagvers) and not options.force:
             error(f"Flagversion '{options.save}' already exists. Please run with --force to confirm overwrite.")
         try:
-            ms = get_ms(readonly=False)
-            nr = ms.nrows()
-            flag_row = ms.getcol("FLAG_ROW")
-            flag_col = ms.getcol("FLAG")
+            ms = get_ms(readonly=True)
             fr_desc = ms.getcoldesc("FLAG_ROW")
             fc_desc = ms.getcoldesc("FLAG")
-            ms.close()
             if os.path.exists(flagvers):
                 os.system(f"rm -fr {flagvers}")
             from casacore.tables import maketabdesc
             fr_desc['name'] = "FLAG_ROW"
             fc_desc['name'] = "FLAG"
             td = maketabdesc([dict(name='FLAG_ROW', desc=fr_desc), dict(name='FLAG', desc=fc_desc)])
-            ftab = Owlcat.table(flagvers, tabledesc=td, readonly=False, nrow=nr)
-            ftab.putcol("FLAG_ROW", flag_row)
-            ftab.putcol("FLAG", flag_col)
+            ftab = Owlcat.table(flagvers, tabledesc=td, readonly=False, nrow=ms.nrows())
+            ratio = copy_chunked_flags(ms, ftab, options.chunk_size)
             ftab.close()
-            ratio = flag_col.sum() / float(flag_col.size)
+            ms.close()
             print(f"Flag version '{options.save}' saved: {ratio:.2%} flagged.")
             # add to list
             try:
                 version_list_file = f"{msname}.flagversions/FLAG_VERSION_LIST"
-                version_list = open(version_list_file).readlines()
+                version_list = open(version_list_file, encoding="ascii").readlines()
                 versions = set(line.split(':', 1)[0].strip() for line in  version_list)
                 if options.save in versions:
                     print(f"Flag version '{options.save}' is present in CASA's FLAG_VERSION_LIST.")
                 else:
-                    with open(version_list_file, "wt") as fo:
+                    with open(version_list_file, "wt", encoding="ascii") as fo:
                         for line in version_list:
                             fo.write(line.rstrip() + "\n")
                         fo.write(f"{options.save} :\n")
