@@ -249,7 +249,11 @@ if __name__ == "__main__":
     group.add_option("--import", type="string", dest="_import", metavar="FILENAME",
                      help="imports flags from flag file. If any flagging actions are specified, these will be done after the import.")
     group.add_option("-R", "--restore", type="string", dest="restore", metavar="VERSION",
-                     help="imports flags from a CASA-style flagversion (use --list to list version names).")
+                     help="restores flags from a CASA-style flagversion (use --list to list version names).")
+    group.add_option("--save", type="string", dest="save", metavar="VERSION",
+                     help="saves flags to a CASA-style flagversion.")
+    group.add_option("--force", action="store_true",
+                     help="with --save: force overwrite of a CASA-style flagversion, if it exists.")
     group.add_option("-v", "--verbose", metavar="LEVEL", type="int",
                      help="verbosity level for messages. Higher is more verbose, default is 0.")
     group.add_option("--timestamps", action="store_true",
@@ -267,7 +271,7 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     if len(args) != 1:
         parser.error("Incorrect number of arguments. Use '-h' for help.")
-    msname = args[0]
+    msname = args[0].rstrip("/")
 
     import Owlcat
 
@@ -385,7 +389,7 @@ if __name__ == "__main__":
             # now check for CASA flagversions
             flagvers = [tab for tab in glob.glob(f"{msname}.flagversions/flags.*") if Owlcat.tableexists(tab)]
             if flagvers:
-                print(f"  {len(flagvers)} CASA-style flagversions available for --restore")
+                print(f"  {len(flagvers)} CASA-style flagversions available for --restore:")
                 for vers in flagvers:
                     name = os.path.basename(vers).split('.', 1)[1]
                     print(f"    '{name}'")
@@ -531,6 +535,25 @@ if __name__ == "__main__":
                         nvis_A, nvis_A * percent))
                 print(
                     "===>   %-29s includes %10d visibilities (%.3g%% of selection)" % (label, nv, nv * percent))
+                    
+            # now check for stats over CASA flagversions
+            flagvers = [tab for tab in glob.glob(f"{msname}.flagversions/flags.*") if Owlcat.tableexists(tab)]
+            if flagvers:
+                print(f"Stats for CASA-style flagversions:")
+                for vers in flagvers:
+                    name = os.path.basename(vers).split('.', 1)[1]
+                    ftab = Owlcat.table(vers, ack=False)
+                    flag_row = ftab.getcol("FLAG_ROW")
+                    flag_col = ftab.getcol("FLAG")
+                    ftab.close()
+                    flag_col[flag_row,...] = True
+                    ratio = flag_col.sum() / float(flag_col.size)
+                    print(f"    '{name}': {ratio:.2%} of all data flagged.")
+            else:
+                print("  No CASA-style flagversions available.")
+            if options.flag or options.unflag or options.copy or options.fill_legacy or options.remove:
+                print("-l/--list was in effect, so all other options were ignored.")
+            print("")
             sys.exit(0)
 
         # else not stats mode, do the actual flagging job
@@ -585,3 +608,49 @@ if __name__ == "__main__":
             traceback.print_exc()
             error("Error exporting flags to %s" % options.export)
         print("Flags exported OK.")
+
+    if options.save:
+        flagvers = f"{msname}.flagversions/flags.{options.save}"
+        if Owlcat.tableexists(flagvers) and not options.force:
+            error(f"Flagversion '{options.save}' already exists. Please run with --force to confirm overwrite.")
+        try:
+            ms = get_ms(readonly=False)
+            nr = ms.nrows()
+            flag_row = ms.getcol("FLAG_ROW")
+            flag_col = ms.getcol("FLAG")
+            fr_desc = ms.getcoldesc("FLAG_ROW")
+            fc_desc = ms.getcoldesc("FLAG")
+            ms.close()
+            if os.path.exists(flagvers):
+                os.system(f"rm -fr {flagvers}")
+            from casacore.tables import maketabdesc
+            fr_desc['name'] = "FLAG_ROW"
+            fc_desc['name'] = "FLAG"
+            td = maketabdesc([dict(name='FLAG_ROW', desc=fr_desc), dict(name='FLAG', desc=fc_desc)])
+            ftab = Owlcat.table(flagvers, tabledesc=td, readonly=False, nrow=nr)
+            ftab.putcol("FLAG_ROW", flag_row)
+            ftab.putcol("FLAG", flag_col)
+            ftab.close()
+            ratio = flag_col.sum() / float(flag_col.size)
+            print(f"Flag version '{options.save}' saved: {ratio:.2%} flagged.")
+            # add to list
+            try:
+                version_list_file = f"{msname}.flagversions/FLAG_VERSION_LIST"
+                version_list = open(version_list_file).readlines()
+                versions = set(line.split(':', 1)[0].strip() for line in  version_list)
+                if options.save in versions:
+                    print(f"Flag version '{options.save}' is present in CASA's FLAG_VERSION_LIST.")
+                else:
+                    with open(version_list_file, "wt") as fo:
+                        for line in version_list:
+                            fo.write(line.rstrip() + "\n")
+                        fo.write(f"{options.save} :\n")
+                    print(f"Flag version '{options.save}' added to CASA's FLAG_VERSION_LIST.")
+            except Exception:
+                traceback.print_exc()
+                print("There was an error writing CASA's FLAG_VERSION_LIST file.")
+                print("Your new flag version might not be recognized by CASA's flagmanager.")
+
+        except:
+            traceback.print_exc()
+            error(f"Error saving flags to {options.save}, exiting")
