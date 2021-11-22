@@ -6,6 +6,8 @@ RUN docker-apt-install libblitz0-dev python3-dev libblas-dev liblapack-dev libqd
 
 # casacore wheels no longer work and we need python 3 support, so build from source
 
+RUN pip3 install -U pip setuptools wheel
+
 #####################################################################
 ## BUILD CASACORE FROM SOURCE
 #####################################################################
