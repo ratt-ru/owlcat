@@ -194,7 +194,7 @@ class PlotCollection(object):
                         plt.set_xticks(list(range(0, nx, xgrid[1])), True)
                 for x in plt.get_xticks():
                     plt.axvline(x, color='0.7', ls='-', lw=1, zorder=-10)
-                for x in plt.get_xticks(True):
+                for x in plt.get_xticks(minor=True):
                     plt.axvline(x, color='0.9', ls='-', lw=1, zorder=-10)
                 plt.set_xlim(0, nx)
         fig.subplots_adjust(left=mleft, right=1 - mright, top=1 - mtop, bottom=mbottom, wspace=0.01)
@@ -317,13 +317,13 @@ class PlotCollectionSep(PlotCollection):
                         plt.set_xticks(list(range(0, nx, xgrid[1])), True)
                 for x in plt.get_xticks():
                     plt.axvline(x, color='0.7', ls='-', lw=1, zorder=-10)
-                for x in plt.get_xticks(True):
+                for x in plt.get_xticks(minor=True):
                     plt.axvline(x, color='0.9', ls='-', lw=1, zorder=-10)
                 plt.set_xlim(0, nx)
             if ygrid:
                 for y in plt.get_yticks():
                     plt.axhline(y, color='0.7', ls='-', lw=1, zorder=-10)
-                for y in plt.get_yticks(True):
+                for y in plt.get_yticks(minor=True):
                     plt.axhline(y, color='0.9', ls='-', lw=1, zorder=-10)
                 plt.set_ylim(y0, y1)
 
