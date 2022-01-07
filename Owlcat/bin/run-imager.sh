@@ -161,7 +161,7 @@ set | grep ^img_ | cut -c 5-
 
 # expand size into arcmin and npix
 if [ "$img_arcmin" != "" -a "$img_npix" != 0 ]; then
-  img_cellsize=`python -c "print '%farcmin'%$img_arcmin/float($img_npix)"`
+  img_cellsize=`python3 -c "print('%farcmin'%$img_arcmin/float($img_npix)")`
 elif [ "$img_cellsize" == "" -o "$img_npix" == "" ]; then
   if [ "$img_size" == "" ]; then
     echo "ERROR: one of size, arcmin & npix, or cellsize & npix must be specified"
@@ -169,7 +169,7 @@ elif [ "$img_cellsize" == "" -o "$img_npix" == "" ]; then
   fi
   local _arcmin=${img_size#*/}
   img_npix=${img_size%/*}
-  img_cellsize=`python -c "print '%farcmin'%$_arcmin/float($img_npix)"`
+  img_cellsize=`python3 -c "print('%farcmin'%$_arcmin/float($img_npix)")`
 fi
 
 # print baseline settings
