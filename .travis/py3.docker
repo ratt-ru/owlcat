@@ -80,18 +80,18 @@ WORKDIR /code
 ADD . /code/owlcat
 RUN pip3 install ./owlcat
 WORKDIR /src
-RUN git clone -b v1.7.0 https://github.com/ska-sa/meqtrees-cattery.git
-RUN git clone -b v1.5.0 https://github.com/ska-sa/purr.git
-RUN git clone -b v1.6.0 https://github.com/ska-sa/owlcat.git
-RUN git clone -b v1.4.3 https://github.com/ska-sa/kittens.git
-RUN git clone -b v1.6.0 https://github.com/ska-sa/tigger-lsm.git
-RUN git clone -b v1.7.1 https://github.com/ska-sa/pyxis.git
+RUN git clone -b v1.7.3 https://github.com/ska-sa/meqtrees-cattery.git
+RUN git clone -b v1.5.3 https://github.com/ska-sa/purr.git
+RUN git clone -b v1.7.7 https://github.com/ska-sa/owlcat.git
+RUN git clone -b v1.4.6 https://github.com/ska-sa/kittens.git
+RUN git clone -b v1.7.1 https://github.com/ska-sa/tigger-lsm.git
+RUN git clone -b v1.7.4.3 https://github.com/ska-sa/pyxis.git
 
 RUN pip3 install ./meqtrees-cattery ./purr ./kittens ./tigger-lsm
 RUN pip3 install -e ./pyxis
 
 WORKDIR /src
-RUN git clone -b v1.8.0 https://github.com/ska-sa/meqtrees-timba.git
+RUN git clone -b v1.8.2 https://github.com/ska-sa/meqtrees-timba.git
 RUN mkdir /src/meqtrees-timba/build
 WORKDIR /src/meqtrees-timba/build
 RUN cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DENABLE_PYTHON_3=ON ..
@@ -99,7 +99,6 @@ RUN make -j4
 RUN make install
 RUN ldconfig
 
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.6 2
 # basic install tests
 RUN flag-ms.py --help
 RUN meqtree-pipeliner.py --help
