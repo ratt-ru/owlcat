@@ -66,18 +66,22 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     crval = hdr['CRVAL%d' % fits_ind]
 
     imslice = [slice(None)] * naxis
-    _sorted = sorted([pyfits.open(fits) for fits in fitslist],
-                     key=lambda a: a[0].header['CRVAL%d' % (naxis - axis)])
+
+    # get headers, but don't keep the FITS files open (too many open files!)
+    _hdr_filenames = [(pyfits.open(fits)[0].header, fits) for fits in fitslist]
+
+    _sorted = sorted(_hdr_filenames,
+                     key=lambda a: a[0]['CRVAL%d' % (naxis - axis)])
 
     # define structure of new FITS file
-    nn = [hd[0].header['NAXIS%d' % (naxis - axis)] for hd in _sorted]
+    nn = [header['NAXIS%d' % (naxis - axis)] for header, _ in _sorted]
     shape = list(hdu.data.shape)
     shape[axis] = sum(nn)
     data = numpy.zeros(shape, dtype=float)
 
-    for i, hdu0 in enumerate(_sorted):
-        h = hdu0[0].header
-        d = hdu0[0].data
+    for i, (h, fitsfile) in enumerate(_sorted):
+        ff = pyfits.open(fitsfile)
+        d = ff[0].data
         imslice[axis] = list(range(sum(nn[:i]), sum(nn[:i + 1])))
         data[imslice] = d
         if crval > h['CRVAL%d' % fits_ind]:
@@ -88,6 +92,7 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
             hdr['BPA%d' % (i + 1)] = h['BPA']
         except KeyError:
             pass
+        ff.close()
 
     # update header
     hdr['CRVAL%d' % fits_ind] = crval
@@ -264,7 +269,7 @@ def main():
                       help="replace header KEY with VALUE. Use KEY=VALUE for floats and KEY='VALUE' for strings.")
     parser.add_option("-D", "--delete-header", metavar="KEY", type="string", action="append",
                       help="Remove KEY from header")
-    parser.add_option("--stack", metavar="outfile:axis",
+    parser.add_option("--stack", metavar="[OUTFILE:]AXIS",
                       help="Stack a list of FITS images along a given axis. This axis may given as an integer"
                            "(as it appears in the NAXIS keyword), or as a string (as it appears in the CTYPE keyword)")
     parser.add_option("--reorder",
@@ -273,7 +278,7 @@ def main():
                       help="Add axis to a FITS image. The AXIS will be described by CTYPE:CRVAL:CRPIX:CDELT[:CUNIT:CROTA]. "
                            "The keywords in brackets are optinal, while those not in brackets are mendatory. "
                            "This axis will be the last dimension. Maybe specified more than once.")
-    parser.add_option("--unstack", metavar="prefix:axis:each_chunk",
+    parser.add_option("--unstack", metavar="PREFIX:AXIS:EACH_CHUNK",
                       help="Unstack a FITS image into smaller chunks each having [each_chunk] planes along a given axis. "
                            "This axis may given as an integer (as it appears in the NAXIS keyword), or as a string "
                            "(as it appears in the CTYPE keyword)")
@@ -295,19 +300,17 @@ def main():
     if not imagenames:
         parser.error("No images specified. Use '-h' for help.")
 
-    # print "%d input image(s): %s"%(len(imagenames),", ".join(imagenames))
-    images = [pyfits.open(img) for img in imagenames]
-    updated = False
-
     # Stack FITS images
     if options.stack:
         if len(imagenames) < 1:
             parser.error("Need more than one image to stack")
-        stack_args = options.stack.split(":")
-        if len(stack_args) != 2:
-            parser.error("Two --stack options are required. See ./fitstool.py -h")
+        if ':' in options.stack:
+            outfile, axis = options.stack.split(":", 1)
+        else:
+            if not options.output:
+                parser.error("Specify output file with -o/--output or --stack OUTFILE:AXIS")
 
-        outfile, axis = stack_args
+            outfile, axis = options.output, options.stack 
 
         _string = True
         try:
@@ -318,6 +321,7 @@ def main():
 
         stack_planes(imagenames, ctype=axis if _string else None, keep_old=not options.delete_files,
                      axis=None if _string else axis, outname=outfile, fits=True)
+        sys.exit(0)
 
     # Unstack FITS image
     if options.unstack:
@@ -343,6 +347,11 @@ def main():
                        axis=None if _string else axis, prefix=prefix, fits=True,
                        keep_old=not options.delete_files)
         sys.exit(0)
+
+    # print "%d input image(s): %s"%(len(imagenames),", ".join(imagenames))
+    images = [pyfits.open(img) for img in imagenames]
+    updated = False
+
 
     if options.add_axis:
         for axis in options.add_axis:
