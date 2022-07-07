@@ -41,7 +41,7 @@ SANITIZE_DEFAULT = 12345e-7689
 
 def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old=False, fits=False):
     """ Stack a list of fits files along a given axiis.
-       
+
        fitslist: list of fits file to combine
        outname: output file name
        axis: axis along which to combine the files
@@ -82,8 +82,8 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
     for i, (h, fitsfile) in enumerate(_sorted):
         ff = pyfits.open(fitsfile)
         d = ff[0].data
-        imslice[axis] = list(range(sum(nn[:i]), sum(nn[:i + 1])))
-        data[imslice] = d
+        imslice[axis] = slice(sum(nn[:i]), sum(nn[:i + 1]))
+        data[tuple(imslice)] = d
         if crval > h['CRVAL%d' % fits_ind]:
             crval = h['CRVAL%d' % fits_ind]
         try:
@@ -108,9 +108,9 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
 
 
 def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fits=False, keep_old=True):
-    """ 
-        Unstack FITS image along a given axis into multiple 
-        images each having each_chunk planes along that axis 
+    """
+        Unstack FITS image along a given axis into multiple
+        images each having each_chunk planes along that axis
     """
 
     prefix = prefix or fitsname[:-5]  # take everthing but .FITS/.fits
@@ -160,8 +160,8 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fit
 
 
 def reorder(fitsname, order=[], outfile=None):
-    """ 
-    Re-order FITS image axes. 
+    """
+    Re-order FITS image axes.
 
     Example:
         If your FITS files has axes (NAXIS{1,2,3,4})-> RA, DEC, STOKES, FREQ
@@ -310,7 +310,7 @@ def main():
             if not options.output:
                 parser.error("Specify output file with -o/--output or --stack OUTFILE:AXIS")
 
-            outfile, axis = options.output, options.stack 
+            outfile, axis = options.output, options.stack
 
         _string = True
         try:
