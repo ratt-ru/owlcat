@@ -202,8 +202,15 @@ class PlotCollection(object):
         if suptitle:
             fig.suptitle(suptitle, y=ytitle, size=8)
         if save:
-            fig.savefig(save, papertype=papertype, dpi=dpi,
-                        orientation='portrait' if not landscape else 'landscape')
+            dicokwargs = {
+                "dpi": dpi
+            }
+            # fix for matplotlib becoming stricter on papertype
+            if matplotlib.get_backend() == "ps":
+                dicokwargs["papertype"] = papertype
+                dicokwargs["orientation"] = 'portrait' if not landscape else 'landscape'
+
+            fig.savefig(save, **dicokwargs)
             print("===> Wrote", save)
         return fig
 
@@ -494,8 +501,14 @@ class ScatterPlot(object):
         if suptitle:
             fig.suptitle(suptitle, y=ytitle, size=10)
         if save:
-            fig.savefig(save, papertype=papertype, dpi=dpi,
-                        orientation='portrait' if not landscape else 'landscape')
+            dicokwargs = {
+                "dpi": dpi
+            }
+            # fix for matplotlib becoming stricter on papertype
+            if matplotlib.get_backend() == "ps":
+                dicokwargs["papertype"] = papertype
+                dicokwargs["orientation"] = 'portrait' if not landscape else 'landscape'
+            fig.savefig(save, **dicokwargs)
             print("===> Wrote", save)
         return fig
 
@@ -810,8 +823,15 @@ class MultigridPlot(AbstractBasePlot):
                 orientation = 'landscape'
             else:
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
-            fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
-                        orientation=orientation)
+            dicokwargs = {
+                "dpi": self.options.dpi
+            }
+            # fix for matplotlib becoming stricter on papertype
+            if matplotlib.get_backend() == "ps":
+                dicokwargs["papertype"] = self.options.papertype
+                dicokwargs["orientation"] = orientation
+            
+            fig.savefig(save, **dicokwargs)
             print("Wrote", save, "in", orientation, "orientation")
             fig = None
             pyplot.close("all")
@@ -965,8 +985,15 @@ class SkyPlot(AbstractBasePlot):
                 orientation = 'landscape'
             else:
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
-            fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
-                        orientation=orientation)
+            dicokwargs = {
+                "dpi": self.options.dpi
+            }
+            # fix for matplotlib becoming stricter on papertype
+            if matplotlib.get_backend() == "ps":
+                dicokwargs["papertype"] = self.options.papertype
+                dicokwargs["orientation"] = orientation
+            
+            fig.savefig(save, **dicokwargs)
             print("Wrote", save, "in", orientation, "orientation")
             fig = None
             pyplot.close("all")
@@ -1137,8 +1164,15 @@ class LSTElevationPlot(AbstractBasePlot):
                 orientation = 'landscape'
             else:
                 orientation = 'portrait' if figsize[0] < figsize[1] else 'landscape'
-            fig.savefig(save, papertype=self.options.papertype, dpi=self.options.dpi,
-                        orientation=orientation)
+            dicokwargs = {
+                "dpi": self.options.dpi
+            }
+            # fix for matplotlib becoming stricter on papertype
+            if matplotlib.get_backend() == "ps":
+                dicokwargs["papertype"] = self.options.papertype
+                dicokwargs["orientation"] = orientation
+
+            fig.savefig(save, **dicokwargs)
             print("Wrote", save, "in", orientation, "orientation")
             fig = None
             pyplot.close("all")
