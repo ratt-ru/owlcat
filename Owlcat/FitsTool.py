@@ -126,18 +126,18 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,
         If True will axis FITS ordering axes
     ctype : str
         Axis label in the fits header (if given, axis will be ignored)
-    prefix: str
+    prefix : str
         Prefix of output files
-    suffix: str
+    suffix : str
         Suffix/extension of outputs files
-    pol_labels: list
+    pol_labels : list
         Labels to use in naming stokes output images
-    keep_old: bool
+    keep_old : bool
         Keep component files after combining?
 
     Returns
     -------
-    outfiles: list
+    outfiles : list
         List of fits files
     """
 
