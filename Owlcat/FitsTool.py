@@ -107,13 +107,42 @@ def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old
             os.system('rm -f %s' % fits)
 
 
-def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fits=False, keep_old=True):
+def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None,
+                   suffix=None, fits=False, pol_labels=None, keep_old=True):
     """
         Unstack FITS image along a given axis into multiple
         images each having each_chunk planes along that axis
+
+
+    Parameters
+    ----------
+    fitsname : str
+        Name of fits file to unstack
+    each_chunk : int
+        unstack chunk number
+    axis : str
+        axis along which to combine the files
+    fits : bool
+        If True will axis FITS ordering axes
+    ctype : str
+        Axis label in the fits header (if given, axis will be ignored)
+    prefix : str
+        Prefix of output files
+    suffix : str
+        Suffix/extension of outputs files
+    pol_labels : list
+        Labels to use in naming stokes output images
+    keep_old : bool
+        Keep component files after combining?
+
+    Returns
+    -------
+    outfiles : list
+        List of fits files
     """
 
     prefix = prefix or fitsname[:-5]  # take everthing but .FITS/.fits
+    suffix = suffix or '.fits'
     hdu = pyfits.open(fitsname)
     hdr = hdu[0].header
     data = hdu[0].data.copy()
@@ -139,15 +168,18 @@ def unstack_planes(fitsname, each_chunk, axis=None, ctype=None, prefix=None, fit
     nstacks = hdr['NAXIS%d' % (naxis - axis)]
     nchunks = nstacks // each_chunk
     print(("The FITS file %s has %s stacks along this axis. Breaking it up to %d images" % (fitsname, nstacks, nchunks)))
+    if pol_labels:
+        assert nchunks == len(pol_labels), \
+            f"Chunks ({nchunks}) and number of polarization labels {pol_labels} should be the same"
 
     outfiles = []
     for i in range(0, nchunks):
         _slice = [slice(None)] * naxis
         _slice[axis] = list(range(i * each_chunk, (i + 1) * each_chunk if i + 1 != nchunks else nstacks))
-        hdu[0].data = data[_slice].astype(numpy.float32)
+        hdu[0].data = data[tuple(_slice)].astype(numpy.float32)
         hdu[0].header['CRVAL%d' % (naxis - axis)] = crval + i * cdelt * each_chunk
         hdu[0].header['CRPIX%d' % (naxis - axis)] = 1
-        outfile = '%s-%04d.fits' % (prefix, i)
+        outfile = '%s-%s%s' % (prefix, pol_labels[i], suffix) if pol_labels else '%s-%04d%s' % (prefix, i, suffix)
         outfiles.append(outfile)
         print(("Making chunk %d : %s. File is %s" % (i, repr(_slice[axis]), outfile)))
         hdu.writeto(outfile, overwrite=True)
@@ -282,13 +314,19 @@ def main():
                       help="Unstack a FITS image into smaller chunks each having [each_chunk] planes along a given axis. "
                            "This axis may given as an integer (as it appears in the NAXIS keyword), or as a string "
                            "(as it appears in the CTYPE keyword)")
+    parser.add_option("-x", "--suffix", dest="suffix", type="string",
+                      help="Extension/suffix of output FITS files e.g. '.fits' or -image.fits")
+    parser.add_option("--pol-labels", dest="pol_labels", type="string",
+                      help="Polarization labels of unstacked output files e.g. 'I,Q,U,V' or 'IQ,UV' "
+                           "Note this will also depend on the number of Stokes parameters available and/or chunking. "
+                           "By default, the labels will employ numerical indexing e.g. 0000")
     parser.add_option("--delete-files", action="store_true",
                       help="Delete original file(s) after stacking/unstacking using --stack/--unstack")
     parser.add_option("-H", "--header", action="store_true", help="print header(s) of input image(s)")
     parser.add_option("-s", "--stats", action="store_true",
                       help="print stats on images and exit. No output images will be written.")
     parser.add_option("-F", "--file_pattern",
-                      help="Speicfy input images via a pattern string, e.g, \"prefix*June2016.fits\". NB: The qouatation marks are important.")
+                      help="Specify input images via a pattern string, e.g, \"prefix*June2016.fits\". NB: The quotation marks are important.")
 
     parser.set_defaults(output="", mean=False, zoom=0, rescale=1, edit_header=[], delete_header=[])
 
@@ -333,6 +371,10 @@ def main():
             parser.error("Two --unstack options are required. See ./fitstool.py -h")
 
         prefix, axis, each_chunk = unstack_args
+        suffix = options.suffix
+        pol_labels = None
+        if options.pol_labels:
+            pol_labels = [pol for pol in options.pol_labels.split(',')]
 
         _string = True
         try:
@@ -344,7 +386,8 @@ def main():
         each_chunk = int(each_chunk)
 
         unstack_planes(image, each_chunk, ctype=axis if _string else None,
-                       axis=None if _string else axis, prefix=prefix, fits=True,
+                       axis=None if _string else axis, prefix=prefix,
+                       suffix=suffix, fits=True, pol_labels=pol_labels,
                        keep_old=not options.delete_files)
         sys.exit(0)
 
