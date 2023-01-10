@@ -318,8 +318,8 @@ def main():
                       help="Extension/suffix of output FITS files e.g. '.fits' or -image.fits")
     parser.add_option("--pol-labels", dest="pol_labels", type="string",
                       help="Polarization labels of unstacked output files e.g. 'I,Q,U,V' or 'IQ,UV' "
-                           "Note this will also depend on the number of stokes params available and/ chunking."
-                           "By default the labels are gonna be numerical indexes e.g. 0000")
+                           "Note this will also depend on the number of stokes params available and/or chunking. "
+                           "By default, the labels will employ numerical indexing e.g. 0000")
     parser.add_option("--delete-files", action="store_true",
                       help="Delete original file(s) after stacking/unstacking using --stack/--unstack")
     parser.add_option("-H", "--header", action="store_true", help="print header(s) of input image(s)")
