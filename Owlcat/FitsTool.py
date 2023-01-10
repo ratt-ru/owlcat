@@ -318,7 +318,7 @@ def main():
                       help="Extension/suffix of output FITS files e.g. '.fits' or -image.fits")
     parser.add_option("--pol-labels", dest="pol_labels", type="string",
                       help="Polarization labels of unstacked output files e.g. 'I,Q,U,V' or 'IQ,UV' "
-                           "Note this will also depend on the number of stokes params available and/or chunking. "
+                           "Note this will also depend on the number of Stokes parameters available and/or chunking. "
                            "By default, the labels will employ numerical indexing e.g. 0000")
     parser.add_option("--delete-files", action="store_true",
                       help="Delete original file(s) after stacking/unstacking using --stack/--unstack")
@@ -326,7 +326,7 @@ def main():
     parser.add_option("-s", "--stats", action="store_true",
                       help="print stats on images and exit. No output images will be written.")
     parser.add_option("-F", "--file_pattern",
-                      help="Speicfy input images via a pattern string, e.g, \"prefix*June2016.fits\". NB: The qouatation marks are important.")
+                      help="Specify input images via a pattern string, e.g, \"prefix*June2016.fits\". NB: The quotation marks are important.")
 
     parser.set_defaults(output="", mean=False, zoom=0, rescale=1, edit_header=[], delete_header=[])
 
