@@ -38,7 +38,6 @@ import glob
 
 SANITIZE_DEFAULT = 12345e-7689
 
-
 def stack_planes(fitslist, outname='combined.fits', axis=0, ctype=None, keep_old=False, fits=False):
     """ Stack a list of fits files along a given axiis.
 
@@ -286,8 +285,10 @@ def main():
                       help="product of input images")
     parser.add_option("-t", "--transfer", action="store_true",
                       help="transfer data from image 2 into image 1, preserving the FITS header of image 1")
-    parser.add_option("-z", "--zoom", dest="zoom", type="int", metavar="NPIX",
-                      help="zoom into central region of NPIX x NPIX size")
+    parser.add_option("-z", "--zoom", dest="zoom", type="string", metavar="NPIX or NX,NY", 
+                      help="zoom/pad to central region of NPIX×NPIX or NX,NY pixels")
+    parser.add_option("--nanpad", dest="nan_pad", action="store_true",
+                      help="Pad images with NaN when zooming, otherwise default to zeros")
     parser.add_option("-p", "--paste", action="store_true",
                       help="paste image(s) into first image, using the nearest WCS pixel positions. See also --empty-canvas")
     parser.add_option("--empty-canvas", action="store_true",
@@ -629,8 +630,16 @@ def main():
 
     if options.zoom:
         z = options.zoom
+
+        if ',' in z:
+            zx = int(z.split(',')[0])
+            zy = int(z.split(',')[1])
+        else:
+            zx = int(z)
+            zy = zx
+
         if autoname:
-            outname = "zoom%d_" % z + outname
+            outname = f"zoom_{zx}_{zy}_" + outname
         if len(images) > 1:
             print("Too many input images specified for this operation, at most 1 expected")
             sys.exit(2)
@@ -639,13 +648,24 @@ def main():
         ny = data.shape[-2]
         # make output array of shape z x z
         zdata_shape = list(data.shape)
-        zdata_shape[-1] = zdata_shape[-2] = z
-        zdata = numpy.zeros(zdata_shape, dtype=data.dtype)
+        zdata_shape[-1] = zx
+        zdata_shape[-2] = zy
+
+        if options.nan_pad and not numpy.issubdtype(data.dtype, numpy.floating):
+            print("Warning: NaN padding requested but image dtype is not float; using zeros instead.")
+
+        if numpy.issubdtype(data.dtype, numpy.floating) and options.nan_pad:
+            zdata = numpy.full(zdata_shape, numpy.nan, dtype=data.dtype)
+        else:
+            zdata = numpy.zeros(zdata_shape, dtype=data.dtype)
+        #zdata = numpy.zeros(zdata_shape, dtype=data.dtype)
+
         # make input/output slices
         rx, ry = nx//2, ny//2
-        rx0 = ry0 = z//2
-        xout, xin = compute_in_out_slice(nx, z, rx, rx0)
-        yout, yin = compute_in_out_slice(ny, z, ry, ry0)
+        rx0 = zx//2
+        ry0 = zy//2
+        xout, xin = compute_in_out_slice(nx, zx, rx, rx0)
+        yout, yin = compute_in_out_slice(ny, zy, ry, ry0)
 
         zdata[..., yout, xout] = data[..., yin, xin]
 
