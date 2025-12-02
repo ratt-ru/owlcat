@@ -287,7 +287,7 @@ def main():
                       help="transfer data from image 2 into image 1, preserving the FITS header of image 1")
     parser.add_option("-z", "--zoom", dest="zoom", type="string", metavar="NPIX or NX,NY", 
                       help="zoom/pad to central region of NPIX×NPIX or NX,NY pixels")
-    parser.add_option("--nanpad", dest="nan_pad", action="store_true",
+    parser.add_option("--nan-pad", dest="nan_pad", action="store_true",
                       help="Pad images with NaN when zooming, otherwise default to zeros")
     parser.add_option("-p", "--paste", action="store_true",
                       help="paste image(s) into first image, using the nearest WCS pixel positions. See also --empty-canvas")
@@ -632,14 +632,13 @@ def main():
         z = options.zoom
 
         if ',' in z:
-            zx = int(z.split(',')[0])
-            zy = int(z.split(',')[1])
+            zx, zy = map(int, z.split(','))
         else:
             zx = int(z)
             zy = zx
 
         if autoname:
-            outname = f"zoom_{zx}_{zy}_" + outname
+            outname = "zoom%d_" % zx + outname
         if len(images) > 1:
             print("Too many input images specified for this operation, at most 1 expected")
             sys.exit(2)
