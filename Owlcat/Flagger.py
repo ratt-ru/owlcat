@@ -116,7 +116,7 @@ def _format_clip(arg, argname):
 BITFLAG_NBITS = dict(uchar=8, short=16, int=32)
 
 # mapping from casacore table valueType to numpy dtype
-BITFLAG_DTYPES = dict(uchar=np.uint8, short=np.int16, int=np.int32)
+BITFLAG_DTYPES = dict(uchar=np.uint8, short=np.uint16, int=np.uint32)
 
 
 
@@ -191,6 +191,7 @@ class Flagsets(object):
                         ms.flush()
             else:
                 self.order = []
+        
         self.LEGACY = 1 << self.NBITS
         self.BITMASK_ALL = self.LEGACY - 1
 
@@ -662,11 +663,15 @@ class Flagger(verbosity):
                             self._visflags = ms.getcol('BITFLAG', row0, nrows)
                             self.dprint(2, "read BITFLAG column")
                             self._visflags |= ms.getcol('BITFLAG_ROW', row0, nrows)[:, np.newaxis, np.newaxis]
-                            self.bf_type = self._visflags.dtype.type
                         else:
                             self._visflags = np.zeros_like(legacy_flag_column, self.flagsets.dtype)
                             self.dprint(2, "formed empty BITFLAGs (type {}) because part (or all) of the column is undefined".format(self.flagsets.dtype))
                         self._bf_type = self._visflags.dtype.type
+                        # numpy >= 1.26 has become stricter with type casting
+                        if self._bf_type == np.int16:
+                            self._bf_type = np.uint16
+                        elif self._bf_type == np.int32:
+                            self._bf_type = np.uint32
                     return self._visflags
 
                 # apply stats
