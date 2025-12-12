@@ -532,7 +532,7 @@ if __name__ == "__main__":
             for flagset in list(flagger.flagsets.names() or []) + ["+L"]:
                 nv = stats[flagset]
                 # print them
-                if flagset is "+L":
+                if flagset == "+L":
                     label = "legacy FLAG/FLAG_ROW"
                 else:
                     label = "Flagset %s (0x%02X)" % (flagset, flagger.flagsets.flagmask(flagset))
