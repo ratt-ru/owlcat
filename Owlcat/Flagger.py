@@ -743,7 +743,7 @@ class Flagger(verbosity):
                     datamask = ~vismask
                     # and mask stuff in data_flagmask
                     if data_flagmask is not None:
-                        datamask |= ((bitflags() & data_flagmask) != 0)
+                        datamask |= ((bitflags().astype(type(data_flagmask)) & data_flagmask) != 0)
                     datacol = np.ma.masked_array(datacol, datamask)
                     self.dprintf(4, "datamask contains %d masked visibilities\n", datamask.sum())
                     self.dprintf(3, "At start of clipping we have %d visibilities\n", vismask.sum())
