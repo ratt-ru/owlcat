@@ -505,7 +505,7 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
         if bitflags:
             if 'BITFLAG' in ms.colnames():
                 bf = subms.getcol('BITFLAG')
-                flagcol |= ((bf & numpy.uint32(bitflags)bitflags) != 0)
+                flagcol |= ((bf & numpy.uint32(bitflags)) != 0)
             if 'BITFLAG_ROW' in ms.colnames():
                 bfr = subms.getcol('BITFLAG_ROW')
                 flagcol |= ((bfr & numpy.uint32(bitflags)) != 0)[:, numpy.newaxis, numpy.newaxis]
