@@ -505,10 +505,10 @@ and/or TaQL query (-Q/--taql) options. Or was your MS empty to begin with?""")
         if bitflags:
             if 'BITFLAG' in ms.colnames():
                 bf = subms.getcol('BITFLAG')
-                flagcol |= ((bf & bitflags) != 0)
+                flagcol |= ((bf & numpy.uint32(bitflags)) != 0)
             if 'BITFLAG_ROW' in ms.colnames():
                 bfr = subms.getcol('BITFLAG_ROW')
-                flagcol |= ((bfr & bitflags) != 0)[:, numpy.newaxis, numpy.newaxis]
+                flagcol |= ((bfr & numpy.uint32(bitflags)) != 0)[:, numpy.newaxis, numpy.newaxis]
         flagcol = flagcol[:, freqslice, :]
         nf = flagcol.sum()
         print("===> %d of %d (%.2g%%) visibilities are flagged " % (nf, flagcol.size, (nf / float(flagcol.size)) * 100))
