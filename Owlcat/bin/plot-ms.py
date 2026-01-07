@@ -299,7 +299,7 @@ BITFLAG/FLAG columns are shared among all data columns.
     # go through list of arguments, or default list
     for arg in (args[1:] or ["I"]):
         # parse as "[column[.reduce]:]plot[.reduce]"
-        m = re.match('^(\w+)(\.(\w+))?(:(\w+)(.(\w+))?)?$', arg)
+        m = re.match(r'^(\w+)(\.(\w+))?(:(\w+)(.(\w+))?)?$', arg)
         if not m:
             parser.error("'%s': invalid argument" % arg)
         g = m.groups()
@@ -365,7 +365,7 @@ BITFLAG/FLAG columns are shared among all data columns.
         ddids = [ms.getcol('DATA_DESC_ID', 0, 1)[0]]
         print("===> Using first DATA_DESC_ID (%d)" % ddids[0])
     # else see if it's a single int
-    elif re.match('^\d+$', ddid_str):
+    elif re.match(r'^\d+$', ddid_str):
         ddids = [int(options.ddid)]
     # else parse as list of ints, or 'all'. In this case we need extra info from the tables
     else:
