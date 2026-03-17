@@ -12,7 +12,6 @@ install_requires = [
       'meqtrees_cattery',
       'scipy',
       'astro-kittens',
-      'future-fstrings',
       'six',
       'future',
       'bokeh'
